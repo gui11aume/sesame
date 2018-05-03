@@ -1,0 +1,8 @@
+*.o
+*.so
+*swp
+*~
+*.gcda
+*.gcno
+*.gcov
+.vimtags

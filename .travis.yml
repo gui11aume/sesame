@@ -1,0 +1,8 @@
+language: c
+compiler:
+  - gcc
+  - clang
+branches:
+  only:
+    - master
+script: cd unittest && make test

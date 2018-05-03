@@ -40,8 +40,10 @@ debug: $(P)
 	gdb --command=.debug.gdb --args $(P)
 
 valgrind: $(P)
-	#valgrind --vgdb=yes --vgdb-error=0 ./$(P)
 	valgrind --leak-check=full --show-leak-kinds=all ./$(P)
+
+vgdb: $(P)
+	valgrind --vgdb=yes --vgdb-error=0 ./$(P)
 
 unittests_compute_mem_prob.gcda gmon.out: $(P)
 	-./$(P)

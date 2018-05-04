@@ -437,13 +437,16 @@ new_trunc_pol_w
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   // In the special case N = 0, the polynomial v is
-   // undefined, but we return a zero polynomial.
-   if (N == 0) return new;
+   // In the special case N = 0, the polynomial v is undefined,
+   // but we return a zero polynomial. In the special case N = 1,
+   // the polynomial is defined and null, but we skip the
+   // calculations below because the coefficients would be non-zero
+   // due to rounding errors.
+   if (N < 2) return new;
 
    // See definition of polynomial v.
    new->mono.deg = deg;
-   double numer =  aN(deg) - aN(deg-1) - gN(deg) + dN(deg-1);
+   double numer = aN(deg) - aN(deg-1) - gN(deg) + dN(deg-1);
    double denom = 1.0 - pow(1-U/3.0, N);
    new->mono.coeff = numer / denom * pow(1.0-P, deg);
    new->coeff[deg] = new->mono.coeff;
@@ -1008,6 +1011,7 @@ compute_mem_prob // VISIBLE //
       // 'special_matrix_mult()', otherwise the result is not
       // guaranteed // to be correct.
       special_matrix_mult(powM1, M, M);
+
       // Update weighted generating function with two-segment reads.
       trunc_pol_update_add(w, powM1->term[2*G+1]);
 

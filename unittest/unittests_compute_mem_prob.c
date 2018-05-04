@@ -1659,6 +1659,247 @@ test_error_new_zero_matrix
 
 
 void
+test_new_matrix_M
+(void)
+{
+
+   trunc_pol_t *nspct;
+
+   int success = set_params_mem_prob(17, 100, 0.01, 0.05);
+   test_assert_critical(success);
+
+   // Test martrix M with one duplicate because the
+   // polynomials are particularly simple in this case.
+   matrix_t *M = new_matrix_M(1);
+   test_assert_critical(M != NULL);
+   
+   const int dim = 2*17+1;
+
+   // Test first row.
+   for (int j = 0 ; j < dim ; j++) {
+      test_assert(M->term[j] == NULL);
+   }
+
+   // Second row, first term (T polynomial).
+   test_assert_critical(M->term[dim] != NULL);
+   nspct = M->term[dim];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   for (int i = 0 ; i <= 16 ; i++) {
+      double target = pow(.99*.95,i);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= 100 ; i++) {
+      test_assert(nspct->coeff[i] == 0);
+   }
+
+   // Second row, second term.
+   test_assert_critical(M->term[dim+1] != NULL);
+   nspct = M->term[dim+1];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = pow(.99*.95,i-1) * .01*(1-.05/3);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 100 ; i++) {
+      test_assert(nspct->coeff[i] == 0);
+   }
+
+   // Second row, third term.
+   test_assert_critical(M->term[dim+2] != NULL);
+   nspct = M->term[dim+2];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 100 ; i++) {
+      double target = pow(.99*.95,i-1) * .01*.05/3;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Second row, u terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[dim+2+j] != NULL);
+      nspct = M->term[dim+2+j];
+      double target = pow(.99*.95,G-j-1) * .99*.05;
+      test_assert(nspct->mono.deg == G-j);
+      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
+      for (int i = 0 ; i <= 100 ; i++) {
+         if (i == G-j)
+            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+         else
+            test_assert(nspct->coeff[i] == 0);
+      }
+   }
+
+   // End of second row.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert(M->term[dim+G+1+j] == NULL);
+   }
+
+   // Third row, first term (T polynomial).
+   test_assert_critical(M->term[2*dim] != NULL);
+   nspct = M->term[2*dim];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   for (int i = 0 ; i <= 100 ; i++) {
+      double target = pow(.99*.95,i);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, second term.
+   test_assert_critical(M->term[2*dim+1] != NULL);
+   nspct = M->term[2*dim+1];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 100 ; i++) {
+      double target = pow(.99*.95,i-1) * .01*(1-.05/3);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, third term.
+   test_assert_critical(M->term[2*dim+2] != NULL);
+   nspct = M->term[2*dim+2];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 100 ; i++) {
+      double target = pow(.99*.95,i-1) * .01*.05/3;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, v terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[2*dim+2+j] != NULL);
+      nspct = M->term[2*dim+2+j];
+      double target = pow(.99*.95,G-j-1) * .99*.05;
+      test_assert(nspct->mono.deg == G-j);
+      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
+      for (int i = 0 ; i <= 100 ; i++) {
+         if (i == G-j)
+            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+         else
+            test_assert(nspct->coeff[i] == 0);
+      }
+   }
+
+   // Third row, w terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[2*dim+G+1+j] != NULL);
+      nspct = M->term[2*dim+G+1+j];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+   }
+
+   // First middle series of rows.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      // T polynomials.
+      test_assert_critical(M->term[(j+2)*dim] != NULL);
+      nspct = M->term[(j+2)*dim];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= j-1 ; i++) {
+         double target = pow(.99,i);
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = j ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // D polynomials.
+      test_assert_critical(M->term[(j+2)*dim+1] != NULL);
+      nspct = M->term[(j+2)*dim+1];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      test_assert(nspct->coeff[0] == 0);
+      for (int i = 1 ; i <= j ; i++) {
+         double target = pow(.99,i-1) * .01*(1-.05/3);
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = j+1 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Tilde D polynomials.
+      test_assert_critical(M->term[(j+2)*dim+2] != NULL);
+      nspct = M->term[(j+2)*dim+2];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      test_assert(nspct->coeff[0] == 0);
+      for (int i = 1 ; i <= j ; i++) {
+         double target = pow(.99,i-1) * .01*.05/3;
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = j+1 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Rest of the rows.
+      for (int i = 1 ; i <= 2*G-2 ; i++) {
+         test_assert(M->term[(j+2)*dim+2+i] == NULL);
+      }
+
+   }
+
+   // Second middle series of rows.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      // T polynomials.
+      test_assert_critical(M->term[(j+G+1)*dim] != NULL);
+      nspct = M->term[(j+G+1)*dim];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // C polynomials.
+      test_assert_critical(M->term[(j+G+1)*dim+1] != NULL);
+      nspct = M->term[(j+G+1)*dim+1];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Tilde C polynomials.
+      test_assert_critical(M->term[(j+G+1)*dim+2] != NULL);
+      nspct = M->term[(j+G+1)*dim+2];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Row of y polynomials.
+      for (int i = 1 ; i < j ; i++) {
+         test_assert_critical(M->term[(j+G+1)*dim+2+i] != NULL);
+         nspct = M->term[(j+G+1)*dim+2+i];
+         test_assert(nspct->mono.deg == 0);
+         test_assert(nspct->mono.coeff == 0);
+         for (int i = 0 ; i <= 100 ; i++) {
+            test_assert(nspct->coeff[i] == 0);
+         }
+      }
+
+      // Rest of the rows.
+      for (int i = j ; i <= 2*G-2 ; i++) {
+         test_assert(M->term[(j+G+1)*dim+2+i] == NULL);
+      }
+
+   }
+
+   destroy_mat(M);
+   clean_mem_prob();
+
+}
+
+
+void
 test_error_new_matrix_M
 (void)
 {
@@ -1854,6 +2095,7 @@ const test_case_t test_cases_compute_mem_prob[] = {
    {"error_new_null_matrix",       test_error_new_null_matrix},
    {"new_zero_matrix",             test_new_zero_matrix},
    {"error_new_zero_matrix",       test_error_new_zero_matrix},
+   {"new_matrix_M",                test_new_matrix_M},
    {"error_new_matrix_M",          test_error_new_matrix_M},
    {"compute_mem_prob",            test_compute_mem_prob},
    {"error_compute_mem_prob",      test_error_compute_mem_prob},

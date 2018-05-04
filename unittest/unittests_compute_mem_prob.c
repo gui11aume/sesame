@@ -1304,7 +1304,8 @@ test_new_trunc_pol_T_down
    const double denom = 1-pow(1-.05/3,2);
    test_assert(T_down->mono.deg == 0);
    test_assert(T_down->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
+   test_assert(T_down->coeff[0] == 1);
+   for (int i = 1 ; i <= 50 ; i++) {
       double target = (1-pow(1-pow(1-.05,i)*.05/3,2)) / \
                denom * pow(1-.01,i);
       test_assert(fabs(T_down->coeff[i]-target) < 1e-9);
@@ -1364,7 +1365,8 @@ test_new_trunc_pol_T_ddown
 
    test_assert(T_ddown->mono.deg == 0);
    test_assert(T_ddown->mono.coeff == 0);
-   for (int i = 0 ; i <= 16 ; i++) {
+   test_assert(T_ddown->coeff[0] == 1);
+   for (int i = 1 ; i <= 16 ; i++) {
       double target = (1-pow(1-pow(1-.05,i),2)) * pow(1-.01,i);
       test_assert(fabs(T_ddown->coeff[i]-target) < 1e-9);
    }
@@ -1427,7 +1429,8 @@ test_new_trunc_pol_T_up
 
    test_assert(T_up->mono.deg == 0);
    test_assert(T_up->mono.coeff == 0);
-   for (int i = 0 ; i <= 10 ; i++) {
+   test_assert(T_up->coeff[0] == 1);
+   for (int i = 1 ; i <= 10 ; i++) {
       double target = pow(1-.01,i);
       test_assert(fabs(T_up->coeff[i]-target) < 1e-9);
    }
@@ -1506,7 +1509,8 @@ test_new_trunc_pol_T_sim
       pow(1-pow(1-.05,5)*.05/3,2) - \
       pow(1-pow(1-.05,6),2) + \
       pow(1-(1-.05+.05*.05/3)*pow(1-.05,5),2);
-   for (int i = 0 ; i <= 10 ; i++) {
+   test_assert(T_sim->coeff[0] == 1);
+   for (int i = 1 ; i <= 10 ; i++) {
       double num = \
          pow(1-pow(1-.05,6)*.05/3,2) - \
          pow(1-pow(1-.05,5)*.05/3,2) - \

@@ -885,12 +885,18 @@ trunc_pol_update_add
 
 
 matrix_t *
-matrix_mult
+special_matrix_mult
 (
          matrix_t * dest,
    const matrix_t * a,
    const matrix_t * b
 )
+// This matrix multipication is "special" because it ignores all
+// the terms on the right of the first NULL value for each row of
+// the left matrix. This is done for optimization purposes and the
+// matrices used here are designed in such a way that the result
+// is correct, but in general, the code cannot be used for other
+// applications.
 {
 
    if (a->dim != dest->dim || b->dim != dest->dim) {
@@ -933,11 +939,13 @@ compute_mem_prob // VISIBLE //
    
    // Those variables must be declared here so that
    // they can be cleaned in case of failure.
-   trunc_pol_t  *w = NULL;
-   matrix_t     *M = NULL;
-   matrix_t *powM1 = NULL;
-   matrix_t *powM2 = NULL;
+   trunc_pol_t *       w = NULL;  // Result.
+   matrix_t *          M = NULL;  // Transfer matix.
+   matrix_t *      powM1 = NULL;  // Computation intermediate.
+   matrix_t *      powM2 = NULL;  // Computation intermediate.
 
+   // Check if sequencing parameters were set. Otherwise
+   // warn user and fail gracefully (return nan).
    if (G == 0 || K == 0 || P == 0 || U == 0 || KSZ == 0) {
       warning("parameters unset: call `set_params_mem_prob'",
             __func__, __LINE__);
@@ -961,12 +969,27 @@ compute_mem_prob // VISIBLE //
       goto in_case_of_failure;
    }
 
+
+   // If results were not computed for given number of duplicates (N),
+   // need to compute truncated genearting function and store the
+   // results for future use.
    if (ARRAY[N] == NULL) {
-      // Need to compute truncated genearting function and store.
       
+      // The truncated polynomial 'w' stands the weighted generating
+      // function of the reads without MEM seed for set parameters and
+      // 'N' duplicate sequences.
       w = new_zero_trunc_pol();
       handle_memory_error(w);
 
+      // The matrix 'M' is the transfer matrix of reads without MEM
+      // seed. The row and column of the head state have been deleted
+      // because the reads can be assumed to start in state "double-
+      // down". The entries of 'M' are truncated polynomials that
+      // stand for weighted generating functions of segments joining
+      // different states. The m-th power of 'M' contains the weighted
+      // generating functions of sequences of m segments joining the
+      // dfferent states. We thus update 'w' with the entry of M^m
+      // that joins the initial "double-down" state to the tail state.
       M = new_matrix_M(N);
       handle_memory_error(M);
 
@@ -974,14 +997,24 @@ compute_mem_prob // VISIBLE //
       // one-segment reads (i.e. tail only).
       trunc_pol_update_add(w, M->term[2*G+1]);
 
+      // Create two temporary matrices 'powM1' and 'powM2' to compute
+      // the powers of M. On first iteration, powM1 = M*M, and later
+      // perform the operations powM2 = M*powM1 and powM1 = M*powM2,
+      // so that powM1 is M^2m at iteration m. Using two matrices
+      // allows the operations to be performed without requesting more
+      // memory. The temporary matrices are implicitly erased in the
+      // course of the multiplication by 'special_matrix_mult()'.
       powM1 = new_zero_matrix(2*G+1);
-      handle_memory_error(powM1);
       powM2 = new_zero_matrix(2*G+1);
+      handle_memory_error(powM1);
       handle_memory_error(powM2);
 
-      // Update weighted generating
-      // function with two-segment reads.
-      matrix_mult(powM1, M, M);
+      // Note: the matrix M, containing NULL entries, must always
+      // be put on the left, i.e. as the second argument of 
+      // 'special_matrix_mult()', otherwise the result is not
+      // guaranteed // to be correct.
+      special_matrix_mult(powM1, M, M);
+      // Update weighted generating function with two-segment reads.
       trunc_pol_update_add(w, powM1->term[2*G+1]);
 
       // There is at least one sequencing error for every three
@@ -990,12 +1023,13 @@ compute_mem_prob // VISIBLE //
       const double denom = 1-pow(P,1.0/3.0);
       double bound_on_imprecision = P / denom;
       while (bound_on_imprecision > 1e-9) {
-         // Update weighted generating function
-         // with multiple-segment reads.
-         matrix_mult(powM2, M, powM1);
+         // Increase the number of segments and update
+         // the weighted generating function accordingly.
+         special_matrix_mult(powM2, M, powM1);
          trunc_pol_update_add(w, powM2->term[2*G+1]);
-         matrix_mult(powM1, M, powM2);
+         special_matrix_mult(powM1, M, powM2);
          trunc_pol_update_add(w, powM1->term[2*G+1]);
+         // The bound on imprecision keeps decreasing.
          bound_on_imprecision *= pow(P,2.0/3.0);
       }
 
@@ -1004,6 +1038,7 @@ compute_mem_prob // VISIBLE //
       destroy_mat(powM2);
       destroy_mat(M);
 
+      // Memoize the results for future calls.
       ARRAY[N] = w;
 
    }

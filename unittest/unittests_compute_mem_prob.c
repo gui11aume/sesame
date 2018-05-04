@@ -283,7 +283,7 @@ test_trunc_pol_mult
 
 
 void
-test_matrix_mult
+test_special_matrix_mult
 (void)
 {
 
@@ -315,7 +315,7 @@ test_matrix_mult
    matrix_t *tmp1 = new_zero_matrix(2);
    test_assert_critical(tmp1 != NULL);
 
-   matrix_mult(tmp1, mat1, mat2);
+   special_matrix_mult(tmp1, mat1, mat2);
 
    const double tmp1_array1[51] = {0,0,0,2};
    const double tmp1_array2[51] = {0,1,0,0,3};
@@ -336,7 +336,7 @@ test_matrix_mult
    matrix_t *tmp2 = new_zero_matrix(2);
    test_assert_critical(tmp2 != NULL);
 
-   matrix_mult(tmp2, mat2, mat1);
+   special_matrix_mult(tmp2, mat2, mat1);
 
    const double tmp2_array1[51] = {0,0,0,1};
    const double tmp2_array2[51] = {0,0,0,0,1};
@@ -364,7 +364,7 @@ test_matrix_mult
 
 
 void
-test_error_matrix_mult
+test_error_special_matrix_mult
 (void)
 {
 
@@ -379,10 +379,10 @@ test_error_matrix_mult
    test_assert_critical(tmp != NULL);
 
    redirect_stderr();
-   test_assert(matrix_mult(tmp, mat1, mat2) == NULL);
+   test_assert(special_matrix_mult(tmp, mat1, mat2) == NULL);
    unredirect_stderr();
 
-   test_assert_stderr("[compute_mem_prob] error in function `mat");
+   test_assert_stderr("[compute_mem_prob] error in function `spe");
 
    destroy_mat(mat1);
    destroy_mat(mat2);
@@ -1826,8 +1826,8 @@ const test_case_t test_cases_compute_mem_prob[] = {
    {"error_new_zero_trunc_pol",    test_error_new_zero_trunc_pol},
    {"trunc_pol_updated_add",       test_trunc_pol_update_add},
    {"trunc_pol_mult",              test_trunc_pol_mult},
-   {"matrix_mult",                 test_matrix_mult},
-   {"error_matrix_mult",           test_error_matrix_mult},
+   {"special_matrix_mult",         test_special_matrix_mult},
+   {"error_special_matrix_mult",   test_error_special_matrix_mult},
    {"new_trunc_pol_A",             test_new_trunc_pol_A},
    {"error_new_trunc_pol_A",       test_error_new_trunc_pol_A},
    {"new_trunc_pol_B",             test_new_trunc_pol_B},

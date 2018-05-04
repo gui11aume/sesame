@@ -74,8 +74,6 @@ struct matrix_t {
 static size_t    G = 0;       // Minimum size of MEM seeds.
 static size_t    K = 0;       // Max degree of the polynomials (read size).
 
-static size_t    HIGH = 0;    // Proxy for infinite degree polynomials.
-
 static double    P = 0.0;     // Probability of a read error.
 static double    U = 0.0;     // Divergence rate between duplicates.
 
@@ -123,7 +121,6 @@ clean_mem_prob // VISIBLE //
    K = 0;
    P = 0.0;
    U = 0.0;
-   HIGH = 0;
    KSZ = 0;
 
    // Free everything.
@@ -177,9 +174,6 @@ set_params_mem_prob // VISIBLE //
    K = k;  // Read size.
    P = p;  // Sequencing error.
    U = u;  // Divergence rate.
-
-   // Set 'HIGH' to the greater of 'K' or 'G'.
-   HIGH = K > G ? K : G;
 
    // All 'trunc_pol_t' must be congruent.
    KSZ = sizeof(trunc_pol_t) + (K+1) * sizeof(double);
@@ -551,7 +545,7 @@ new_trunc_pol_T_down
 
    const double denom = 1.0 - pow(1-U/3.0, N);
    double pow_of_q = 1.0;
-   for (int i = 0 ; i <= HIGH ; i++) {
+   for (int i = 0 ; i <= K ; i++) {
       double numer = 1.0 - aN(i);
       new->coeff[i] = numer / denom * pow_of_q;
       pow_of_q *= (1.0-P);
@@ -755,7 +749,7 @@ new_matrix_M
    // Second row.
    M->term[1*dim+1] = new_trunc_pol_A(G, N, NO);
    handle_memory_error(M->term[1*dim+1]);
-   M->term[1*dim+2] = new_trunc_pol_A(HIGH, N, YES);
+   M->term[1*dim+2] = new_trunc_pol_A(K, N, YES);
    handle_memory_error(M->term[1*dim+2]);
    for (int j = 1 ; j <= G-1 ; j++) {
       M->term[1*dim+(j+2)] = new_trunc_pol_u(G-j, N);
@@ -765,9 +759,9 @@ new_matrix_M
    handle_memory_error(M->term[1*dim+0]);
 
    // Third row.
-   M->term[2*dim+1] = new_trunc_pol_B(HIGH, N, NO);
+   M->term[2*dim+1] = new_trunc_pol_B(K, N, NO);
    handle_memory_error(M->term[2*dim+1]);
-   M->term[2*dim+2] = new_trunc_pol_B(HIGH, N, YES);
+   M->term[2*dim+2] = new_trunc_pol_B(K, N, YES);
    handle_memory_error(M->term[2*dim+2]);
    for (int j = 1 ; j <= G-1 ; j++) {
       M->term[2*dim+(j+2)] = new_trunc_pol_v(G-j, N);

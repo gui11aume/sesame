@@ -17,7 +17,6 @@ test_set_params_mem_prob
    test_assert(P == 0.01);
    test_assert(U == 0.05);
 
-   test_assert(HIGH == 50);
    test_assert(KSZ == sizeof(trunc_pol_t) + 51*sizeof(double));
 
    for (int i = 0 ; i < MAXN ; i++) {
@@ -33,7 +32,6 @@ test_set_params_mem_prob
    test_assert(P == 0.99);
    test_assert(U == 0.95);
 
-   test_assert(HIGH == 50);
    test_assert(KSZ == sizeof(trunc_pol_t) + 21*sizeof(double));
 
    for (int i = 0 ; i < MAXN ; i++) {

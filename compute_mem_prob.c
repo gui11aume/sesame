@@ -92,9 +92,9 @@ const char internal_error[] =
 
 // FUNCTION DEFINITIONS //
 
-// VISLBLE IO and error report functions.
-int    get_mem_prob_error_code (void) { return ERRNO; }
-void   reset_mem_prob_error (void) { ERRNO = 0; }
+// IO and error report functions.
+int    get_mem_prob_error_code (void) { return ERRNO; } // VISIBLE //
+void   reset_mem_prob_error (void) { ERRNO = 0; } // VISIBLE //
 
 
 void
@@ -110,6 +110,8 @@ warning
          LIBNAME, function, line, msg);
 }
 
+
+// Initialization and clean up.
 
 void
 clean_mem_prob // VISIBLE //
@@ -195,6 +197,9 @@ in_case_of_failure:
 
 }
 
+
+
+// Definitions of weighted generating functions.
 
 trunc_pol_t *
 new_zero_trunc_pol
@@ -926,6 +931,10 @@ in_case_of_failure:
 }
 
 
+
+// Need this snippet to compute a bound of the numerical imprecision.
+double HH(double x, double y) { return x*log(x/y)+(1-x)*log((1-x)/(1-y)); }
+
 double
 compute_mem_prob // VISIBLE //
 (
@@ -1016,19 +1025,21 @@ compute_mem_prob // VISIBLE //
       trunc_pol_update_add(w, powM1->term[2*G+1]);
 
       // There is at least one sequencing error for every three
-      // segments, so the probability of a read with n or more
-      // segments is less than p^n/3 / (1-p^1/3).
-      const double denom = 1-pow(P,1.0/3.0);
-      double bound_on_imprecision = P / denom;
-      while (bound_on_imprecision > 1e-9) {
+      // segments. We bound the probability that a read of size k has
+      // at least m/3 errors by a formula for the binomial distribution,
+      // where m is the number of segments, i.e. the power of matirx M.
+      // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
+      for (int m = 2 ; m < K ; m += 2) {
          // Increase the number of segments and update
          // the weighted generating function accordingly.
          special_matrix_mult(powM2, M, powM1);
          trunc_pol_update_add(w, powM2->term[2*G+1]);
          special_matrix_mult(powM1, M, powM2);
          trunc_pol_update_add(w, powM1->term[2*G+1]);
-         // The bound on imprecision keeps decreasing.
-         bound_on_imprecision *= pow(P,2.0/3.0);
+         // Exit if bound on imprecision is lower than 1e-9.
+         double x = floor((m+2)/3) / ((double) K);
+         double bound_on_imprecision = exp(-HH(x, P)*K);
+         if (bound_on_imprecision < 1e-9) break;
       }
 
       // Clean temporary variables.

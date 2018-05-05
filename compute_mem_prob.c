@@ -1039,7 +1039,8 @@ compute_mem_prob // VISIBLE //
          // Exit if bound on imprecision is lower than 1e-9.
          double x = floor((m+2)/3) / ((double) K);
          double bound_on_imprecision = exp(-HH(x, P)*K);
-         if (bound_on_imprecision < 1e-9) break;
+         // Stop at 3-digit precision.
+         if (bound_on_imprecision/w->coeff[K] < 1e-3) break;
       }
 
       // Clean temporary variables.

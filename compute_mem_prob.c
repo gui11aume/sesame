@@ -72,7 +72,7 @@ struct matrix_t {
 // GLOBAL VARIABLES / CONSTANTS //
 
 static size_t    G = 0;       // Minimum size of MEM seeds.
-static size_t    K = 0;       // Max degree of the polynomials (read size).
+static size_t    K = 0;       // Max degree (read size).
 
 static double    P = 0.0;     // Probability of a read error.
 static double    U = 0.0;     // Divergence rate between duplicates.
@@ -80,9 +80,10 @@ static double    U = 0.0;     // Divergence rate between duplicates.
 static size_t    KSZ = 0;     // Size of the 'trunc_pol_t' struct.
 
 static trunc_pol_t * TEMP = NULL;        // For matrix multipliciation.
-static trunc_pol_t * ARRAY[MAXN] = {0};  // Store the results (indexed by N).
+static trunc_pol_t * ARRAY[MAXN] = {0};  // Store results indexed by N.
 
-static int       ERRNO = 0;
+static int MAX_PRECISION = 0; // Full precision for debugging.
+static int ERRNO = 0;
 
 // Error message.
 const char internal_error[] =
@@ -93,8 +94,8 @@ const char internal_error[] =
 // FUNCTION DEFINITIONS //
 
 // IO and error report functions.
-int    get_mem_prob_error_code (void) { return ERRNO; } // VISIBLE //
-void   reset_mem_prob_error (void) { ERRNO = 0; } // VISIBLE //
+int  get_mem_prob_error_code (void) { return ERRNO; } // VISIBLE //
+void reset_mem_prob_error (void) { ERRNO = 0; } // VISIBLE //
 
 
 void
@@ -1036,11 +1037,12 @@ compute_mem_prob // VISIBLE //
          trunc_pol_update_add(w, powM2->term[2*G+1]);
          special_matrix_mult(powM1, M, powM2);
          trunc_pol_update_add(w, powM1->term[2*G+1]);
-         // Exit if bound on imprecision is lower than 1e-9.
+         // In max precision debug mode, get all possible digits.
+         if (MAX_PRECISION) continue;
+         // Otherwise, exit on reaching 3-digit precision.
          double x = floor((m+2)/3) / ((double) K);
          double bound_on_imprecision = exp(-HH(x, P)*K);
-         // Stop at 3-digit precision.
-         if (bound_on_imprecision/w->coeff[K] < 1e-3) break;
+         if (bound_on_imprecision / w->coeff[K] < 1e-3) break;
       }
 
       // Clean temporary variables.

@@ -1955,6 +1955,47 @@ test_compute_mem_prob
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4);
    test_assert(fabs(compute_mem_prob(4,18)-target_18) < 1e-9);
 
+   // Set full precision for these tests.
+   MAX_PRECISION = 1;
+
+   double target_19;
+   target_19 = 1-pow(.99,19) - \
+      2*.01*pow(.99,18) * (1-pow(.95,18)*.05/3) - \
+      2*.01*pow(.99,18) * (1-pow(.95,17)*.05/3) - \
+      2*.01*.01*pow(.99,17) * (1-pow(.95,17)*.05/3) - \
+      .01*.01*pow(.99,17) * (1-pow(.95,17)*(.05/3)*(.05/3) -
+            2*pow(.95,17)*(1-.05/3)*.05/3);
+   test_assert(fabs(compute_mem_prob(1,19)-target_19) < 1e-9);
+
+   target_19 = 1-pow(.99,19) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,2) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,2) - \
+      2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2) - \
+      .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
+            2*pow(.95,17)*(1-.05/3)*.05/3,2);
+   test_assert(fabs(compute_mem_prob(2,19)-target_19) < 1e-9);
+   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(2,19));
+
+   target_19 = 1-pow(.99,19) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,3) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,3) - \
+      2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3) - \
+      .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
+            2*pow(.95,17)*(1-.05/3)*.05/3,3);
+   test_assert(fabs(compute_mem_prob(3,19)-target_19) < 1e-9);
+   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(3,19));
+
+   target_19 = 1-pow(.99,19) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,4) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,4) - \
+      2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4) - \
+      .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
+            2*pow(.95,17)*(1-.05/3)*.05/3,4);
+   test_assert(fabs(compute_mem_prob(4,19)-target_19) < 1e-9);
+   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(4,19));
+
+   MAX_PRECISION = 0;
+
 
    success = set_params_mem_prob(20, 50, 0.02, 0.05);
    test_assert_critical(success);

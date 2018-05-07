@@ -1664,17 +1664,18 @@ test_new_matrix_M
 {
 
    trunc_pol_t *nspct;
+   matrix_t *M;
 
    int success = set_params_mem_prob(17, 100, 0.01, 0.05);
    test_assert_critical(success);
 
-   // Test martrix M with one duplicate because the
-   // polynomials are particularly simple in this case.
-   matrix_t *M = new_matrix_M(1);
-   test_assert_critical(M != NULL);
-   
    const int dim = 2*17+1;
 
+   // Test martrix M with one duplicate because the
+   // polynomials are particularly simple in this case.
+   M = new_matrix_M(1);
+   test_assert_critical(M != NULL);
+   
    // Test first row.
    for (int j = 0 ; j < dim ; j++) {
       test_assert(M->term[j] == NULL);
@@ -1891,6 +1892,111 @@ test_new_matrix_M
          test_assert(M->term[(j+G+1)*dim+2+i] == NULL);
       }
 
+   }
+
+   destroy_mat(M);
+
+   // Test martrix M with two duplicates because the
+   // polynomials are also simple in this case.
+   M = new_matrix_M(2);
+   test_assert_critical(M != NULL);
+   
+   // Test first row.
+   for (int j = 0 ; j < dim ; j++) {
+      test_assert(M->term[j] == NULL);
+   }
+
+   // Second row, first term (T polynomial).
+   test_assert_critical(M->term[dim] != NULL);
+   nspct = M->term[dim];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   for (int i = 0 ; i <= 16 ; i++) {
+      double target = (1-pow(1-pow(.95,i),2))*pow(.99,i);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= 100 ; i++) {
+      test_assert(nspct->coeff[i] == 0);
+   }
+
+   // Second row, second term.
+   test_assert_critical(M->term[dim+1] != NULL);
+   nspct = M->term[dim+1];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = (1-pow(1-pow(.95,i-1),2))*pow(.99,i-1) * \
+         .01 * pow(1-.05/3,2);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 100 ; i++) {
+      test_assert(nspct->coeff[i] == 0);
+   }
+
+   // Second row, third term.
+   test_assert_critical(M->term[dim+2] != NULL);
+   nspct = M->term[dim+2];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = (1-pow(1-pow(.95,i-1),2)) * pow(.99,i-1) * \
+         0.01*(1-pow(1-.05/3,2));
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 100 ; i++) {
+      double target = (1-pow(1-pow(.95,i-1)*.05/3,2)) * pow(.99,i-1)*.01;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Second row, u terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[dim+2+j] != NULL);
+      nspct = M->term[dim+2+j];
+      double target = (2*.05*pow(.95,G-j-1)*(1-pow(.95,G-j-1)) + \
+         pow(.05*pow(.95,G-j-1),2)) * pow(.99,G-j);
+      test_assert(nspct->mono.deg == G-j);
+      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
+      for (int i = 0 ; i <= 100 ; i++) {
+         if (i == G-j)
+            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+         else
+            test_assert(nspct->coeff[i] == 0);
+      }
+   }
+
+   // End of second row.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert(M->term[dim+G+1+j] == NULL);
+   }
+
+   // Third row, first term (T polynomial).
+   test_assert_critical(M->term[2*dim] != NULL);
+   nspct = M->term[2*dim];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   for (int i = 0 ; i <= 100 ; i++) {
+      const double denom = 1-pow(1-.05/3,2);
+      double target = (pow(.05/3,2) * pow(.99,i) * \
+         (1-pow(1-pow(.95,i),2)) \
+         + 2*.05/3*(1-.05/3) * pow(.99,i) * pow(.95,i)) / denom;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, second term.
+   test_assert_critical(M->term[2*dim+1] != NULL);
+   nspct = M->term[2*dim+1];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 100 ; i++) {
+      const double denom = 1-pow(1-.05/3,2);
+      double target = (pow(.05/3,2) * pow(.99,i-1) * \
+         (1-pow(1-pow(.95,i-1),2)) \
+         + 2*.05/3*(1-.05/3) * pow(.99,i-1) * pow(.95,i-1)) * \
+         0.01*pow(1-.05/3,2) / denom;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
    destroy_mat(M);

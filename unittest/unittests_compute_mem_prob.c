@@ -1896,6 +1896,8 @@ test_new_matrix_M
 
    destroy_mat(M);
 
+
+
    // Test martrix M with two duplicates because the
    // polynomials are also simple in this case.
    M = new_matrix_M(2);
@@ -1997,6 +1999,56 @@ test_new_matrix_M
          + 2*.05/3*(1-.05/3) * pow(.99,i-1) * pow(.95,i-1)) * \
          0.01*pow(1-.05/3,2) / denom;
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, third term.
+   test_assert_critical(M->term[2*dim+2] != NULL);
+   nspct = M->term[2*dim+2];
+   test_assert(nspct->mono.deg == 0);
+   test_assert(nspct->mono.coeff == 0);
+   test_assert(nspct->coeff[0] == 0);
+   for (int i = 1 ; i <= 100 ; i++) {
+      double target = .01*(pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
+         2*.05/3*(1-.05/3)*pow(.95,i-1)) * pow(.99,i-1);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+
+   // Third row, v terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[2*dim+2+j] != NULL);
+      nspct = M->term[2*dim+2+j];
+      const double denom = 1-pow(1-.05/3,2);
+      double target = pow(.99,G-j) / denom * ( \
+         pow(.05/3,2) * ( 2*.05*pow(.95,G-j-1)*(1-pow(.95,G-j-1)) \
+           +.05*.05*pow(.95,2*G-2*j-2) ) + \
+         2*.05/3*(1-.05/3) * .05*pow(.95,G-j-1)*(1-pow(.95,G-j)) );
+      test_assert(nspct->mono.deg == G-j);
+      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
+      for (int i = 0 ; i <= 100 ; i++) {
+         if (i == G-j) {
+            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+         }
+         else
+            test_assert(nspct->coeff[i] == 0);
+      }
+   }
+
+   // Third row, w terms.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      test_assert_critical(M->term[2*dim+G+1+j] != NULL);
+      nspct = M->term[2*dim+G+1+j];
+      const double denom = 1-pow(1-.05/3,2);
+      double target = pow(.99,G-j) / denom * \
+         2*.05/3*(1-.05/3) * .05*pow(.95,2*G-2*j-1);
+      test_assert(nspct->mono.deg == G-j);
+      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
+      for (int i = 0 ; i <= 100 ; i++) {
+         if (i == G-j) {
+            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+         }
+         else
+            test_assert(nspct->coeff[i] == 0);
+      }
    }
 
    destroy_mat(M);

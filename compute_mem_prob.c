@@ -34,6 +34,9 @@
 #define bN(j,i) pow( 1.0 - pow(1.0-U,(j))*U/3.0 - \
                            pow(1.0-U,(i))*(1.0-U/3.0), N)
 
+#define zN(j,i) pow( 1.0 - pow(1.0-U,(j))*U/3.0 - \
+                           pow(1.0-U,(i))*U/3.0*(1.0-U/3.0), N)
+
 
 // Macro to simplify error handling.
 #define handle_memory_error(x) do { \
@@ -230,7 +233,7 @@ new_trunc_pol_A
 (
    const size_t deg,  // Degree of polynomial D.
    const size_t N,    // Number of duplicates.
-   const int    tilde // Return D or tilde D.
+   const int    tilde // Return A or tilde A.
 )
 {
 
@@ -281,7 +284,7 @@ new_trunc_pol_B
 (
    const size_t deg,  // Degree of polynomial B.
    const size_t N,    // Number of duplicates.
-   const int    tilde // Return D or tilde B.
+   const int    tilde // Return B or tilde B.
 )
 {
 
@@ -297,20 +300,52 @@ new_trunc_pol_B
    // Polynomial B is null when N = 0.
    if (N == 0) return new;
 
-   // See definition of polynomial B.
-   const double cst = tilde ? _OMEGA : OMEGA;
    const double denom = 1.0 - pow(1-U/3.0, N);
    double pow_of_q = 1.0;
-   for (int i = 1 ; i <= deg ; i++) {
-      double numer = 1.0 - aN(i-1);
-      new->coeff[i] = cst * numer / denom * pow_of_q;
-      pow_of_q *= (1.0-P);
+   if (tilde) {
+      // See definition of polynomial ~B.
+      const int d = deg <= G ? deg : G;
+      for (int i = 1 ; i <= d ; i++) {
+         double numer = 1.0 - aN(i-1);
+         new->coeff[i] = _OMEGA * numer / denom * pow_of_q;
+         pow_of_q *= (1.0-P);
+      }
+      // Terms of the polynomials with degree higher than 'G' (if any).
+      for (int i = d+1 ; i <= deg ; i++) {
+         new->coeff[i] = P * pow_of_q * (1.0 - aN(i-1) +
+            (aN(i-1)-aN(G-1)-zN(i-1,i-1)+zN(G-1,i-1)) / denom);
+         pow_of_q *= (1.0-P);
+      }
+   }
+   else {
+      // See definition of polynomial B.
+      for (int i = 1 ; i <= deg ; i++) {
+         double numer = 1.0 - aN(i-1);
+         new->coeff[i] = OMEGA * numer / denom * pow_of_q;
+         pow_of_q *= (1.0-P);
+      }
    }
 
    return new;
 
 in_case_of_failure:
    return NULL;
+
+   /*
+   // See definition of polynomial A.
+   const int d = deg <= G ? deg : G;
+   const double cst = tilde ? _OMEGA : OMEGA;
+   double pow_of_q = 1.0;
+   for (int i = 1 ; i <= d ; i++) {
+      new->coeff[i] = cst * (xi(i-1,N)) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
+   // Terms of the polynomials with degree higher than 'G' (if any).
+   for (int i = d+1 ; i <= deg ; i++) {
+      new->coeff[i] = P * (1-aN(i-1)) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
+   */
 
 }
 
@@ -339,12 +374,25 @@ new_trunc_pol_C
    // See definition of polynomial C.
    const int j = G - deg;
    const double denom = aN(j) - aN(j-1) - gN(j) + dN(j-1);
-   const double cst = tilde ? _OMEGA : OMEGA;
    double pow_of_q = 1.0;
-   for (int i = 1 ; i <= deg ; i++) {
-      double numer = aN(j) - aN(j-1) - bN(j,i+j-1) + bN(j-1,i+j-1);
-      new->coeff[i] = cst * numer / denom * pow_of_q;
-      pow_of_q *= (1.0-P);
+   if (tilde) {
+      for (int i = 1 ; i <= G-j ; i++) {
+         double numer = aN(j) - aN(j-1) - bN(j,i+j-1) + bN(j-1,i+j-1);
+         new->coeff[i] = _OMEGA * numer / denom * pow_of_q;
+         pow_of_q *= (1.0-P);
+      }
+      for (int i = G-j+1 ; i <= K ; i++) {
+         double numer = aN(j) - aN(j-1) - zN(j,i+j-1) + zN(j-1,i+j-1);
+         new->coeff[i] = P * numer / denom * pow_of_q;
+         pow_of_q *= (1.0-P);
+      }
+   }
+   else {
+      for (int i = 1 ; i <= deg ; i++) {
+         double numer = aN(j) - aN(j-1) - bN(j,i+j-1) + bN(j-1,i+j-1);
+         new->coeff[i] = OMEGA * numer / denom * pow_of_q;
+         pow_of_q *= (1.0-P);
+      }
    }
 
    return new;
@@ -797,6 +845,8 @@ new_matrix_M
    for (int j = 1 ; j <= G-1 ; j++) {
       M->term[(j+G+1)*dim+1] = new_trunc_pol_C(j, N, NO);
       handle_memory_error(M->term[(j+G+1)*dim+1]);
+      // FIXME //
+      // The call if faulty (degree and stuff, this is an ugly patch.
       M->term[(j+G+1)*dim+2] = new_trunc_pol_C(j, N, YES);
       handle_memory_error(M->term[(j+G+1)*dim+2]);
       for (int i = 1 ; i < j ; i++) {

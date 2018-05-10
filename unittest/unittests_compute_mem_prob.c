@@ -2007,9 +2007,17 @@ test_new_matrix_M
    test_assert(nspct->mono.deg == 0);
    test_assert(nspct->mono.coeff == 0);
    test_assert(nspct->coeff[0] == 0);
-   for (int i = 1 ; i <= 100 ; i++) {
-      double target = .01*(pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
-         2*.05/3*(1-.05/3)*pow(.95,i-1)) * pow(.99,i-1);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = (pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
+         2*.05/3*(1-.05/3)*pow(.95,i-1)) * .01 * pow(.99,i-1);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 100 ; i++) {
+      const double denom = 1-pow(1-.05/3,2);
+      double target = (pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
+         2*.05/3*(1-.05/3)*pow(.95,i-1) + \
+         (1-.05/3)*pow(.95,i+G-2)*(1-pow(.95,i-G)) * 
+            2*pow(.05/3,2) / denom) * .01 * pow(.99,i-1);
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
@@ -2132,7 +2140,6 @@ test_compute_mem_prob
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,2);
    test_assert(fabs(compute_mem_prob(2,19)-target_19) < 1e-9);
-   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(2,19));
 
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,3) - \
@@ -2141,7 +2148,6 @@ test_compute_mem_prob
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,3);
    test_assert(fabs(compute_mem_prob(3,19)-target_19) < 1e-9);
-   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(3,19));
 
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,4) - \
@@ -2150,7 +2156,6 @@ test_compute_mem_prob
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,4);
    test_assert(fabs(compute_mem_prob(4,19)-target_19) < 1e-9);
-   fprintf(stderr, "%.11f, %.11f\n", target_19, compute_mem_prob(4,19));
 
    MAX_PRECISION = 0;
 

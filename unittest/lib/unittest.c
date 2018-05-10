@@ -33,14 +33,14 @@ void
 update_display_failed
 (void)
 {
-   fprintf(stderr, "FAIL\n");
+   fprintf(stderr, "[FAIL]\n");
 }
 
 void
 update_display_success
 (void)
 {
-   fprintf(stderr, "  OK\n");
+   fprintf(stderr, "  [OK]\n");
 }
 
 void

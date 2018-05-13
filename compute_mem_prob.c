@@ -96,9 +96,11 @@ const char internal_error[] =
 
 // FUNCTION DEFINITIONS //
 
-// IO and error report functions.
-int  get_mem_prob_error_code (void) { return ERRNO; } // VISIBLE //
-void reset_mem_prob_error (void) { ERRNO = 0; } // VISIBLE //
+// IO and error report functions (all VISIBLE).
+int  get_mem_prob_error_code (void) { return ERRNO; }
+void reset_mem_prob_error (void) { ERRNO = 0; }
+void set_mem_prob_max_precision_on (void) { MAX_PRECISION = 1; }
+void set_mem_prob_max_precision_off (void) { MAX_PRECISION = 0; }
 
 
 void
@@ -136,6 +138,7 @@ clean_mem_prob // VISIBLE //
    for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
    bzero(ARRAY, MAXN * sizeof(trunc_pol_t *));
 
+   MAX_PRECISION = 0;
    ERRNO = 0;
 
    return;
@@ -366,7 +369,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_C_ddown
+new_trunc_pol_D_ddown
 (
    const size_t deg,  // Degree of polynomial C.
    const size_t N     // Number of duplicates.
@@ -404,7 +407,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_C_down
+new_trunc_pol_D_down
 (
    const size_t deg,  // Degree of polynomial C.
    const size_t N     // Number of duplicates.
@@ -447,7 +450,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_D_ddown
+new_trunc_pol_C_ddown
 (
    const size_t deg,  // Degree of polynomial D.
    const size_t N     // Number of duplicates.
@@ -482,7 +485,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_D_down
+new_trunc_pol_C_down
 (
    const size_t deg,  // Degree of polynomial D.
    const size_t N     // Number of duplicates.
@@ -908,9 +911,9 @@ new_matrix_M
 
    // First series of middle rows.
    for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[(j+2)*dim+1] = new_trunc_pol_D_ddown(j, N);
+      M->term[(j+2)*dim+1] = new_trunc_pol_C_ddown(j, N);
       handle_memory_error(M->term[(j+2)*dim+1]);
-      M->term[(j+2)*dim+2] = new_trunc_pol_D_down(j, N);
+      M->term[(j+2)*dim+2] = new_trunc_pol_C_down(j, N);
       handle_memory_error(M->term[(j+2)*dim+2]);
       M->term[(j+2)*dim+0] = new_trunc_pol_T_up(j-1, N);
       handle_memory_error(M->term[(j+2)*dim+0]);
@@ -918,9 +921,9 @@ new_matrix_M
 
    // Second series of middle rows.
    for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[(j+G+1)*dim+1] = new_trunc_pol_C_ddown(j, N);
+      M->term[(j+G+1)*dim+1] = new_trunc_pol_D_ddown(j, N);
       handle_memory_error(M->term[(j+G+1)*dim+1]);
-      M->term[(j+G+1)*dim+2] = new_trunc_pol_C_down(j, N);
+      M->term[(j+G+1)*dim+2] = new_trunc_pol_D_down(j, N);
       handle_memory_error(M->term[(j+G+1)*dim+2]);
       for (int i = 1 ; i < j ; i++) {
          M->term[(j+G+1)*dim+(i+2)] = new_trunc_pol_y(G-j, j-i ,N);

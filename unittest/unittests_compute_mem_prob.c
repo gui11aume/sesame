@@ -1860,14 +1860,14 @@ test_misc_exactness
 
       // One segment from head to down.
       trunc_pol_update_add(w1, M->term[1*dim+2]);
-      for (int i = 1 ; i <= 17 ; i++) {
+      for (int i = 1 ; i <= 16 ; i++) {
          // One segment from head to up(i) and one segment to down.
          trunc_pol_update_add(w1, trunc_pol_mult(tmp,
             M->term[1*dim+2+i], M->term[(2+i)*dim+2]));
       }
       // One segment from down to tail.
       trunc_pol_update_add(w2, M->term[2*dim+0]);
-      for (int i = 1 ; i <= 17 ; i++) {
+      for (int i = 1 ; i <= 16 ; i++) {
          // One segment from down to up(i) and one segment to tail.
          trunc_pol_update_add(w2, trunc_pol_mult(tmp,
             M->term[2*dim+2+i], M->term[(2+i)*dim+0]));

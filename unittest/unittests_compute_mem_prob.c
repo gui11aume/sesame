@@ -1533,9 +1533,55 @@ test_new_matrix_M
       }
    }
 
-   // Write the other tests.
-   int test_case_incomplete = 0;
-   test_assert(test_case_incomplete);
+   // Middle series of rows.
+   for (int j = 1 ; j <= G-1 ; j++) {
+      // T polynomials.
+      test_assert_critical(M->term[(j+2)*dim] != NULL);
+      nspct = M->term[(j+2)*dim];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      for (int i = 0 ; i <= G-j-1 ; i++) {
+         double target = pow(.99,i);
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = G-j ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // C polynomials.
+      test_assert_critical(M->term[(j+2)*dim+1] != NULL);
+      nspct = M->term[(j+2)*dim+1];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      test_assert(nspct->coeff[0] == 0);
+      for (int i = 1 ; i <= G-j ; i++) {
+         double target = pow(.99,i-1) * .01 * pow(1-.05/3,2);
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = G-j+1 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Tilde C polynomials.
+      test_assert_critical(M->term[(j+2)*dim+2] != NULL);
+      nspct = M->term[(j+2)*dim+2];
+      test_assert(nspct->mono.deg == 0);
+      test_assert(nspct->mono.coeff == 0);
+      test_assert(nspct->coeff[0] == 0);
+      for (int i = 1 ; i <= G-j ; i++) {
+         double target = pow(.99,i-1) * .01 * (1-pow(1-.05/3,2));
+         test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+      }
+      for (int i = G-j+1 ; i <= 100 ; i++) {
+         test_assert(nspct->coeff[i] == 0);
+      }
+
+      // Rest of the rows.
+      for (int i = 1 ; i <= G-1 ; i++) {
+         test_assert(M->term[(j+2)*dim+2+i] == NULL);
+      }
+
+   }
 
    destroy_mat(M);
    clean_mem_prob();
@@ -1766,28 +1812,90 @@ test_misc_exactness
 (void)
 {
 
-   matrix_t *M1  = NULL;
-   matrix_t *M2 = NULL;
+   // The aim of this test is to compute the probability that a large
+   // read without MEM seed has exactly one mismatch. The principle is
+   // to count the paths that go through the state down exactly once
+   // and that do not go through the state ddown. Such paths can go
+   // through the states up before and / or after going through the
+   // state down, so the path consists of two to four segments.
+   //
+   // For a single error at position [j] less than or equal to [gamma],
+   // from the left end of the read, the probability that the main
+   // thread is covered is on the right is
+   //
+   //       1 - (1 - (1-mu)^k-j * mu/3)^N = 1 - alpha(k-j)^N.
+   //
+   // For a single error at position [j] more than [gamma] from eiher
+   // end, the probability that the main thread is covered is 
+   //
+   //     (1 - alpha(j-1)^N) (1 - alpha(k-j)^N / (1-(1-mu/3)^N). 
+   //
+   // The probability of the read is computed as the sum of those
+   // terms (the terms of the first kind are computed two times for
+   // symmetry). We also need to multiply by the probability that
+   // there is exactly one error at position [j].
+   
+   const int dim = 17+2; // Dimension of the matrix 'M' throughout.
+
+   matrix_t *M  = NULL;
+   trunc_pol_t *w1 = NULL;
+   trunc_pol_t *w2 = NULL;
+   trunc_pol_t *tmp = NULL;
 
    int success = set_params_mem_prob(17, 150, 0.01, 0.05);
    test_assert_critical(success);
 
-   // Test with N = 0.
-   M1 = new_matrix_M(0);
-   M2 = new_zero_matrix(17+2);
-   test_assert_critical(M1 != NULL);
-   test_assert_critical(M2 != NULL);
+   tmp = new_zero_trunc_pol();
+   test_assert_critical(tmp != NULL);
 
-   special_matrix_mult(M2, M1, M1);
+   for (int N = 0 ; N < 150 ; N++) {
 
-   test_assert(M1->term[17+2]->coeff[150] == 0);
-   test_assert(M2->term[17+2]->coeff[150] == 0);
+      w1 = new_zero_trunc_pol();
+      w2 = new_zero_trunc_pol();
+      test_assert_critical(w1 != NULL);
+      test_assert_critical(w2 != NULL);
 
-   int test_case_incomplete = 0;
-   test_assert(test_case_incomplete);
+      M = new_matrix_M(N);
+      test_assert_critical(M != NULL);
 
-   destroy_mat(M1);
-   destroy_mat(M2);
+      // One segment from head to down.
+      trunc_pol_update_add(w1, M->term[1*dim+2]);
+      for (int i = 1 ; i <= 17 ; i++) {
+         // One segment from head to up(i) and one segment to down.
+         trunc_pol_update_add(w1, trunc_pol_mult(tmp,
+            M->term[1*dim+2+i], M->term[(2+i)*dim+2]));
+      }
+      // One segment from down to tail.
+      trunc_pol_update_add(w2, M->term[2*dim+0]);
+      for (int i = 1 ; i <= 17 ; i++) {
+         // One segment from down to up(i) and one segment to tail.
+         trunc_pol_update_add(w2, trunc_pol_mult(tmp,
+            M->term[2*dim+2+i], M->term[(2+i)*dim+0]));
+      }
+      // Combine 'w1' and 'w2'.
+      trunc_pol_mult(tmp, w1, w2);
+
+      double target = 0.0;
+      if (N > 0) {
+         // The position of the error is [j] (1-based).
+         for (int j = 1 ; j <= 17 ; j++) {
+            target += 2 * (1.0 - aN(150-j));
+         }
+         for (int j = 18 ; j <= 133 ; j++) {
+            target += (1-aN(j-1)) * (1-aN(150-j)) / (1-pow(1-.05/3,N));
+         }
+         target *= .01 * pow(.99,149);
+      }
+
+      test_assert(fabs(target - tmp->coeff[150]) < 1e-12);
+
+      destroy_mat(M);
+      free(w1);
+      free(w2);
+
+   }
+
+   free(tmp);
    clean_mem_prob();
 
 }

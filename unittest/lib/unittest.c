@@ -555,7 +555,7 @@ run_unittest
 
          // Test display. //
          fprintf(stderr, "%s%*s", tests[i].test_name,
-                  28 - (int) strlen(tests[i].test_name), "");
+                  35 - (int) strlen(tests[i].test_name), "");
 
          // Run test case in thread. //
          pthread_create(&tid, NULL, run_test, (void *) &tests[i]);

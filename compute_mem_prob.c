@@ -254,9 +254,9 @@ new_trunc_pol_A_ddown
       new->mono.coeff = P;
       new->coeff[1] = P;
       return new;
-      return new;
    }
 
+   // See definition of polynomial A_ddown.
    double pow_of_q = 1.0;
    for (int i = 1 ; i <= G ; i++) {
       new->coeff[i] = OMEGA * (xi(i-1,N)) * pow_of_q;
@@ -283,7 +283,7 @@ new_trunc_pol_A_down
 
    if (N == 0) return new;
 
-   // See definition of polynomial A.
+   // See definition of polynomial A_down.
    double pow_of_q = 1.0;
    for (int i = 1 ; i <= G ; i++) {
       new->coeff[i] = _OMEGA * (xi(i-1,N)) * pow_of_q;
@@ -316,12 +316,16 @@ new_trunc_pol_B_ddown
    // Polynomial B_ddown is null when N = 0.
    if (N == 0) return new;
 
-   // See definition of polynomial B.
-   const double denom = 1.0 - pow(1-U/3.0, N);
+   // See definition of polynomial B_ddown.
    double pow_of_q = 1.0;
-   for (int i = 1 ; i <= K ; i++) {
-      double numer = 1.0 - aN(i-1);
-      new->coeff[i] = OMEGA * numer / denom * pow_of_q;
+   for (int i = 1 ; i <= G ; i++) {
+      new->coeff[i] = OMEGA * xi(i-1,N) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
+   // Terms of the polynomials with degree higher than 'G'.
+   const double denom = 1.0 - pow(1-U/3.0, N);
+   for (int i = G+1 ; i <= K ; i++) {
+      new->coeff[i] = OMEGA * (1-aN(i-1)) * pow_of_q / denom;
       pow_of_q *= (1.0-P);
    }
 
@@ -347,97 +351,15 @@ new_trunc_pol_B_down
    if (N == 0) return new;
 
    // See definition of polynomial B_down.
-   const double denom = 1.0 - pow(1-U/3.0, N);
    double pow_of_q = 1.0;
    for (int i = 1 ; i <= G ; i++) {
-      double numer = 1.0 - aN(i-1);
-      new->coeff[i] = _OMEGA * numer / denom * pow_of_q;
+      new->coeff[i] = _OMEGA * xi(i-1,N) * pow_of_q;
       pow_of_q *= (1.0-P);
    }
+   const double denom = 1.0 - pow(1-U/3.0, N);
    for (int i = G+1 ; i <= K ; i++) {
       new->coeff[i] = P * pow_of_q * (1.0 - aN(i-1) +
-         (aN(i-1)-aN(G-1)-zN(i-1,i-1)+zN(G-1,i-1)) / denom);
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_D_ddown
-(
-   const size_t deg,  // Degree of polynomial C.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Avoid division by zero when N < 2 (not a failure).
-   if (N < 2) return new;
-
-   // See definition of polynomial C_ddown.
-   const int j = G - deg;
-   const double denom = aN(j) - aN(j-1) - gN(j) + dN(j-1);
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= deg ; i++) {
-      double numer = aN(j) - aN(j-1) - bN(j,i+j-1) + bN(j-1,i+j-1);
-      new->coeff[i] = OMEGA * numer / denom * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_D_down
-(
-   const size_t deg,  // Degree of polynomial C.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Avoid division by zero when N < 2 (not a failure).
-   if (N < 2) return new;
-
-   // See definition of polynomial C_down.
-   const int j = G - deg;
-   const double denom = aN(j) - aN(j-1) - gN(j) + dN(j-1);
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= G-j ; i++) {
-      double numer = aN(j) - aN(j-1) - bN(j,i+j-1) + bN(j-1,i+j-1);
-      new->coeff[i] = _OMEGA * numer / denom * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-   for (int i = G-j+1 ; i <= K ; i++) {
-      double numer = aN(j) - aN(j-1) - zN(j,i+j-1) + zN(j-1,i+j-1);
-      new->coeff[i] = P * numer / denom * pow_of_q;
+         (aN(i-1)-aN(0)-zN(i-1,i-1)+zN(0,i-1)) / denom);
       pow_of_q *= (1.0-P);
    }
 
@@ -553,118 +475,6 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_w
-(
-   const size_t deg,  // Degree of polynomial v.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg >= G || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // In the special case N = 0, the polynomial v is undefined,
-   // but we return a zero polynomial. In the special case N = 1,
-   // the polynomial is defined and null, but we skip the
-   // calculations below because the coefficients would be non-zero
-   // due to rounding errors.
-   if (N < 2) return new;
-
-   // See definition of polynomial v.
-   new->mono.deg = deg;
-   double numer = aN(deg) - aN(deg-1) - gN(deg) + dN(deg-1);
-   double denom = 1.0 - pow(1-U/3.0, N);
-   new->mono.coeff = numer / denom * pow(1.0-P, deg);
-   new->coeff[deg] = new->mono.coeff;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_v
-(
-   const size_t deg,  // Degree of polynomial w.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg >= G || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // In the special case N = 0, the polynomial w is
-   // undefined, but we return a zero polynomial.
-   if (N == 0) return new;
-
-   // See definition of polynomial w.
-   new->mono.deg = deg;
-   double numer = gN(deg) - dN(deg-1);
-   double denom = 1.0 - pow(1.0-U/3.0, N);
-   new->mono.coeff = numer / denom * pow(1.0-P, deg);
-   new->coeff[deg] = new->mono.coeff;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-
-trunc_pol_t *
-new_trunc_pol_y
-(
-   const size_t j,      // Initial state.
-   const size_t i,      // Degree of the polynomial.
-   const size_t N    // Number of duplicates.
-)
-{
-
-   if (j == 0 || j >= G-1 || i > K || i >= G-1 || i == 0 || i+j > G-1) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Avoid division by zero when N < 2 (not a failure).
-   if (N < 2) return new;
-
-   // See definition of polynomial y.
-   new->mono.deg = i;
-   double numer = bN(j,j+i) - bN(j,j+i-1) - bN(j-1,i+j) + bN(j-1,j+i-1);
-   double denom = aN(j) - aN(j-1) - gN(j) + dN(j-1);
-   new->mono.coeff = numer / denom * pow(1.0-P, i);
-   new->coeff[i] = new->mono.coeff;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
 new_trunc_pol_T_down
 (
    const size_t N    // Number of duplicates.
@@ -678,11 +488,16 @@ new_trunc_pol_T_down
    // undefined, but we return a zero polynomial.
    if (N == 0) return new;
 
+   // See definition of polynomial T_down.
+   new->coeff[0] = 1.0;
+   double pow_of_q = 1.0-P;
+   for (int i = 1 ; i <= G-1 ; i++) {
+      new->coeff[i] = xi(i,N) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
    const double denom = 1.0 - pow(1-U/3.0, N);
-   double pow_of_q = 1.0;
-   for (int i = 0 ; i <= K ; i++) {
-      double numer = 1.0 - aN(i);
-      new->coeff[i] = numer / denom * pow_of_q;
+   for (int i = G ; i <= K ; i++) {
+      new->coeff[i] = pow_of_q * (1.0 - aN(i)) / denom;
       pow_of_q *= (1.0-P);
    }
 
@@ -695,7 +510,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_T_double_down
+new_trunc_pol_T_ddown
 (
    const size_t N    // Number of duplicates.
 )
@@ -756,44 +571,6 @@ in_case_of_failure:
    return NULL;
 
 }
-
-
-trunc_pol_t *
-new_trunc_pol_T_sim
-(
-   size_t deg,       // Degree of the polynomial.
-   const size_t N    // Number of duplicates.
-)
-{
-
-   if (deg > K || deg >= G) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Avoid division by zero when N < 2 (not a failure).
-   if (N < 2) return new;
-
-   const int j = G-1 - deg;
-   const double denom = aN(j) - aN(j-1) - gN(j) + dN(j-1);
-   double pow_of_q = 1.0;
-   for (int i = 0 ; i <= deg ; i++) {
-      double numer = aN(j) - aN(j-1) - bN(j,i+j) + bN(j-1,i+j);
-      new->coeff[i] = numer / denom * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
 
 
 matrix_t *
@@ -875,7 +652,7 @@ new_matrix_M
 )
 {
 
-   const size_t dim = 2*G+1;
+   const size_t dim = G+2;
    matrix_t *M = new_null_matrix(dim);
    handle_memory_error(M);
 
@@ -887,10 +664,10 @@ new_matrix_M
    M->term[1*dim+2] = new_trunc_pol_A_down(N);
    handle_memory_error(M->term[1*dim+2]);
    for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[1*dim+(j+2)] = new_trunc_pol_u(G-j, N);
+      M->term[1*dim+(j+2)] = new_trunc_pol_u(j, N);
       handle_memory_error(M->term[1*dim+(j+2)]);
    }
-   M->term[1*dim+0] = new_trunc_pol_T_double_down(N);
+   M->term[1*dim+0] = new_trunc_pol_T_ddown(N);
    handle_memory_error(M->term[1*dim+0]);
 
    // Third row.
@@ -899,38 +676,20 @@ new_matrix_M
    M->term[2*dim+2] = new_trunc_pol_B_down(N);
    handle_memory_error(M->term[2*dim+2]);
    for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[2*dim+(j+2)] = new_trunc_pol_v(G-j, N);
+      M->term[2*dim+(j+2)] = new_trunc_pol_u(j, N);
       handle_memory_error(M->term[2*dim+j+2]);
-   }
-   for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[2*dim+(j+G+1)] = new_trunc_pol_w(G-j, N);
-      handle_memory_error(M->term[2*dim+j+G+1]);
    }
    M->term[2*dim+0] = new_trunc_pol_T_down(N);
    handle_memory_error(M->term[2*dim+0]);
 
-   // First series of middle rows.
+   // Middle rows.
    for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[(j+2)*dim+1] = new_trunc_pol_C_ddown(j, N);
+      M->term[(j+2)*dim+1] = new_trunc_pol_C_ddown(G-j, N);
       handle_memory_error(M->term[(j+2)*dim+1]);
-      M->term[(j+2)*dim+2] = new_trunc_pol_C_down(j, N);
+      M->term[(j+2)*dim+2] = new_trunc_pol_C_down(G-j, N);
       handle_memory_error(M->term[(j+2)*dim+2]);
-      M->term[(j+2)*dim+0] = new_trunc_pol_T_up(j-1, N);
+      M->term[(j+2)*dim+0] = new_trunc_pol_T_up(G-j-1, N);
       handle_memory_error(M->term[(j+2)*dim+0]);
-   }
-
-   // Second series of middle rows.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[(j+G+1)*dim+1] = new_trunc_pol_D_ddown(j, N);
-      handle_memory_error(M->term[(j+G+1)*dim+1]);
-      M->term[(j+G+1)*dim+2] = new_trunc_pol_D_down(j, N);
-      handle_memory_error(M->term[(j+G+1)*dim+2]);
-      for (int i = 1 ; i < j ; i++) {
-         M->term[(j+G+1)*dim+(i+2)] = new_trunc_pol_y(G-j, j-i ,N);
-         handle_memory_error(M->term[(j+G+1)*dim+i+2]);
-      }
-      M->term[(j+G+1)*dim+0] = new_trunc_pol_T_sim(j-1, N);
-      handle_memory_error(M->term[(j+G+1)*dim+0]);
    }
 
    return M;
@@ -1072,10 +831,10 @@ compute_mem_prob // VISIBLE //
    
    // Those variables must be declared here so that
    // they can be cleaned in case of failure.
-   trunc_pol_t *       w = NULL;  // Result.
    matrix_t *          M = NULL;  // Transfer matix.
    matrix_t *      powM1 = NULL;  // Computation intermediate.
    matrix_t *      powM2 = NULL;  // Computation intermediate.
+   trunc_pol_t *       w = NULL;  // Result.
 
    // Check if sequencing parameters were set. Otherwise
    // warn user and fail gracefully (return nan).
@@ -1128,7 +887,7 @@ compute_mem_prob // VISIBLE //
 
       // Update weighted generating function with
       // one-segment reads (i.e. tail only).
-      trunc_pol_update_add(w, M->term[2*G+1]);
+      trunc_pol_update_add(w, M->term[G+2]);
 
       // Create two temporary matrices 'powM1' and 'powM2' to compute
       // the powers of M. On first iteration, powM1 = M*M, and later
@@ -1137,8 +896,8 @@ compute_mem_prob // VISIBLE //
       // allows the operations to be performed without requesting more
       // memory. The temporary matrices are implicitly erased in the
       // course of the multiplication by 'special_matrix_mult()'.
-      powM1 = new_zero_matrix(2*G+1);
-      powM2 = new_zero_matrix(2*G+1);
+      powM1 = new_zero_matrix(G+2);
+      powM2 = new_zero_matrix(G+2);
       handle_memory_error(powM1);
       handle_memory_error(powM2);
 
@@ -1149,7 +908,7 @@ compute_mem_prob // VISIBLE //
       special_matrix_mult(powM1, M, M);
 
       // Update weighted generating function with two-segment reads.
-      trunc_pol_update_add(w, powM1->term[2*G+1]);
+      trunc_pol_update_add(w, powM1->term[G+2]);
 
       // There is at least one sequencing error for every three
       // segments. We bound the probability that a read of size k has
@@ -1160,9 +919,9 @@ compute_mem_prob // VISIBLE //
          // Increase the number of segments and update
          // the weighted generating function accordingly.
          special_matrix_mult(powM2, M, powM1);
-         trunc_pol_update_add(w, powM2->term[2*G+1]);
+         trunc_pol_update_add(w, powM2->term[G+2]);
          special_matrix_mult(powM1, M, powM2);
-         trunc_pol_update_add(w, powM1->term[2*G+1]);
+         trunc_pol_update_add(w, powM1->term[G+2]);
          // In max precision debug mode, get all possible digits.
          if (MAX_PRECISION) continue;
          // Otherwise, exit on reaching 3-digit precision.

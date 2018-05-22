@@ -382,6 +382,31 @@ test_error_special_matrix_mult
 
 
 void
+test_error_new_zero_trunc_pol
+(void)
+{
+   trunc_pol_t *w;
+
+   redirect_stderr();
+   w = new_zero_trunc_pol();
+   unredirect_stderr();
+
+   test_assert(w == NULL);
+   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   w = new_zero_trunc_pol();
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(w == NULL);
+   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+
+}
+
+
+void
 test_new_trunc_pol_A
 (void)
 {
@@ -488,77 +513,6 @@ test_error_new_trunc_pol_A
 
 
 void
-test_error_new_zero_trunc_pol
-(void)
-{
-   trunc_pol_t *w;
-
-   redirect_stderr();
-   w = new_zero_trunc_pol();
-   unredirect_stderr();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   w = new_zero_trunc_pol();
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-}
-
-
-void
-test_trunc_pol_update_add
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *w1 = new_zero_trunc_pol();
-   trunc_pol_t *w2 = new_zero_trunc_pol();
-   test_assert_critical(w1 != NULL);
-   test_assert_critical(w2 != NULL);
-
-   w1->mono.deg = 1;
-   w1->mono.coeff = 1;
-   w1->coeff[1] = 1;
-
-   w2->mono.deg = 2;
-   w2->mono.coeff = 2;
-   w2->coeff[2] = 2;
-
-   trunc_pol_update_add(w1, w2);
-
-   double array[51] = {0,1,2};
-   test_assert(w1->mono.deg == 0);
-   test_assert(w1->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(w1->coeff[i] == array[i]);
-   }
-
-   trunc_pol_update_add(w1, NULL);
-
-   // Check that nothing has changed.
-   test_assert(w1->mono.deg == 0);
-   test_assert(w1->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(w1->coeff[i] == array[i]);
-   }
-
-   free(w1);
-   free(w2);
-   clean_mem_prob();
-
-}
-
-
-void
 test_new_trunc_pol_B
 (void)
 {
@@ -566,6 +520,7 @@ test_new_trunc_pol_B
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert(success);
 
+   // Test 'new_trunc_pol_B_ddown()'.
    trunc_pol_t *B_ddown = new_trunc_pol_B_ddown(2);
    test_assert_critical(B_ddown != NULL);
    test_assert(B_ddown->mono.deg == 0);
@@ -573,32 +528,38 @@ test_new_trunc_pol_B
    test_assert(B_ddown->coeff[0] == 0);
    const double omega = .01 * pow(1-.05/3,2);
    const double denom = 1-pow(1-.05/3,2);
-   for (int i = 1 ; i <= 50 ; i++) {
+   for (int i = 1 ; i <= 17 ; i++) {
+      double xi_term = 2*pow(.95,i-1) - pow(.95,2*i-2);
+      double target = omega * pow(.99, i-1) * xi_term;
+      test_assert(fabs(B_ddown->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 50 ; i++) {
       double alpha_i_sq = pow(1-pow(.95,i-1) * .05/3,2);
       double target = omega * pow(.99, i-1) * (1-alpha_i_sq) / denom;
       test_assert(fabs(B_ddown->coeff[i]-target) < 1e-9);
    }
 
+   // Test 'new_trunc_pol_B_down()'.
    trunc_pol_t *B_down = new_trunc_pol_B_down(2);
    test_assert_critical(B_down != NULL);
    test_assert(B_down->mono.deg == 0);
    test_assert(B_down->mono.coeff == 0);
    test_assert(B_down->coeff[0] == 0);
    const double _omega = .01 * (1-pow(1-.05/3,2));
-   for (int i = 1 ; i <= G ; i++) {
-      double alpha_i_sq = pow(1-pow(.95,i-1) * .05/3,2);
-      double target = _omega * pow(.99, i-1) * (1-alpha_i_sq) / denom; 
+   for (int i = 1 ; i <= 17 ; i++) {
+      double xi_term = 2*pow(.95,i-1) - pow(.95,2*i-2);
+      double target = _omega * pow(.99, i-1) * xi_term;
       test_assert(fabs(B_down->coeff[i]-target) < 1e-9);
    }
-   for (int i = G+1 ; i <= K ; i++) {
+   for (int i = 18 ; i <= 50 ; i++) {
       double alpha_i_sq = pow(1-pow(.95,i-1) * .05/3,2);
-      double alpha_g_sq = pow(1-pow(.95,16) * .05/3,2);
+      double alpha_0_sq = pow(1-.05/3,2);
       double zeta_ii_sq = pow(1-pow(.95,i-1) * .05/3 - 
          pow(.95,i-1) * .05/3 * (1-.05/3),2);
-      double zeta_gi_sq = pow(1-pow(.95,16) * .05/3 - 
+      double zeta_0i_sq = pow(1-.05/3 - 
          pow(.95,i-1) * .05/3 * (1-.05/3),2);
       double target = .01 * pow(.99, i-1) * (1-alpha_i_sq + \
-         (alpha_i_sq - alpha_g_sq -zeta_ii_sq + zeta_gi_sq) / denom);
+         (alpha_i_sq - alpha_0_sq -zeta_ii_sq + zeta_0i_sq) / denom);
       test_assert(fabs(B_down->coeff[i]-target) < 1e-9);
    }
 
@@ -668,94 +629,64 @@ test_error_new_trunc_pol_B
 
 
 void
-test_new_trunc_pol_D
+test_new_trunc_pol_C
 (void)
 {
 
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
-   const size_t j = 7; // G-10
-
-   // Test D_ddown polynomial of degree 10 with N = 2.
-   trunc_pol_t *D_ddown = new_trunc_pol_D_ddown(10, 2);
-   test_assert_critical(D_ddown != NULL);
-   test_assert(D_ddown->mono.deg == 0);
-   test_assert(D_ddown->mono.coeff == 0);
-   test_assert(D_ddown->coeff[0] == 0);
+   // Test a D polynomial of degree 10 with N = 2.
+   trunc_pol_t *C_ddown = new_trunc_pol_C_ddown(10, 2);
+   test_assert_critical(C_ddown != NULL);
+   test_assert(C_ddown->mono.deg == 0);
+   test_assert(C_ddown->mono.coeff == 0);
+   test_assert(C_ddown->coeff[0] == 0);
    const double omega = .01 * pow(1-.05/3,2);
-   const double denom = pow(1-pow(1-.05,j)*.05/3,2) - \
-      pow(1-pow(1-.05,j-1)*.05/3,2) - pow(1-pow(1-.05,j),2) + \
-      pow(1-(1-.05+.05*.05/3)*pow(1-.05,j-1),2);
    for (int i = 1 ; i <= 10 ; i++) {
-      double num =  pow(1-pow(1-.05,j)*.05/3,2) - \
-         pow(1-pow(1-.05,j-1)*.05/3,2) - \
-         pow(1-pow(1-.05,j)*.05/3-pow(1-.05,i+j-1)*(1-.05/3),2) + \
-         pow(1-pow(1-.05,j-1)*.05/3-pow(1-.05,i+j-1)*(1-.05/3),2);
-      double target = omega * pow(.99, i-1) * num / denom;
-      test_assert(fabs(D_ddown->coeff[i]-target) < 1e-9);
+      double target = omega * pow(.99, i-1);
+      test_assert(fabs(C_ddown->coeff[i]-target) < 1e-9);
    }
    for (int i = 11 ; i <= 50 ; i++) {
-      test_assert(D_ddown->coeff[i] == 0);
+      test_assert(C_ddown->coeff[i] == 0);
    }
 
-   // Test D_down polynomial of degree 10 with N = 2.
-   trunc_pol_t *D_down = new_trunc_pol_D_down(10, 2);
-   test_assert_critical(D_down != NULL);
-   test_assert(D_down->mono.deg == 0);
-   test_assert(D_down->mono.coeff == 0);
-   test_assert(D_down->coeff[0] == 0);
+   trunc_pol_t *C_down = new_trunc_pol_C_down(10, 2);
+   test_assert_critical(C_down != NULL);
+   test_assert(C_down->mono.deg == 0);
+   test_assert(C_down->mono.coeff == 0);
+   test_assert(C_down->coeff[0] == 0);
    const double _omega = .01 * (1 - pow(1-.05/3,2));
    for (int i = 1 ; i <= 10 ; i++) {
-      double num =  pow(1-pow(1-.05,j)*.05/3,2) - \
-         pow(1-pow(1-.05,j-1)*.05/3,2) - \
-         pow(1-pow(1-.05,j)*.05/3-pow(1-.05,i+j-1)*(1-.05/3),2) + \
-         pow(1-pow(1-.05,j-1)*.05/3-pow(1-.05,i+j-1)*(1-.05/3),2);
-      double target = _omega * pow(.99, i-1) * num / denom;
-      test_assert(fabs(D_down->coeff[i]-target) < 1e-9);
+      double target = _omega * pow(.99, i-1);
+      test_assert(fabs(C_down->coeff[i]-target) < 1e-9);
    }
    for (int i = 11 ; i <= 50 ; i++) {
-      const double alpha_j0_sq = pow(1-pow(.95,j) * .05/3,2);
-      const double alpha_j1_sq = pow(1-pow(.95,j-1) * .05/3,2);
-      double zeta_j0i_sq = pow(1-pow(.95,j) * .05/3 - 
-         pow(.95,j+i-1) * .05/3 * (1-.05/3),2);
-      double zeta_j1i_sq = pow(1-pow(.95,j-1) * .05/3 - 
-         pow(.95,j+i-1) * .05/3 * (1-.05/3),2);
-      double target = .01 * pow(.99, i-1) / denom * \
-         (alpha_j0_sq - alpha_j1_sq - zeta_j0i_sq + zeta_j1i_sq);
-      test_assert(fabs(D_down->coeff[i]-target) < 1e-9);
+      test_assert(C_down->coeff[i] == 0);
    }
 
-   // Test the special cases N = 0 and N = 1
-   trunc_pol_t *D_ddown0 = new_trunc_pol_D_ddown(50, 0);
-   trunc_pol_t *D_down0 = new_trunc_pol_D_down(50, 0);
-   trunc_pol_t *D_ddown1 = new_trunc_pol_D_ddown(50, 1);
-   trunc_pol_t *D_down1 = new_trunc_pol_D_down(50, 1);
-   test_assert_critical(D_ddown0 != NULL);
-   test_assert_critical(D_down0 != NULL);
-   test_assert_critical(D_ddown1 != NULL);
-   test_assert_critical(D_down1 != NULL);
-   test_assert(D_ddown0->mono.deg == 0);
-   test_assert(D_ddown0->mono.coeff == 0);
-   test_assert(D_down0->mono.deg == 0);
-   test_assert(D_down0->mono.coeff == 0);
-   test_assert(D_ddown1->mono.deg == 0);
-   test_assert(D_ddown1->mono.coeff == 0);
-   test_assert(D_down1->mono.deg == 0);
-   test_assert(D_down1->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(D_ddown0->coeff[i] == 0);
-      test_assert(D_down0->coeff[i] == 0);
-      test_assert(D_ddown1->coeff[i] == 0);
-      test_assert(D_down1->coeff[i] == 0);
+   // Test the special cases N = 0.
+   trunc_pol_t *C_ddown0 = new_trunc_pol_C_ddown(50, 0);
+   trunc_pol_t *C_down0 = new_trunc_pol_C_down(50, 0);
+   test_assert_critical(C_ddown0 != NULL);
+   test_assert_critical(C_down0 != NULL);
+   test_assert(C_ddown0->mono.deg == 0);
+   test_assert(C_ddown0->mono.coeff == 0);
+   test_assert(C_down0->mono.deg == 0);
+   test_assert(C_down0->mono.coeff == 0);
+
+   test_assert(C_ddown0->coeff[0] == 0);
+   test_assert(C_down0->coeff[0] == 0);
+   for (int i = 1 ; i <= 50 ; i++) {
+      double target = pow(1-.01,i-1) * 0.01;
+      test_assert(fabs(C_ddown0->coeff[i]-target) < 1e-9);
+      test_assert(C_down0->coeff[i] == 0);
    }
 
-   free(D_ddown);
-   free(D_down);
-   free(D_ddown0);
-   free(D_down0);
-   free(D_ddown1);
-   free(D_down1);
+   free(C_ddown);
+   free(C_down);
+   free(C_ddown0);
+   free(C_down0);
    clean_mem_prob();
 
 }
@@ -843,145 +774,46 @@ test_error_new_trunc_pol_C
 
 
 void
-test_new_trunc_pol_C
+test_trunc_pol_update_add
 (void)
 {
 
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
-   // Test a D polynomial of degree 10 with N = 2.
-   trunc_pol_t *C_ddown = new_trunc_pol_C_ddown(10, 2);
-   test_assert_critical(C_ddown != NULL);
-   test_assert(C_ddown->mono.deg == 0);
-   test_assert(C_ddown->mono.coeff == 0);
-   test_assert(C_ddown->coeff[0] == 0);
-   const double omega = .01 * pow(1-.05/3,2);
-   for (int i = 1 ; i <= 10 ; i++) {
-      double target = omega * pow(.99, i-1);
-      test_assert(fabs(C_ddown->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 11 ; i <= 50 ; i++) {
-      test_assert(C_ddown->coeff[i] == 0);
-   }
+   trunc_pol_t *w1 = new_zero_trunc_pol();
+   trunc_pol_t *w2 = new_zero_trunc_pol();
+   test_assert_critical(w1 != NULL);
+   test_assert_critical(w2 != NULL);
 
-   trunc_pol_t *C_down = new_trunc_pol_C_down(10, 2);
-   test_assert_critical(C_down != NULL);
-   test_assert(C_down->mono.deg == 0);
-   test_assert(C_down->mono.coeff == 0);
-   test_assert(C_down->coeff[0] == 0);
-   const double _omega = .01 * (1 - pow(1-.05/3,2));
-   for (int i = 1 ; i <= 10 ; i++) {
-      double target = _omega * pow(.99, i-1);
-      test_assert(fabs(C_down->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 11 ; i <= 50 ; i++) {
-      test_assert(C_down->coeff[i] == 0);
+   w1->mono.deg = 1;
+   w1->mono.coeff = 1;
+   w1->coeff[1] = 1;
+
+   w2->mono.deg = 2;
+   w2->mono.coeff = 2;
+   w2->coeff[2] = 2;
+
+   trunc_pol_update_add(w1, w2);
+
+   double array[51] = {0,1,2};
+   test_assert(w1->mono.deg == 0);
+   test_assert(w1->mono.coeff == 0);
+   for (int i = 0 ; i <= 50 ; i++) {
+      test_assert(w1->coeff[i] == array[i]);
    }
 
-   // Test the special cases N = 0.
-   trunc_pol_t *C_ddown0 = new_trunc_pol_C_ddown(50, 0);
-   trunc_pol_t *C_down0 = new_trunc_pol_C_down(50, 0);
-   test_assert_critical(C_ddown0 != NULL);
-   test_assert_critical(C_down0 != NULL);
-   test_assert(C_ddown0->mono.deg == 0);
-   test_assert(C_ddown0->mono.coeff == 0);
-   test_assert(C_down0->mono.deg == 0);
-   test_assert(C_down0->mono.coeff == 0);
+   trunc_pol_update_add(w1, NULL);
 
-   test_assert(C_ddown0->coeff[0] == 0);
-   test_assert(C_down0->coeff[0] == 0);
-   for (int i = 1 ; i <= 50 ; i++) {
-      double target = pow(1-.01,i-1) * 0.01;
-      test_assert(fabs(C_ddown0->coeff[i]-target) < 1e-9);
-      test_assert(C_down0->coeff[i] == 0);
+   // Check that nothing has changed.
+   test_assert(w1->mono.deg == 0);
+   test_assert(w1->mono.coeff == 0);
+   for (int i = 0 ; i <= 50 ; i++) {
+      test_assert(w1->coeff[i] == array[i]);
    }
 
-   free(C_ddown);
-   free(C_down);
-   free(C_ddown0);
-   free(C_down0);
-   clean_mem_prob();
-
-}
-
-
-void
-test_error_new_trunc_pol_D
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *D;
-
-
-   // Test errors for 'new_trunc_pol_D_ddown()'.
-   
-   redirect_stderr();
-   D = new_trunc_pol_D_ddown(0, 0);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   D = new_trunc_pol_D_ddown(0, 2);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   new_trunc_pol_D_ddown(51, 2);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   D = new_trunc_pol_D_ddown(18, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   
-   // Test errors for 'new_trunc_pol_D_down()'.
-   
-   redirect_stderr();
-   D = new_trunc_pol_D_down(0, 0);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   D = new_trunc_pol_D_down(0, 2);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   new_trunc_pol_D_down(51, 2);
-   unredirect_stderr();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   D = new_trunc_pol_D_down(18, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(D == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
+   free(w1);
+   free(w2);
    clean_mem_prob();
 
 }
@@ -1075,294 +907,6 @@ test_error_new_trunc_pol_u
 
 
 void
-test_new_trunc_pol_w
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   // Test a w polynomial of degree 10 with N = 2.
-   trunc_pol_t *w = new_trunc_pol_w(10, 2);
-   test_assert_critical(w != NULL);
-
-   const double denom = 1-pow(1-.05/3,2);
-   const double num = pow(1-pow(1-.05,10)*.05/3,2) - \
-      pow(1-pow(1-.05,9)*.05/3,2) - pow(1-pow(1-.05,10),2) + \
-      pow(1-(1-.05+.05*.05/3)*pow(1-.05,9),2);
-   const double target = pow(1-.01,10) * num / denom;
-   test_assert(w->mono.deg == 10);
-   test_assert(fabs(w->mono.coeff-target) < 1e-9);
-   for (int i = 0 ; i <= 50 ; i++) {
-      if (i == 10)
-         test_assert(fabs(w->coeff[i]-target) < 1e-9);
-      else
-         test_assert(w->coeff[i] == 0);
-   }
-
-   // Test the special case N = 0.
-   trunc_pol_t *w0 = new_trunc_pol_w(1, 0);
-   test_assert_critical(w0 != NULL);
-   test_assert(w0->mono.deg == 0);
-   test_assert(w0->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(w0->coeff[i] == 0);
-   }
-   
-   free(w);
-   free(w0);
-   clean_mem_prob();
-
-}
-
-
-void
-test_error_new_trunc_pol_w
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *w;
-
-   redirect_stderr();
-   w = new_trunc_pol_w(0, 0);
-   unredirect_stderr();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   w = new_trunc_pol_w(0, 2);
-   unredirect_stderr();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   new_trunc_pol_w(51, 2);
-   unredirect_stderr();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   w = new_trunc_pol_w(10, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   clean_mem_prob();
-
-}
-
-
-void
-test_new_trunc_pol_v
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   // Test a v polynomial of degree 10 with N = 2.
-   trunc_pol_t *v = new_trunc_pol_v(10, 2);
-   test_assert_critical(v != NULL);
-
-   const double num = pow(1-pow(1-.05,10),2) - \
-      pow(1-(1-.05+.05*.05/3)*pow(1-.05,9),2);
-   const double denom = 1-pow(1-.05/3,2);
-   const double target = num / denom * pow(1-.01,10);
-   test_assert(v->mono.deg == 10);
-   test_assert(fabs(v->mono.coeff-target) < 1e-9);
-   for (int i = 0 ; i <= 50 ; i++) {
-      if (i == 10)
-         test_assert(fabs(v->coeff[i]-target) < 1e-9);
-      else
-         test_assert(v->coeff[i] == 0);
-   }
-
-   // Test the special case N = 0.
-   trunc_pol_t *v0 = new_trunc_pol_v(1, 0);
-   test_assert_critical(v0 != NULL);
-   test_assert(v0->mono.deg == 0);
-   test_assert(v0->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(v0->coeff[i] == 0);
-   }
-   
-   free(v);
-   free(v0);
-   clean_mem_prob();
-
-}
-
-
-void
-test_error_new_trunc_pol_v
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *v;
-
-   redirect_stderr();
-   v = new_trunc_pol_v(0, 0);
-   unredirect_stderr();
-
-   test_assert(v == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   v = new_trunc_pol_v(0, 2);
-   unredirect_stderr();
-
-   test_assert(v == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   new_trunc_pol_v(51, 2);
-   unredirect_stderr();
-
-   test_assert(v == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   v = new_trunc_pol_v(10, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(v == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   clean_mem_prob();
-
-}
-
-
-void
-test_new_trunc_pol_y
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   // Test a y polynomial of degree 5 with N = 2.
-   trunc_pol_t *y = new_trunc_pol_y(4, 5, 2);
-   test_assert_critical(y != NULL);
-
-   const double denom =
-      pow(1-pow(1-.05,4)*.05/3,2) - \
-      pow(1-pow(1-.05,3)*.05/3,2) - \
-      pow(1-pow(1-.05,4),2) + \
-      pow(1-(1-.05+.05*.05/3)*pow(1-.05,3),2);
-   const double num = \
-      pow(1-pow(1-.05,4)*.05/3-pow(1-.05,9)*(1-.05/3),2) - \
-      pow(1-pow(1-.05,4)*.05/3-pow(1-.05,8)*(1-.05/3),2) - \
-      pow(1-pow(1-.05,3)*.05/3-pow(1-.05,9)*(1-.05/3),2) + \
-      pow(1-pow(1-.05,3)*.05/3-pow(1-.05,8)*(1-.05/3),2);
-   const double target = num / denom * pow(1-.01,5);
-   test_assert(y->mono.deg == 5);
-   test_assert(fabs(y->mono.coeff-target) < 1e-9);
-   for (int i = 0 ; i <= 50 ; i++) {
-      if (i == 5)
-         test_assert(fabs(y->coeff[i]-target) < 1e-9);
-      else
-         test_assert(y->coeff[i] == 0);
-   }
-
-   // Test the special cases N = 0 and N = 1.
-   trunc_pol_t *y0 = new_trunc_pol_y(4, 5, 0);
-   test_assert_critical(y0 != NULL);
-   test_assert(y0->mono.deg == 0);
-   test_assert(y0->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(y0->coeff[i] == 0);
-   }
-   trunc_pol_t *y1 = new_trunc_pol_y(4, 5, 1);
-   test_assert_critical(y1 != NULL);
-   test_assert(y1->mono.deg == 0);
-   test_assert(y1->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(y1->coeff[i] == 0);
-   }
-   
-   free(y);
-   free(y0);
-   free(y1);
-   clean_mem_prob();
-
-}
-
-
-void
-test_error_new_trunc_pol_y
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *y;
-
-   redirect_stderr();
-   y = new_trunc_pol_y(10, 0, 2);
-   unredirect_stderr();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   y = new_trunc_pol_y(16, 0, 2);
-   unredirect_stderr();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   y = new_trunc_pol_y(0, 10, 2);
-   unredirect_stderr();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   y = new_trunc_pol_y(0, 16, 2);
-   unredirect_stderr();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   redirect_stderr();
-   y = new_trunc_pol_y(10, 10, 2);
-   unredirect_stderr();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   y = new_trunc_pol_y(4, 5, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(y == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   clean_mem_prob();
-
-}
-
-
-void
 test_new_trunc_pol_T_down
 (void)
 {
@@ -1378,9 +922,14 @@ test_new_trunc_pol_T_down
    test_assert(T_down->mono.deg == 0);
    test_assert(T_down->mono.coeff == 0);
    test_assert(T_down->coeff[0] == 1);
-   for (int i = 1 ; i <= 50 ; i++) {
-      double target = (1-pow(1-pow(1-.05,i)*.05/3,2)) / \
-               denom * pow(1-.01,i);
+   for (int i = 1 ; i <= 16 ; i++) {
+      double xi_term = 2*pow(.95,i) - pow(.95,2*i);
+      double target = pow(.99,i) * xi_term;
+      test_assert(fabs(T_down->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= 50 ; i++) {
+      double alpha_i_sq = pow(1-pow(.95,i) * .05/3,2);
+      double target = pow(.99,i) * (1-alpha_i_sq) / denom;
       test_assert(fabs(T_down->coeff[i]-target) < 1e-9);
    }
 
@@ -1432,8 +981,8 @@ test_new_trunc_pol_T_ddown
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
-   // Test a T_double_down polynomial with N = 2.
-   trunc_pol_t *T_ddown = new_trunc_pol_T_double_down(2);
+   // Test a T_ddown polynomial with N = 2.
+   trunc_pol_t *T_ddown = new_trunc_pol_T_ddown(2);
    test_assert_critical(T_ddown != NULL);
 
    test_assert(T_ddown->mono.deg == 0);
@@ -1448,7 +997,7 @@ test_new_trunc_pol_T_ddown
    }
 
    // Test the special cases N = 0.
-   trunc_pol_t *T_ddown0 = new_trunc_pol_T_double_down(0);
+   trunc_pol_t *T_ddown0 = new_trunc_pol_T_ddown(0);
    test_assert_critical(T_ddown0 != NULL);
    test_assert(T_ddown0->mono.deg == 0);
    test_assert(T_ddown0->mono.coeff == 1);
@@ -1476,7 +1025,7 @@ test_error_new_trunc_pol_T_ddown
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
-   T_ddown = new_trunc_pol_T_double_down(2);
+   T_ddown = new_trunc_pol_T_ddown(2);
    unredirect_stderr();
    reset_alloc();
 
@@ -1555,87 +1104,6 @@ test_error_new_trunc_pol_T_up
    reset_alloc();
 
    test_assert(T_up == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
-
-   clean_mem_prob();
-
-}
-
-
-void
-test_new_trunc_pol_T_sim
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   // Test a T_sim polynomial of degree 10 with N = 2.
-   trunc_pol_t *T_sim = new_trunc_pol_T_sim(10, 2);
-   test_assert_critical(T_sim != NULL);
-
-   test_assert(T_sim->mono.deg == 0);
-   test_assert(T_sim->mono.coeff == 0);
-   // j = G-10-1 = 6
-   const double denom = \
-      pow(1-pow(1-.05,6)*.05/3,2) - \
-      pow(1-pow(1-.05,5)*.05/3,2) - \
-      pow(1-pow(1-.05,6),2) + \
-      pow(1-(1-.05+.05*.05/3)*pow(1-.05,5),2);
-   test_assert(T_sim->coeff[0] == 1);
-   for (int i = 1 ; i <= 10 ; i++) {
-      double num = \
-         pow(1-pow(1-.05,6)*.05/3,2) - \
-         pow(1-pow(1-.05,5)*.05/3,2) - \
-         pow(1-pow(1-.05,6)*.05/3-pow(1-.05,6+i)*(1-.05/3),2) + \
-         pow(1-pow(1-.05,5)*.05/3-pow(1-.05,6+i)*(1-.05/3),2);
-      double target = num / denom * pow(1-.01,i);
-      test_assert(fabs(T_sim->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 11 ; i <= 50 ; i++) {
-      test_assert(T_sim->coeff[i] == 0);
-   }
-
-   // Test the special cases N = 0.
-   trunc_pol_t *T_sim0 = new_trunc_pol_T_sim(10, 0);
-   test_assert_critical(T_sim0 != NULL);
-   test_assert(T_sim0->mono.deg == 0);
-   test_assert(T_sim0->mono.coeff == 0);
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(T_sim0->coeff[i] == 0);
-   }
-   
-   free(T_sim);
-   free(T_sim0);
-   clean_mem_prob();
-
-}
-
-
-void
-test_error_new_trunc_pol_T_sim
-(void)
-{
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   trunc_pol_t *T_sim;
-
-   redirect_stderr();
-   T_sim = new_trunc_pol_T_sim(17, 2);
-   unredirect_stderr();
-
-   test_assert(T_sim == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
-
-   set_alloc_failure_rate_to(1);
-   redirect_stderr();
-   T_sim = new_trunc_pol_T_sim(10, 2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(T_sim == NULL);
    test_assert_stderr("[compute_mem_prob] error in function `new_z");
 
    clean_mem_prob();
@@ -1744,12 +1212,13 @@ test_new_matrix_M
    int success = set_params_mem_prob(17, 100, 0.01, 0.05);
    test_assert_critical(success);
 
-   const int dim = 2*17+1;
+   const int dim = 17+2;
 
    // Test martrix M with one duplicate because the
    // polynomials are particularly simple in this case.
    M = new_matrix_M(1);
    test_assert_critical(M != NULL);
+   test_assert(M->dim == 17+2);
    
    // Test first row.
    for (int j = 0 ; j < dim ; j++) {
@@ -1798,20 +1267,15 @@ test_new_matrix_M
    for (int j = 1 ; j <= G-1 ; j++) {
       test_assert_critical(M->term[dim+2+j] != NULL);
       nspct = M->term[dim+2+j];
-      double target = pow(.99*.95,G-j-1) * .99*.05;
-      test_assert(nspct->mono.deg == G-j);
+      double target = pow(.99*.95,j-1) * .99*.05;
+      test_assert(nspct->mono.deg == j);
       test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
       for (int i = 0 ; i <= 100 ; i++) {
-         if (i == G-j)
+         if (i == j)
             test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
          else
             test_assert(nspct->coeff[i] == 0);
       }
-   }
-
-   // End of second row.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      test_assert(M->term[dim+G+1+j] == NULL);
    }
 
    // Third row, first term (T polynomial).
@@ -1846,125 +1310,67 @@ test_new_matrix_M
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
-   // Third row, v terms.
+   // Third row, u terms.
    for (int j = 1 ; j <= G-1 ; j++) {
       test_assert_critical(M->term[2*dim+2+j] != NULL);
       nspct = M->term[2*dim+2+j];
-      double target = pow(.99*.95,G-j-1) * .99*.05;
-      test_assert(nspct->mono.deg == G-j);
+      double target = pow(.99*.95,j-1) * .99*.05;
+      test_assert(nspct->mono.deg == j);
       test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
       for (int i = 0 ; i <= 100 ; i++) {
-         if (i == G-j)
+         if (i == j)
             test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
          else
             test_assert(nspct->coeff[i] == 0);
       }
    }
 
-   // Third row, w terms.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      test_assert_critical(M->term[2*dim+G+1+j] != NULL);
-      nspct = M->term[2*dim+G+1+j];
-      test_assert(nspct->mono.deg == 0);
-      test_assert(nspct->mono.coeff == 0);
-      for (int i = 0 ; i <= 100 ; i++) {
-         test_assert(nspct->coeff[i] == 0);
-      }
-   }
-
-   // First middle series of rows.
+   // Middle series of rows.
    for (int j = 1 ; j <= G-1 ; j++) {
       // T polynomials.
       test_assert_critical(M->term[(j+2)*dim] != NULL);
       nspct = M->term[(j+2)*dim];
       test_assert(nspct->mono.deg == 0);
       test_assert(nspct->mono.coeff == 0);
-      for (int i = 0 ; i <= j-1 ; i++) {
+      for (int i = 0 ; i <= G-j-1 ; i++) {
          double target = pow(.99,i);
          test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
       }
-      for (int i = j ; i <= 100 ; i++) {
+      for (int i = G-j ; i <= 100 ; i++) {
          test_assert(nspct->coeff[i] == 0);
       }
 
-      // D polynomials.
+      // C polynomials.
       test_assert_critical(M->term[(j+2)*dim+1] != NULL);
       nspct = M->term[(j+2)*dim+1];
       test_assert(nspct->mono.deg == 0);
       test_assert(nspct->mono.coeff == 0);
       test_assert(nspct->coeff[0] == 0);
-      for (int i = 1 ; i <= j ; i++) {
+      for (int i = 1 ; i <= G-j ; i++) {
          double target = pow(.99,i-1) * .01*(1-.05/3);
          test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
       }
-      for (int i = j+1 ; i <= 100 ; i++) {
+      for (int i = G-j+1 ; i <= 100 ; i++) {
          test_assert(nspct->coeff[i] == 0);
       }
 
-      // Tilde D polynomials.
+      // Tilde C polynomials.
       test_assert_critical(M->term[(j+2)*dim+2] != NULL);
       nspct = M->term[(j+2)*dim+2];
       test_assert(nspct->mono.deg == 0);
       test_assert(nspct->mono.coeff == 0);
       test_assert(nspct->coeff[0] == 0);
-      for (int i = 1 ; i <= j ; i++) {
+      for (int i = 1 ; i <= G-j ; i++) {
          double target = pow(.99,i-1) * .01*.05/3;
          test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
       }
-      for (int i = j+1 ; i <= 100 ; i++) {
+      for (int i = G-j+1 ; i <= 100 ; i++) {
          test_assert(nspct->coeff[i] == 0);
       }
 
       // Rest of the rows.
-      for (int i = 1 ; i <= 2*G-2 ; i++) {
+      for (int i = 1 ; i <= G-1 ; i++) {
          test_assert(M->term[(j+2)*dim+2+i] == NULL);
-      }
-
-   }
-
-   // Second middle series of rows.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      // T polynomials.
-      test_assert_critical(M->term[(j+G+1)*dim] != NULL);
-      nspct = M->term[(j+G+1)*dim];
-      test_assert(nspct->mono.deg == 0);
-      test_assert(nspct->mono.coeff == 0);
-      for (int i = 0 ; i <= 100 ; i++) {
-         test_assert(nspct->coeff[i] == 0);
-      }
-
-      // C polynomials.
-      test_assert_critical(M->term[(j+G+1)*dim+1] != NULL);
-      nspct = M->term[(j+G+1)*dim+1];
-      test_assert(nspct->mono.deg == 0);
-      test_assert(nspct->mono.coeff == 0);
-      for (int i = 0 ; i <= 100 ; i++) {
-         test_assert(nspct->coeff[i] == 0);
-      }
-
-      // Tilde C polynomials.
-      test_assert_critical(M->term[(j+G+1)*dim+2] != NULL);
-      nspct = M->term[(j+G+1)*dim+2];
-      test_assert(nspct->mono.deg == 0);
-      test_assert(nspct->mono.coeff == 0);
-      for (int i = 0 ; i <= 100 ; i++) {
-         test_assert(nspct->coeff[i] == 0);
-      }
-
-      // Row of y polynomials.
-      for (int i = 1 ; i < j ; i++) {
-         test_assert_critical(M->term[(j+G+1)*dim+2+i] != NULL);
-         nspct = M->term[(j+G+1)*dim+2+i];
-         test_assert(nspct->mono.deg == 0);
-         test_assert(nspct->mono.coeff == 0);
-         for (int i = 0 ; i <= 100 ; i++) {
-            test_assert(nspct->coeff[i] == 0);
-         }
-      }
-
-      // Rest of the rows.
-      for (int i = j ; i <= 2*G-2 ; i++) {
-         test_assert(M->term[(j+G+1)*dim+2+i] == NULL);
       }
 
    }
@@ -2031,21 +1437,16 @@ test_new_matrix_M
    for (int j = 1 ; j <= G-1 ; j++) {
       test_assert_critical(M->term[dim+2+j] != NULL);
       nspct = M->term[dim+2+j];
-      double target = (2*.05*pow(.95,G-j-1)*(1-pow(.95,G-j-1)) + \
-         pow(.05*pow(.95,G-j-1),2)) * pow(.99,G-j);
-      test_assert(nspct->mono.deg == G-j);
+      double target = (2*.05*pow(.95,j-1)*(1-pow(.95,j-1)) + \
+         pow(.05*pow(.95,j-1),2)) * pow(.99,j);
+      test_assert(nspct->mono.deg == j);
       test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
       for (int i = 0 ; i <= 100 ; i++) {
-         if (i == G-j)
+         if (i == j)
             test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
          else
             test_assert(nspct->coeff[i] == 0);
       }
-   }
-
-   // End of second row.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      test_assert(M->term[dim+G+1+j] == NULL);
    }
 
    // Third row, first term (T polynomial).
@@ -2053,11 +1454,17 @@ test_new_matrix_M
    nspct = M->term[2*dim];
    test_assert(nspct->mono.deg == 0);
    test_assert(nspct->mono.coeff == 0);
-   for (int i = 0 ; i <= 100 ; i++) {
+   test_assert(nspct->coeff[0] == 1.0);
+   for (int i = 1 ; i <= 16 ; i++) {
+      double xi_term = 2*pow(.95,i) - pow(.95,2*i);
+      double target = pow(.99,i) * xi_term;
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= 100 ; i++) {
+      // Declare constant in for loop to keep scope local.
       const double denom = 1-pow(1-.05/3,2);
-      double target = (pow(.05/3,2) * pow(.99,i) * \
-         (1-pow(1-pow(.95,i),2)) \
-         + 2*.05/3*(1-.05/3) * pow(.99,i) * pow(.95,i)) / denom;
+      double alpha_i_sq = pow(1-pow(.95,i) * .05/3,2);
+      double target = (1-alpha_i_sq) * pow(.99,i)/ denom;
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
@@ -2067,12 +1474,19 @@ test_new_matrix_M
    test_assert(nspct->mono.deg == 0);
    test_assert(nspct->mono.coeff == 0);
    test_assert(nspct->coeff[0] == 0);
-   for (int i = 1 ; i <= 100 ; i++) {
+   for (int i = 1 ; i <= 17 ; i++) {
+      // Declare constant in for loop to keep scope local.
+      const double omega = .01 * pow(1-.05/3,2);
+      double xi_term = 2*pow(.95,i-1) - pow(.95,2*i-2);
+      double target = omega * xi_term * pow(.99,i-1);
+      test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= 100 ; i++) {
+      // Declare constants in for loop to keep scope local.
       const double denom = 1-pow(1-.05/3,2);
-      double target = (pow(.05/3,2) * pow(.99,i-1) * \
-         (1-pow(1-pow(.95,i-1),2)) \
-         + 2*.05/3*(1-.05/3) * pow(.99,i-1) * pow(.95,i-1)) * \
-         0.01*pow(1-.05/3,2) / denom;
+      const double omega = .01 * pow(1-.05/3,2);
+      double alpha_i_sq = pow(1-pow(.95,i-1) * .05/3,2);
+      double target = omega * (1-alpha_i_sq) * pow(.99,i-1) / denom;
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
@@ -2083,56 +1497,45 @@ test_new_matrix_M
    test_assert(nspct->mono.coeff == 0);
    test_assert(nspct->coeff[0] == 0);
    for (int i = 1 ; i <= 17 ; i++) {
-      double target = (pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
-         2*.05/3*(1-.05/3)*pow(.95,i-1)) * .01 * pow(.99,i-1);
+      // Declare constant in for loop to keep scope local.
+      const double _omega = .01 * (1-pow(1-.05/3,2));
+      double xi_term = 2*pow(.95,i-1) - pow(.95,2*i-2);
+      double target = _omega * xi_term * pow(.99,i-1);
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= 100 ; i++) {
+      // Declare constant in for loop to keep scope local.
       const double denom = 1-pow(1-.05/3,2);
-      double target = (pow(.05/3,2)*(1-pow(1-pow(.95,i-1),2)) + \
-         2*.05/3*(1-.05/3)*pow(.95,i-1) + \
-         (1-.05/3)*pow(.95,i+G-2)*(1-pow(.95,i-G)) * 
-            2*pow(.05/3,2) / denom) * .01 * pow(.99,i-1);
+      double alpha_i_sq = pow(1-pow(.95,i-1) * .05/3,2);
+      double alpha_0_sq = pow(1-.05/3,2);
+      double zeta_ii_sq = pow(1-pow(.95,i-1) * .05/3 - 
+         pow(.95,i-1) * .05/3 * (1-.05/3),2);
+      double zeta_0i_sq = pow(1-.05/3 - 
+         pow(.95,i-1) * .05/3 * (1-.05/3),2);
+      double target = .01 * pow(.99, i-1) * (1-alpha_i_sq + \
+         (alpha_i_sq - alpha_0_sq -zeta_ii_sq + zeta_0i_sq) / denom);
       test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
    }
 
-   // Third row, v terms.
+   // Third row, u terms.
    for (int j = 1 ; j <= G-1 ; j++) {
       test_assert_critical(M->term[2*dim+2+j] != NULL);
       nspct = M->term[2*dim+2+j];
-      const double denom = 1-pow(1-.05/3,2);
-      double target = pow(.99,G-j) / denom * ( \
-         pow(.05/3,2) * ( 2*.05*pow(.95,G-j-1)*(1-pow(.95,G-j-1)) \
-           +.05*.05*pow(.95,2*G-2*j-2) ) + \
-         2*.05/3*(1-.05/3) * .05*pow(.95,G-j-1)*(1-pow(.95,G-j)) );
-      test_assert(nspct->mono.deg == G-j);
+      double target = (2*.05*pow(.95,j-1)*(1-pow(.95,j-1)) + \
+         pow(.05*pow(.95,j-1),2)) * pow(.99,j);
+      test_assert(nspct->mono.deg == j);
       test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
       for (int i = 0 ; i <= 100 ; i++) {
-         if (i == G-j) {
+         if (i == j)
             test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
-         }
          else
             test_assert(nspct->coeff[i] == 0);
       }
    }
 
-   // Third row, w terms.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      test_assert_critical(M->term[2*dim+G+1+j] != NULL);
-      nspct = M->term[2*dim+G+1+j];
-      const double denom = 1-pow(1-.05/3,2);
-      double target = pow(.99,G-j) / denom * \
-         2*.05/3*(1-.05/3) * .05*pow(.95,2*G-2*j-1);
-      test_assert(nspct->mono.deg == G-j);
-      test_assert(fabs(nspct->mono.coeff-target) < 1e-9);
-      for (int i = 0 ; i <= 100 ; i++) {
-         if (i == G-j) {
-            test_assert(fabs(nspct->coeff[i]-target) < 1e-9);
-         }
-         else
-            test_assert(nspct->coeff[i] == 0);
-      }
-   }
+   // Write the other tests.
+   int test_case_incomplete = 0;
+   test_assert(test_case_incomplete);
 
    destroy_mat(M);
    clean_mem_prob();
@@ -2173,7 +1576,7 @@ test_compute_mem_prob
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   int success = set_params_mem_prob(17, 19, 0.01, 0.05);
    test_assert_critical(success);
 
    // Set full precision for these tests.
@@ -2184,26 +1587,34 @@ test_compute_mem_prob
       test_assert(fabs(compute_mem_prob(2,i)-1) < 1e-9);
    }
 
+   // N = 2, k = 17.
    double target_17 = 1-pow(.99,17);
    test_assert(fabs(compute_mem_prob(2,17)-target_17) < 1e-9);
 
+
+   // N = 2, k = 18.
    double target_18;
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2);
    test_assert(fabs(compute_mem_prob(2,18)-target_18) < 1e-9);
 
+   // N = 3, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3);
    test_assert(fabs(compute_mem_prob(3,18)-target_18) < 1e-9);
 
+   // N = 4, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4);
    test_assert(fabs(compute_mem_prob(4,18)-target_18) < 1e-9);
 
+   // N = 150, k = 18.
    target_18 = 1-pow(.99,18) - \
-      2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,100);
-   test_assert(fabs(compute_mem_prob(100,18)-target_18) < 1e-9);
+      2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,150);
+   test_assert(fabs(compute_mem_prob(150,18)-target_18) < 1e-9);
 
+
+   // N = 1, k = 19.
    double target_19;
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * (1-pow(.95,18)*.05/3) - \
@@ -2213,6 +1624,7 @@ test_compute_mem_prob
             2*pow(.95,17)*(1-.05/3)*.05/3);
    test_assert(fabs(compute_mem_prob(1,19)-target_19) < 1e-9);
 
+   // N = 2, k = 19.
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,2) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,2) - \
@@ -2221,6 +1633,7 @@ test_compute_mem_prob
             2*pow(.95,17)*(1-.05/3)*.05/3,2);
    test_assert(fabs(compute_mem_prob(2,19)-target_19) < 1e-9);
 
+   // N = 3, k = 19.
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,3) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,3) - \
@@ -2229,6 +1642,7 @@ test_compute_mem_prob
             2*pow(.95,17)*(1-.05/3)*.05/3,3);
    test_assert(fabs(compute_mem_prob(3,19)-target_19) < 1e-9);
 
+   // N = 4, k = 19.
    target_19 = 1-pow(.99,19) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,4) - \
       2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,4) - \
@@ -2237,18 +1651,21 @@ test_compute_mem_prob
             2*pow(.95,17)*(1-.05/3)*.05/3,4);
    test_assert(fabs(compute_mem_prob(4,19)-target_19) < 1e-9);
 
+   // N = 150, k = 19.
    target_19 = 1-pow(.99,19) - \
-      2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,100) - \
-      2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,100) - \
-      2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,100) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,18)*.05/3,150) - \
+      2*.01*pow(.99,18) * pow(1-pow(.95,17)*.05/3,150) - \
+      2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,150) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
-            2*pow(.95,17)*(1-.05/3)*.05/3,100);
-   test_assert(fabs(compute_mem_prob(100,19)-target_19) < 1e-9);
+            2*pow(.95,17)*(1-.05/3)*.05/3,150);
+   test_assert(fabs(compute_mem_prob(150,19)-target_19) < 1e-9);
+
+
+   // Other test case with long seeds.
 
    success = set_params_mem_prob(20, 50, 0.02, 0.05);
    test_assert_critical(success);
 
-   // The first terms can be computed directly.
    for (int i = 0 ; i < 20 ; i++) {
       test_assert(fabs(compute_mem_prob(0,i)-1) < 1e-9);
       test_assert(fabs(compute_mem_prob(1,i)-1) < 1e-9);
@@ -2344,6 +1761,37 @@ test_error_compute_mem_prob
 }
 
 
+void
+test_misc_exactness
+(void)
+{
+
+   matrix_t *M1  = NULL;
+   matrix_t *M2 = NULL;
+
+   int success = set_params_mem_prob(17, 150, 0.01, 0.05);
+   test_assert_critical(success);
+
+   // Test with N = 0.
+   M1 = new_matrix_M(0);
+   M2 = new_zero_matrix(17+2);
+   test_assert_critical(M1 != NULL);
+   test_assert_critical(M2 != NULL);
+
+   special_matrix_mult(M2, M1, M1);
+
+   test_assert(M1->term[17+2]->coeff[150] == 0);
+   test_assert(M2->term[17+2]->coeff[150] == 0);
+
+   int test_case_incomplete = 0;
+   test_assert(test_case_incomplete);
+
+   destroy_mat(M1);
+   destroy_mat(M2);
+   clean_mem_prob();
+
+}
+
 
 // Test cases for export.
 const test_case_t test_cases_compute_mem_prob[] = {
@@ -2362,24 +1810,14 @@ const test_case_t test_cases_compute_mem_prob[] = {
    {"error_new_trunc_pol_B",       test_error_new_trunc_pol_B},
    {"new_trunc_pol_C",             test_new_trunc_pol_C},
    {"error_new_trunc_pol_C",       test_error_new_trunc_pol_C},
-   {"new_trunc_pol_D",             test_new_trunc_pol_D},
-   {"error_new_trunc_pol_D",       test_error_new_trunc_pol_D},
    {"new_trunc_pol_u",             test_new_trunc_pol_u},
    {"error_new_trunc_pol_u",       test_error_new_trunc_pol_u},
-   {"new_trunc_pol_v",             test_new_trunc_pol_v},
-   {"error_new_trunc_pol_v",       test_error_new_trunc_pol_v},
-   {"new_trunc_pol_w",             test_new_trunc_pol_w},
-   {"error_new_trunc_pol_w",       test_error_new_trunc_pol_w},
-   {"new_trunc_pol_y",             test_new_trunc_pol_y},
-   {"error_new_trunc_pol_y",       test_error_new_trunc_pol_y},
    {"new_trunc_pol_T_down",        test_new_trunc_pol_T_down},
    {"error_new_trunc_pol_T_down",  test_error_new_trunc_pol_T_down},
    {"new_trunc_pol_T_ddown",       test_new_trunc_pol_T_ddown},
    {"error_new_trunc_pol_T_ddown", test_error_new_trunc_pol_T_ddown},
    {"new_trunc_pol_T_up",          test_new_trunc_pol_T_up},
    {"error_new_trunc_pol_T_up",    test_error_new_trunc_pol_T_up},
-   {"new_trunc_pol_T_sim",         test_new_trunc_pol_T_sim},
-   {"error_new_trunc_pol_T_sim",   test_error_new_trunc_pol_T_sim},
    {"new_null_matrix",             test_new_null_matrix},
    {"error_new_null_matrix",       test_error_new_null_matrix},
    {"new_zero_matrix",             test_new_zero_matrix},
@@ -2388,5 +1826,6 @@ const test_case_t test_cases_compute_mem_prob[] = {
    {"error_new_matrix_M",          test_error_new_matrix_M},
    {"compute_mem_prob",            test_compute_mem_prob},
    {"error_compute_mem_prob",      test_error_compute_mem_prob},
+   {"misc_exactness",              test_misc_exactness},
    {NULL, NULL},
 };

@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "compute_mem_prob.h"
+#include "mem_seed_prob.h"
 
 int main(void) {
 
@@ -15,7 +15,7 @@ int main(void) {
    // from the return value of the function.
    if (!success) return -1;
 
-   double x = compute_mem_prob(2, 18);
+   double x = mem_seed_prob(2, 18);
 
    // If something went wrong, the function returns 'nan'.
    // This can be checked with the condition 'x != x'.

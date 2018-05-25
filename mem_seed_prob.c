@@ -6,8 +6,8 @@
 
 // MACROS //
 
-#define LIBNAME "compute_mem_prob"
-#define VERSION "0.9 04-27-2018"
+#define LIBNAME "mem_seed_prob"
+#define VERSION "1.0 05-25-2018"
 
 #define YES 1
 #define NO  0
@@ -822,7 +822,7 @@ in_case_of_failure:
 double HH(double x, double y) { return x*log(x/y)+(1-x)*log((1-x)/(1-y)); }
 
 double
-compute_mem_prob // VISIBLE //
+mem_seed_prob // VISIBLE //
 (
    const size_t N,    // Number of duplicates.
    const size_t k     // Segment or read size.
@@ -904,7 +904,7 @@ compute_mem_prob // VISIBLE //
       // Note: the matrix M, containing NULL entries, must always
       // be put on the left, i.e. as the second argument of 
       // 'special_matrix_mult()', otherwise the result is not
-      // guaranteed // to be correct.
+      // guaranteed to be correct.
       special_matrix_mult(powM1, M, M);
 
       // Update weighted generating function with two-segment reads.
@@ -924,10 +924,10 @@ compute_mem_prob // VISIBLE //
          trunc_pol_update_add(w, powM1->term[G+2]);
          // In max precision debug mode, get all possible digits.
          if (MAX_PRECISION) continue;
-         // Otherwise, exit on reaching 3-digit precision.
+         // Otherwise, stop when reaching 1% precision.
          double x = floor((m+2)/3) / ((double) K);
          double bound_on_imprecision = exp(-HH(x, P)*K);
-         if (bound_on_imprecision / w->coeff[K] < 1e-3) break;
+         if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
       }
 
       // Clean temporary variables.

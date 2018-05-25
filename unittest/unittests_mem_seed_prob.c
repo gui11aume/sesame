@@ -1,5 +1,5 @@
 #include "unittest.h"
-#include "compute_mem_prob.c"
+#include "mem_seed_prob.c"
 
 void
 test_set_params_mem_prob
@@ -41,49 +41,49 @@ test_error_set_params_mem_prob
    success = set_params_mem_prob(17, 50, 0.00, 0.05);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 2.
    redirect_stderr();
    success = set_params_mem_prob(17, 50, 0.01, 0.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 3.
    redirect_stderr();
    success = set_params_mem_prob(17, 50, 1.00, 0.05);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 4.
    redirect_stderr();
    success = set_params_mem_prob(17, 50, 0.01, 1.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 5.
    redirect_stderr();
    success = set_params_mem_prob(0, 50, 0.01, 1.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 6.
    redirect_stderr();
    success = set_params_mem_prob(17, 0, 0.01, 1.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Case 7.
    redirect_stderr();
    success = set_params_mem_prob(50, 20, 0.99, 0.95);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    // Test memory error.
    set_alloc_failure_rate_to(1.0);
@@ -91,7 +91,7 @@ test_error_set_params_mem_prob
    success = set_params_mem_prob(17, 50, 0.01, 0.05);
    unredirect_stderr();
    reset_alloc();
-   test_assert_stderr("[compute_mem_prob] error in function `set_");
+   test_assert_stderr("[mem_seed_prob] error in function `set_");
 
    return;
 
@@ -105,9 +105,9 @@ test_uninitialized_error
 
    // Do not call 'set_params_mem_prob()'.
    redirect_stderr();
-   double x = compute_mem_prob(5, 20);
+   double x = mem_seed_prob(5, 20);
    unredirect_stderr();
-   test_assert_stderr("[compute_mem_prob] error in function `comp");
+   test_assert_stderr("[mem_seed_prob] error in function `mem_");
    test_assert(x != x);
 
    return;
@@ -371,7 +371,7 @@ test_error_special_matrix_mult
    test_assert(special_matrix_mult(tmp, mat1, mat2) == NULL);
    unredirect_stderr();
 
-   test_assert_stderr("[compute_mem_prob] error in function `spe");
+   test_assert_stderr("[mem_seed_prob] error in function `spe");
 
    destroy_mat(mat1);
    destroy_mat(mat2);
@@ -392,7 +392,7 @@ test_error_new_zero_trunc_pol
    unredirect_stderr();
 
    test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -401,7 +401,7 @@ test_error_new_zero_trunc_pol
    reset_alloc();
 
    test_assert(w == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 }
 
@@ -493,7 +493,7 @@ test_error_new_trunc_pol_A
    reset_alloc();
 
    test_assert(A == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 
    // Test error for 'new_trunc_pol_A_ddown()'.
@@ -505,7 +505,7 @@ test_error_new_trunc_pol_A
    reset_alloc();
 
    test_assert(A == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -609,7 +609,7 @@ test_error_new_trunc_pol_B
    reset_alloc();
 
    test_assert(B == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 
    // Test error in 'new_trunc_pol_B_down()'.
@@ -621,7 +621,7 @@ test_error_new_trunc_pol_B
    reset_alloc();
 
    test_assert(B == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -710,21 +710,21 @@ test_error_new_trunc_pol_C
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    C = new_trunc_pol_C_ddown(0, 2);
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    new_trunc_pol_C_ddown(51, 2);
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -733,7 +733,7 @@ test_error_new_trunc_pol_C
    reset_alloc();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 
    // Test errors in 'new_trunc_pol_C_down()'.
@@ -743,21 +743,21 @@ test_error_new_trunc_pol_C
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    C = new_trunc_pol_C_down(0, 2);
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    new_trunc_pol_C_down(51, 2);
    unredirect_stderr();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -766,7 +766,7 @@ test_error_new_trunc_pol_C
    reset_alloc();
 
    test_assert(C == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -876,21 +876,21 @@ test_error_new_trunc_pol_u
    unredirect_stderr();
 
    test_assert(u == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    u = new_trunc_pol_u(0, 2);
    unredirect_stderr();
 
    test_assert(u == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    redirect_stderr();
    new_trunc_pol_u(18, 2);
    unredirect_stderr();
 
    test_assert(u == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -899,7 +899,7 @@ test_error_new_trunc_pol_u
    reset_alloc();
 
    test_assert(u == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -966,7 +966,7 @@ test_error_new_trunc_pol_T_down
    reset_alloc();
 
    test_assert(T_down == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -1030,7 +1030,7 @@ test_error_new_trunc_pol_T_ddown
    reset_alloc();
 
    test_assert(T_ddown == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -1095,7 +1095,7 @@ test_error_new_trunc_pol_T_up
    unredirect_stderr();
 
    test_assert(T_up == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_t");
+   test_assert_stderr("[mem_seed_prob] error in function `new_t");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -1104,7 +1104,7 @@ test_error_new_trunc_pol_T_up
    reset_alloc();
 
    test_assert(T_up == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    clean_mem_prob();
 
@@ -1141,7 +1141,7 @@ test_error_new_null_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_n");
+   test_assert_stderr("[mem_seed_prob] error in function `new_n");
 
 }
 
@@ -1187,7 +1187,7 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_n");
+   test_assert_stderr("[mem_seed_prob] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -1196,7 +1196,7 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 }
 
@@ -1603,7 +1603,7 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_n");
+   test_assert_stderr("[mem_seed_prob] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -1612,13 +1612,13 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
 }
 
 
 void
-test_compute_mem_prob
+test_mem_seed_prob
 (void)
 {
 
@@ -1630,34 +1630,34 @@ test_compute_mem_prob
 
    // The first terms can be computed directly.
    for (int i = 0 ; i < 17 ; i++) {
-      test_assert(fabs(compute_mem_prob(2,i)-1) < 1e-9);
+      test_assert(fabs(mem_seed_prob(2,i)-1) < 1e-9);
    }
 
    // N = 2, k = 17.
    double target_17 = 1-pow(.99,17);
-   test_assert(fabs(compute_mem_prob(2,17)-target_17) < 1e-9);
+   test_assert(fabs(mem_seed_prob(2,17)-target_17) < 1e-9);
 
 
    // N = 2, k = 18.
    double target_18;
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2);
-   test_assert(fabs(compute_mem_prob(2,18)-target_18) < 1e-9);
+   test_assert(fabs(mem_seed_prob(2,18)-target_18) < 1e-9);
 
    // N = 3, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3);
-   test_assert(fabs(compute_mem_prob(3,18)-target_18) < 1e-9);
+   test_assert(fabs(mem_seed_prob(3,18)-target_18) < 1e-9);
 
    // N = 4, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4);
-   test_assert(fabs(compute_mem_prob(4,18)-target_18) < 1e-9);
+   test_assert(fabs(mem_seed_prob(4,18)-target_18) < 1e-9);
 
    // N = 150, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,150);
-   test_assert(fabs(compute_mem_prob(150,18)-target_18) < 1e-9);
+   test_assert(fabs(mem_seed_prob(150,18)-target_18) < 1e-9);
 
 
    // N = 1, k = 19.
@@ -1668,7 +1668,7 @@ test_compute_mem_prob
       2*.01*.01*pow(.99,17) * (1-pow(.95,17)*.05/3) - \
       .01*.01*pow(.99,17) * (1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3);
-   test_assert(fabs(compute_mem_prob(1,19)-target_19) < 1e-9);
+   test_assert(fabs(mem_seed_prob(1,19)-target_19) < 1e-9);
 
    // N = 2, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1677,7 +1677,7 @@ test_compute_mem_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,2);
-   test_assert(fabs(compute_mem_prob(2,19)-target_19) < 1e-9);
+   test_assert(fabs(mem_seed_prob(2,19)-target_19) < 1e-9);
 
    // N = 3, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1686,7 +1686,7 @@ test_compute_mem_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,3);
-   test_assert(fabs(compute_mem_prob(3,19)-target_19) < 1e-9);
+   test_assert(fabs(mem_seed_prob(3,19)-target_19) < 1e-9);
 
    // N = 4, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1695,7 +1695,7 @@ test_compute_mem_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,4);
-   test_assert(fabs(compute_mem_prob(4,19)-target_19) < 1e-9);
+   test_assert(fabs(mem_seed_prob(4,19)-target_19) < 1e-9);
 
    // N = 150, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1704,7 +1704,7 @@ test_compute_mem_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,150) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,150);
-   test_assert(fabs(compute_mem_prob(150,19)-target_19) < 1e-9);
+   test_assert(fabs(mem_seed_prob(150,19)-target_19) < 1e-9);
 
 
    // Other test case with long seeds.
@@ -1713,40 +1713,40 @@ test_compute_mem_prob
    test_assert_critical(success);
 
    for (int i = 0 ; i < 20 ; i++) {
-      test_assert(fabs(compute_mem_prob(0,i)-1) < 1e-9);
-      test_assert(fabs(compute_mem_prob(1,i)-1) < 1e-9);
-      test_assert(fabs(compute_mem_prob(2,i)-1) < 1e-9);
+      test_assert(fabs(mem_seed_prob(0,i)-1) < 1e-9);
+      test_assert(fabs(mem_seed_prob(1,i)-1) < 1e-9);
+      test_assert(fabs(mem_seed_prob(2,i)-1) < 1e-9);
    }
 
    const double target_20 = 1-pow(.98,20);
-   test_assert(fabs(compute_mem_prob(0,20)-target_20) < 1e-9);
-   test_assert(fabs(compute_mem_prob(1,20)-target_20) < 1e-9);
-   test_assert(fabs(compute_mem_prob(2,20)-target_20) < 1e-9);
-   test_assert(fabs(compute_mem_prob(3,20)-target_20) < 1e-9);
+   test_assert(fabs(mem_seed_prob(0,20)-target_20) < 1e-9);
+   test_assert(fabs(mem_seed_prob(1,20)-target_20) < 1e-9);
+   test_assert(fabs(mem_seed_prob(2,20)-target_20) < 1e-9);
+   test_assert(fabs(mem_seed_prob(3,20)-target_20) < 1e-9);
 
    double target_21;
 
    // Special case N = 0.
    target_21 = 1-pow(.98,21) - 2*.02*pow(.98,20);
-   test_assert(fabs(compute_mem_prob(0,21)-target_21) < 1e-9);
+   test_assert(fabs(mem_seed_prob(0,21)-target_21) < 1e-9);
 
    // Special case N = 1.
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * (1-pow(.95,20)*.05/3);
-   test_assert(fabs(compute_mem_prob(1,21)-target_21) < 1e-9);
+   test_assert(fabs(mem_seed_prob(1,21)-target_21) < 1e-9);
 
    // Cases N > 1.
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,2);
-   test_assert(fabs(compute_mem_prob(2,21)-target_21) < 1e-9);
+   test_assert(fabs(mem_seed_prob(2,21)-target_21) < 1e-9);
 
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,3);
-   test_assert(fabs(compute_mem_prob(3,21)-target_21) < 1e-9);
+   test_assert(fabs(mem_seed_prob(3,21)-target_21) < 1e-9);
 
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,4);
-   test_assert(fabs(compute_mem_prob(4,21)-target_21) < 1e-9);
+   test_assert(fabs(mem_seed_prob(4,21)-target_21) < 1e-9);
 
    clean_mem_prob();
 
@@ -1754,53 +1754,53 @@ test_compute_mem_prob
 
 
 void
-test_error_compute_mem_prob
+test_error_mem_seed_prob
 (void)
 {
 
    double x;
 
    redirect_stderr();
-   x = compute_mem_prob(2,2);
+   x = mem_seed_prob(2,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[compute_mem_prob] error in function `comp");
+   test_assert_stderr("[mem_seed_prob] error in function `mem_");
 
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
    redirect_stderr();
-   x = compute_mem_prob(1025,2);
+   x = mem_seed_prob(1025,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[compute_mem_prob] error in function `comp");
+   test_assert_stderr("[mem_seed_prob] error in function `mem_");
 
    redirect_stderr();
-   x = compute_mem_prob(2,51);
+   x = mem_seed_prob(2,51);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[compute_mem_prob] error in function `comp");
+   test_assert_stderr("[mem_seed_prob] error in function `mem_");
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
-   x = compute_mem_prob(2,10);
+   x = mem_seed_prob(2,10);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[compute_mem_prob] error in function `new_z");
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
-   x = compute_mem_prob(2,10);
+   x = mem_seed_prob(2,10);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[compute_mem_prob] error in function `new_n");
+   test_assert_stderr("[mem_seed_prob] error in function `new_n");
 
    clean_mem_prob();
 
@@ -1808,32 +1808,33 @@ test_error_compute_mem_prob
 
 
 void
-test_misc_exactness
+test_misc_correctness
 (void)
+// The aim of this test is to compute the probability that a large
+// read without MEM seed has exactly one mismatch. The principle is
+// to count the paths that go through the state down exactly once
+// and that do not go through the state ddown. Such paths can go
+// through the states up before and / or after going through the
+// state down, so the path consists of two to four segments.
+//
+// For a single error at position [j] less than or equal to [gamma],
+// from the left end of the read, the probability that the main
+// thread is covered is on the right is
+//
+//       1 - (1 - (1-mu)^k-j * mu/3)^N = 1 - alpha(k-j)^N.
+//
+// For a single error at position [j] more than [gamma] from eiher
+// end, the probability that the main thread is covered is 
+//
+//     (1 - alpha(j-1)^N) (1 - alpha(k-j)^N / (1-(1-mu/3)^N). 
+//
+//     WARNING: The number above it only an approximation.
+//
+// The probability of the read is computed as the sum of those
+// terms (the terms of the first kind are computed two times for
+// symmetry). We also need to multiply by the probability that
+// there is exactly one error at position [j].
 {
-
-   // The aim of this test is to compute the probability that a large
-   // read without MEM seed has exactly one mismatch. The principle is
-   // to count the paths that go through the state down exactly once
-   // and that do not go through the state ddown. Such paths can go
-   // through the states up before and / or after going through the
-   // state down, so the path consists of two to four segments.
-   //
-   // For a single error at position [j] less than or equal to [gamma],
-   // from the left end of the read, the probability that the main
-   // thread is covered is on the right is
-   //
-   //       1 - (1 - (1-mu)^k-j * mu/3)^N = 1 - alpha(k-j)^N.
-   //
-   // For a single error at position [j] more than [gamma] from eiher
-   // end, the probability that the main thread is covered is 
-   //
-   //     (1 - alpha(j-1)^N) (1 - alpha(k-j)^N / (1-(1-mu/3)^N). 
-   //
-   // The probability of the read is computed as the sum of those
-   // terms (the terms of the first kind are computed two times for
-   // symmetry). We also need to multiply by the probability that
-   // there is exactly one error at position [j].
    
    const int dim = 17+2; // Dimension of the matrix 'M' throughout.
 
@@ -1902,7 +1903,7 @@ test_misc_exactness
 
 
 // Test cases for export.
-const test_case_t test_cases_compute_mem_prob[] = {
+const test_case_t test_cases_mem_seed_prob[] = {
    {"set_params_mem_prob",         test_set_params_mem_prob},
    {"error_set_params_mem_prob",   test_error_set_params_mem_prob},
    {"uninitialized_error",         test_uninitialized_error},
@@ -1932,8 +1933,8 @@ const test_case_t test_cases_compute_mem_prob[] = {
    {"error_new_zero_matrix",       test_error_new_zero_matrix},
    {"new_matrix_M",                test_new_matrix_M},
    {"error_new_matrix_M",          test_error_new_matrix_M},
-   {"compute_mem_prob",            test_compute_mem_prob},
-   {"error_compute_mem_prob",      test_error_compute_mem_prob},
-   {"misc_exactness",              test_misc_exactness},
+   {"mem_seed_prob",               test_mem_seed_prob},
+   {"error_mem_seed_prob",         test_error_mem_seed_prob},
+   {"misc_correctness",            test_misc_correctness},
    {NULL, NULL},
 };

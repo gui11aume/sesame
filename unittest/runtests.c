@@ -11,11 +11,11 @@ main(
 {
 
    // Import test cases.
-   extern test_case_t test_cases_compute_mem_prob[];
+   extern test_case_t test_cases_mem_seed_prob[];
 
    // Register test cases.
    const test_case_t *list_of_test_cases[] = {
-      test_cases_compute_mem_prob,
+      test_cases_mem_seed_prob,
       NULL,
    };
 

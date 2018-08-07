@@ -7,7 +7,7 @@
 // MACROS //
 
 #define LIBNAME "mem_seed_prob"
-#define VERSION "1.0 05-25-2018"
+#define VERSION "1.0 08-03-2018"
 
 #define YES 1
 #define NO  0
@@ -18,25 +18,11 @@
 // Maximum allowed number of duplicates.
 #define MAXN 1024
 
-// Compute omega and tilde-omega.
-#define  OMEGA ( P*pow(1.0-U/3, N) )
-#define _OMEGA ( P*(1-pow(1.0-U/3, N)) )
-
 // Prob that one of m altnerative threads survives i steps.
-#define xi(i,m) ( 1.0 - pow( 1.0 - pow(1.0-U,(i)), (m) ))
+#define xi(i)  (      1.0 - pow(1.0-U,(i))            )
+#define eta(i) (      1.0 - pow(1.0-U,(i)) * U/3      )
 
-// Calculation intermediates (one index).
-#define aN(i) pow( 1.0 - pow(1.0-U,(i)) * U/3.0, N )
-#define gN(i) pow( 1.0 - pow(1.0-U,(i)), N )
-#define dN(i) pow( 1.0 - (1.0 - U + U*U/3.0) * pow(1.0-U,(i)), N )
-
-// Calculation intermediates (two indices).
-#define bN(j,i) pow( 1.0 - pow(1.0-U,(j))*U/3.0 - \
-                           pow(1.0-U,(i))*(1.0-U/3.0), N)
-
-#define zN(j,i) pow( 1.0 - pow(1.0-U,(j))*U/3.0 - \
-                           pow(1.0-U,(i))*U/3.0*(1.0-U/3.0), N)
-
+#define iszero(p) (p == NULL || (p->monodeg == 0 && p->coeff[0] == 0))
 
 // Macro to simplify error handling.
 #define handle_memory_error(x) do { \
@@ -51,17 +37,17 @@
 
 typedef struct trunc_pol_t  trunc_pol_t;
 typedef struct matrix_t     matrix_t;
-typedef struct monomial_t   monomial_t;
 
-// TODO : explain that monomials must not be just deg and coeff //
+// TODO : explain how monomials work. Right now it is broken, but
+// the principle is that the variable 'monodeg' is a number
+// from 0 to 'K' to signify that the polynomial is a monomial. If the
+// value is greater than 'K', the polynomial is not a monomial. The
+// null polynomial is thus a monomial of degree 0 with a coefficient
+// equal to 0.
 
-struct monomial_t {
-   size_t deg;           // Degree of the coefficent.
-   double coeff;         // Value of the coefficient
-};
 
 struct trunc_pol_t {
-   monomial_t mono;      // Monomial (if applicable).
+   size_t monodeg;       // Monomial (if applicable).
    double coeff[];       // Terms of the polynomial.
 };
 
@@ -117,6 +103,47 @@ warning
 }
 
 
+// Mathematical functions.
+
+double
+omega
+(
+   size_t m,
+   size_t N
+)
+{
+   if (m > N) {
+      return 0.0;
+   }
+   double log_N_choose_m = lgamma(N+1)-lgamma(m+1)-lgamma(N-m+1);
+   return exp(log_N_choose_m + (N-m)*log(1-U/3) + m*log(U/3));
+}
+
+double
+zeta
+(
+   size_t i,
+   size_t m,
+   size_t n,
+   size_t N
+)
+{
+   // TODO: check that this is indeed equation (6) in the final doc.
+   // Take out the terms of the sum that do not depend on 'r'
+   // in equation (6).
+   const double C = exp(lgamma(N-m+1)+lgamma(n+1)-lgamma(N+1));
+   const double lz = log(1-eta(i)) - log(eta(i)) - log(U) - log(3);
+   double val = 0.0;
+   size_t top = N-m < n ? N-m : n;
+   for (int r = 0 ; r <= top ; r++) {
+      val += exp(lgamma(N-r+1) - lgamma(r+1)
+                     - lgamma(N-m-r+1) - lgamma(n-r+1) + r*lz);
+   }
+   return val * C;
+}
+
+
+
 // Initialization and clean up.
 
 void
@@ -161,13 +188,6 @@ set_params_mem_prob // VISIBLE //
    if (g == 0 || k == 0) {
       ERRNO = __LINE__;
       warning("parameters g and k must greater than 0",
-            __func__, __LINE__); 
-      goto in_case_of_failure;
-   }
-
-   if (k < g) {
-      ERRNO = __LINE__;
-      warning("parameters k must be greater than g",
             __func__, __LINE__); 
       goto in_case_of_failure;
    }
@@ -239,8 +259,10 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_A_ddown
+new_trunc_pol_A
 (
+   const size_t m,    // Initial state (down).
+   const size_t n,    // Final state (down).
    const size_t N     // Number of duplicates.
 )
 {
@@ -248,53 +270,24 @@ new_trunc_pol_A_ddown
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
+   // These polynomials are null when N is 0.
    if (N == 0) {
-      // In the special case N = 0, A_ddown(z) = pz.
-      new->mono.deg = 1;
-      new->mono.coeff = P;
-      new->coeff[1] = P;
       return new;
    }
 
-   // See definition of polynomial A_ddown.
-   double pow_of_q = 1.0;
+   // This is not a monomial.
+   new->monodeg = K+1;
+
+   double omega_p_pow_of_q = omega(N,m) * P;
    for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = OMEGA * (xi(i-1,N)) * pow_of_q;
-      pow_of_q *= (1.0-P);
+      new->coeff[i] = (1 - pow(xi(i),N)) * omega_p_pow_of_q;
+      omega_p_pow_of_q *= (1.0-P);
    }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_A_down
-(
-   const size_t N     // Number of duplicates.
-)
-{
-   
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   if (N == 0) return new;
-
-   // See definition of polynomial A_down.
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = _OMEGA * (xi(i-1,N)) * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-   // Terms of the polynomials with degree higher than 'G' (if any).
    for (int i = G+1 ; i <= K ; i++) {
-      new->coeff[i] = P * (1-aN(i-1)) * pow_of_q;
-      pow_of_q *= (1.0-P);
+      new->coeff[i] = (1 - pow(xi(i),m) * (1-pow(eta(i), N-m) *
+               zeta(i,m,n,N))) * omega_p_pow_of_q;
+      omega_p_pow_of_q *= (1.0-P);
    }
-
    return new;
 
 in_case_of_failure:
@@ -304,232 +297,112 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_B_ddown
+new_trunc_pol_B
 (
+   const size_t i,    // Final state (up).
    const size_t N     // Number of duplicates.
 )
 {
 
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Polynomial B_ddown is null when N = 0.
-   if (N == 0) return new;
-
-   // See definition of polynomial B_ddown.
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = OMEGA * xi(i-1,N) * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-   // Terms of the polynomials with degree higher than 'G'.
-   const double denom = 1.0 - pow(1-U/3.0, N);
-   for (int i = G+1 ; i <= K ; i++) {
-      new->coeff[i] = OMEGA * (1-aN(i-1)) * pow_of_q / denom;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_B_down
-(
-   const size_t N     // Number of duplicates.
-)
-{
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // Polynomial B_down is null when N = 0.
-   if (N == 0) return new;
-
-   // See definition of polynomial B_down.
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = _OMEGA * xi(i-1,N) * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-   const double denom = 1.0 - pow(1-U/3.0, N);
-   for (int i = G+1 ; i <= K ; i++) {
-      new->coeff[i] = P * pow_of_q * (1.0 - aN(i-1) +
-         (aN(i-1)-aN(0)-zN(i-1,i-1)+zN(0,i-1)) / denom);
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_C_ddown
-(
-   const size_t deg,  // Degree of polynomial D.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg == 0) {
+   if (i < 1) {
       warning(internal_error, __func__, __LINE__);
       ERRNO = __LINE__;
       goto in_case_of_failure;
-   }
-
-   // NB: The special case N = 0 is implicit for the
-   // polynomial D_ddown (it implies omega = p).
-   
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // See definition of polynomial D.
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= deg ; i++) {
-      new->coeff[i] = OMEGA * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_C_down
-(
-   const size_t deg,  // Degree of polynomial D.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   if (N == 0) return new;
-
-   // See definition of polynomial D_down
-   double pow_of_q = 1.0;
-   for (int i = 1 ; i <= deg ; i++) {
-      new->coeff[i] = _OMEGA * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_u
-(
-   const size_t deg,  // Degree of polynomial u.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   if (deg > K || deg >= G || deg == 0) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // See definition of polynomial u.
-   new->mono.deg = deg;
-   // The case N = 0 involves the term 'xi(0,0)', which should be
-   // equal to 0 but is equal to 1 because 'pow(0,0)' is 1 as per
-   // IEEE 854. So we need to return a special value for this case.
-   new->mono.coeff = (N == 0 && deg == 1) ? 1.0-P : 
-      (xi(deg-1,N) - xi(deg,N)) * pow(1.0-P,deg);
-   new->coeff[deg] = new->mono.coeff;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_T_down
-(
-   const size_t N    // Number of duplicates.
-)
-{
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // In the special case N = 0, the polynomial T is
-   // undefined, but we return a zero polynomial.
-   if (N == 0) return new;
-
-   // See definition of polynomial T_down.
-   new->coeff[0] = 1.0;
-   double pow_of_q = 1.0-P;
-   for (int i = 1 ; i <= G-1 ; i++) {
-      new->coeff[i] = xi(i,N) * pow_of_q;
-      pow_of_q *= (1.0-P);
-   }
-   const double denom = 1.0 - pow(1-U/3.0, N);
-   for (int i = G ; i <= K ; i++) {
-      new->coeff[i] = pow_of_q * (1.0 - aN(i)) / denom;
-      pow_of_q *= (1.0-P);
-   }
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_T_ddown
-(
-   const size_t N    // Number of duplicates.
-)
-{
+   }   
 
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
    if (N == 0) {
-      // Special case N = 0.
-      new->mono.coeff = 1.0;
-      new->coeff[new->mono.deg] = new->mono.coeff;
+      // Zero if i is not 1.
+      if (i != 1)
+         return new;
+		new->monodeg = 1;
+		new->coeff[1] = 1-P;
+      return new;
    }
-   else {
-      double pow_of_q = 1.0;
-      for (int i = 0 ; i <= G-1 ; i++) {
-         new->coeff[i] = xi(i,N) * pow_of_q;
-         pow_of_q *= (1-P);
-      }
+
+   // This is a monomial.
+   new->monodeg = i;
+   new->coeff[i] = (pow(xi(i),N) - pow(xi(i-1),N)) * pow(1-P,i);
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_C
+(
+   const size_t m,    // Initial state (down).
+   const size_t N     // Number of duplicates.
+)
+{
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+
+   // These polynomials are null when N is 0.
+   if (N == 0) {
+      return new;
+   }
+
+   // This is not a monomial.
+   new->monodeg = K+1;
+
+   double pow_of_q = 1.0;
+   for (int i = 0 ; i <= G-1 ; i++) {
+      new->coeff[i] = (1 - pow(xi(i),N)) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
+   for (int i = G ; i <= K ; i++) {
+      new->coeff[i] = (1 - pow(xi(i),m)) * pow_of_q;
+      pow_of_q *= (1.0-P);
+   }
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+
+trunc_pol_t *
+new_trunc_pol_D
+(
+   const size_t j,    // Initial state (up).
+   const size_t m,    // Final state (down).
+   const size_t N     // Number of duplicates.
+)
+{
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   if (j > G-1) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
+   }   
+
+   // In the case that 'N' is 0, the only polynomial that is
+   // defined is D(1,0,0) -- the others are set to 0. In the
+   // case that 'm' is greater than 'N' the polynomial is 0.
+   if ((N == 0 && !(j == 1 && m == 0)) || m > N) {
+      return new;
+   }
+
+   // This is a monomial only if j is equal to G-1.
+   new->monodeg = j == G-1 ? 1 : K+1;
+
+   double omega_p_pow_of_q = omega(m,N) * P;
+   for (int i = 1 ; i <= G-j ; i++) {
+      new->coeff[i] = omega_p_pow_of_q;
+      omega_p_pow_of_q *= (1.0-P);
    }
 
    return new;
@@ -541,14 +414,13 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_T_up
+new_trunc_pol_E
 (
-   size_t deg,       // Degree of the polynomial.
-   const size_t N    // Number of duplicates.
+   const size_t j    // Initial state (up).
 )
 {
 
-   if (deg > K || deg >= G) {
+   if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
       ERRNO = __LINE__;
       goto in_case_of_failure;
@@ -557,12 +429,13 @@ new_trunc_pol_T_up
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   // The special case N = 0 is implicit.
+   // This is a monomial only if j is equal to G-1
+   new->monodeg = j == G-1 ? 0 : K+1;
 
    double pow_of_q = 1.0;
-   for (int i = 0 ; i <= deg ; i++) {
+   for (int i = 0 ; i <= G-j-1 ; i++) {
       new->coeff[i] = pow_of_q;
-      pow_of_q *= (1-P);
+      pow_of_q *= (1.0-P);
    }
 
    return new;
@@ -571,6 +444,7 @@ in_case_of_failure:
    return NULL;
 
 }
+
 
 
 matrix_t *
@@ -645,6 +519,7 @@ in_case_of_failure:
 
 
 
+// TODO: rewrite completely.
 matrix_t *
 new_matrix_M
 (
@@ -652,45 +527,33 @@ new_matrix_M
 )
 {
 
-   const size_t dim = G+2;
+   const size_t dim = N+G+1;
    matrix_t *M = new_null_matrix(dim);
    handle_memory_error(M);
 
-   // First row is null.
-
-   // Second row.
-   M->term[1*dim+1] = new_trunc_pol_A_ddown(N);
-   handle_memory_error(M->term[1*dim+1]);
-   M->term[1*dim+2] = new_trunc_pol_A_down(N);
-   handle_memory_error(M->term[1*dim+2]);
-   for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[1*dim+(j+2)] = new_trunc_pol_u(j, N);
-      handle_memory_error(M->term[1*dim+(j+2)]);
+   // First N+1 series of rows.
+   for (int j = 0 ; j <= N ; j++) {
+      for (int i = 0 ; i <= N ; i++) {
+         M->term[j*dim+i] = new_trunc_pol_A(j,i,N);
+         handle_memory_error(M->term[j*dim+i]);
+      }
+      for (int i = N+1 ; i <= N+G-1 ; i++) {
+         M->term[j*dim+i] = new_trunc_pol_B(i-N,N);
+         handle_memory_error(M->term[j*dim+i]);
+      }
+      M->term[j*dim+(N+G)] = new_trunc_pol_C(j,N);
    }
-   M->term[1*dim+0] = new_trunc_pol_T_ddown(N);
-   handle_memory_error(M->term[1*dim+0]);
 
-   // Third row.
-   M->term[2*dim+1] = new_trunc_pol_B_ddown(N);
-   handle_memory_error(M->term[2*dim+1]);
-   M->term[2*dim+2] = new_trunc_pol_B_down(N);
-   handle_memory_error(M->term[2*dim+2]);
-   for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[2*dim+(j+2)] = new_trunc_pol_u(j, N);
-      handle_memory_error(M->term[2*dim+j+2]);
+   // Next G-1 rows.
+   for (int j = N+1 ; j <= N+G-1 ; j++) {
+      for (int i = 0 ; i <= N ; i++) {
+         M->term[j*dim+i] = new_trunc_pol_D(j-N,i,N);
+         handle_memory_error(M->term[j*dim+i]);
+      }
+      M->term[j*dim+(N+G)] = new_trunc_pol_E(j-N);
    }
-   M->term[2*dim+0] = new_trunc_pol_T_down(N);
-   handle_memory_error(M->term[2*dim+0]);
 
-   // Middle rows.
-   for (int j = 1 ; j <= G-1 ; j++) {
-      M->term[(j+2)*dim+1] = new_trunc_pol_C_ddown(G-j, N);
-      handle_memory_error(M->term[(j+2)*dim+1]);
-      M->term[(j+2)*dim+2] = new_trunc_pol_C_down(G-j, N);
-      handle_memory_error(M->term[(j+2)*dim+2]);
-      M->term[(j+2)*dim+0] = new_trunc_pol_T_up(G-j-1, N);
-      handle_memory_error(M->term[(j+2)*dim+0]);
-   }
+   // Last row is null (nothing to do).
 
    return M;
 
@@ -713,28 +576,32 @@ trunc_pol_mult
    // Erase destination.
    bzero(dest, KSZ);
 
-   // If any of the two k-polynomials is zero,
-   // set 'dest' to zero and return 'NULL' (not dest).
-   if (a == NULL || b == NULL) return NULL;
+   // If any of the two k-polynomials is zero, keep 'dest' as
+   // zero and return 'NULL' (not dest). See macro 'iszero'.
+   if (iszero(a) || iszero(b)) return NULL;
 
-   if (a->mono.coeff && b->mono.coeff) {
+   if (a->monodeg < K+1 && b->monodeg < K+1) {
       // Both are monomials, just do one multiplication.
       // If degree is too high, all coefficients are zero.
-      if (a->mono.deg + b->mono.deg > K) return NULL;
+      if (a->monodeg + b->monodeg > K) return NULL;
       // Otherwise do the multiplication.
-      dest->mono.deg = a->mono.deg + b->mono.deg;
-      dest->mono.coeff = a->mono.coeff * b->mono.coeff;
-      dest->coeff[dest->mono.deg] = dest->mono.coeff;
+      dest->monodeg = a->monodeg + b->monodeg;
+      dest->coeff[dest->monodeg] =
+         a->coeff[a->monodeg] * b->coeff[b->monodeg];
+      return dest;
    }
-   else if (a->mono.coeff) {
+
+   // The result cannot be a monomial.
+   dest->monodeg = K+1;
+   if (a->monodeg < K+1) {
       // 'a' is a monomial, do one "row" of multiplications.
-      for (int i = a->mono.deg ; i <= K ; i++)
-         dest->coeff[i] = a->mono.coeff * b->coeff[i-a->mono.deg];
+      for (int i = a->monodeg ; i <= K ; i++)
+         dest->coeff[i] = a->coeff[a->monodeg] * b->coeff[i-a->monodeg];
    }
-   else if (b->mono.coeff) {
+   else if (b->monodeg < K+1) {
       // 'b' is a monomial, do one "row" of multiplications.
-      for (int i = b->mono.deg ; i <= K ; i++)
-         dest->coeff[i] = b->mono.coeff * a->coeff[i-b->mono.deg];
+      for (int i = b->monodeg ; i <= K ; i++)
+         dest->coeff[i] = b->coeff[b->monodeg] * a->coeff[i-b->monodeg];
    }
    else {
       // Standard convolution product.
@@ -760,10 +627,14 @@ trunc_pol_update_add
 {
 
    // No update when adding zero.
-   if (a == NULL) return;
+   if (iszero(a)) return;
 
-   // No monomial after update.
-   dest->mono = (monomial_t) {0};
+   // Only adding two monomials of same degree returns
+   // a monomial (the case of adding a zero polynomial
+   // was taken care of above.
+   if (a->monodeg != dest->monodeg) {
+      dest->monodeg = K+1;
+   }
 
    for (int i = 0 ; i <= K ; i++) {
       dest->coeff[i] += a->coeff[i];
@@ -773,18 +644,12 @@ trunc_pol_update_add
 
 
 matrix_t *
-special_matrix_mult
+matrix_mult
 (
          matrix_t * dest,
    const matrix_t * a,
    const matrix_t * b
 )
-// This matrix multipication is "special" because it ignores all
-// the terms on the right of the first NULL value for each row of
-// the left matrix. This is done for optimization purposes and the
-// matrices used here are designed in such a way that the result
-// is correct, but in general, the code cannot be used for other
-// applications.
 {
 
    if (a->dim != dest->dim || b->dim != dest->dim) {
@@ -800,9 +665,6 @@ special_matrix_mult
       // Erase destination entry.
       bzero(dest->term[i*dim+j], KSZ);
       for (int m = 0 ; m < dim ; m++) {
-         // By construction, the first NULL term of the row
-         // indicates that all the remaining terms are zero.
-         if (a->term[i*dim+m] == NULL) break;
          trunc_pol_update_add(dest->term[i*dim+j],
             trunc_pol_mult(TEMP, a->term[i*dim+m], b->term[m*dim+j]));
       }
@@ -819,7 +681,8 @@ in_case_of_failure:
 
 
 // Need this snippet to compute a bound of the numerical imprecision.
-double HH(double x, double y) { return x*log(x/y)+(1-x)*log((1-x)/(1-y)); }
+double HH(double x, double y)
+         {  return x*log(x/y)+(1-x)*log((1-x)/(1-y));  }
 
 double
 mem_seed_prob // VISIBLE //
@@ -895,17 +758,13 @@ mem_seed_prob // VISIBLE //
       // so that powM1 is M^2m at iteration m. Using two matrices
       // allows the operations to be performed without requesting more
       // memory. The temporary matrices are implicitly erased in the
-      // course of the multiplication by 'special_matrix_mult()'.
+      // course of the multiplication by 'matrix_mult()'.
       powM1 = new_zero_matrix(G+2);
       powM2 = new_zero_matrix(G+2);
       handle_memory_error(powM1);
       handle_memory_error(powM2);
 
-      // Note: the matrix M, containing NULL entries, must always
-      // be put on the left, i.e. as the second argument of 
-      // 'special_matrix_mult()', otherwise the result is not
-      // guaranteed to be correct.
-      special_matrix_mult(powM1, M, M);
+      matrix_mult(powM1, M, M);
 
       // Update weighted generating function with two-segment reads.
       trunc_pol_update_add(w, powM1->term[G+2]);
@@ -918,9 +777,9 @@ mem_seed_prob // VISIBLE //
       for (int m = 2 ; m < K ; m += 2) {
          // Increase the number of segments and update
          // the weighted generating function accordingly.
-         special_matrix_mult(powM2, M, powM1);
+         matrix_mult(powM2, M, powM1);
          trunc_pol_update_add(w, powM2->term[G+2]);
-         special_matrix_mult(powM1, M, powM2);
+         matrix_mult(powM1, M, powM2);
          trunc_pol_update_add(w, powM1->term[G+2]);
          // In max precision debug mode, get all possible digits.
          if (MAX_PRECISION) continue;

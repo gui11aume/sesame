@@ -71,7 +71,6 @@ static size_t    KSZ = 0;     // Size of the 'trunc_pol_t' struct.
 static trunc_pol_t * TEMP = NULL;        // For matrix multipliciation.
 static trunc_pol_t * ARRAY[MAXN] = {0};  // Store results indexed by N.
 
-static int MAX_PRECISION = 0; // Full precision for debugging.
 static int ERRNO = 0;
 
 // Error message.
@@ -85,8 +84,6 @@ const char internal_error[] =
 // IO and error report functions (all VISIBLE).
 int  get_mem_prob_error_code (void) { return ERRNO; }
 void reset_mem_prob_error (void) { ERRNO = 0; }
-void set_mem_prob_max_precision_on (void) { MAX_PRECISION = 1; }
-void set_mem_prob_max_precision_off (void) { MAX_PRECISION = 0; }
 
 
 void
@@ -120,6 +117,33 @@ omega
 }
 
 double
+psi
+(
+   size_t i,
+   size_t m,
+   size_t n,
+   size_t r,
+   size_t N
+)
+{
+
+   if (N < (m+r)) return 0.0;
+
+   // Take out the terms of the sum that do not depend on 'q'.
+   const double lC = lgamma(m+1) + lgamma(N-m-r+1);
+   const double lx = log(xi(i));
+   double val = 0.0;
+   size_t topq = n-r < m ? n-r : m;
+   for (int q = 0 ; q <= topq ; q++) {
+      val += exp((n-r-q) * lx - lgamma(q+1) - lgamma(m-q+1)
+                     - lgamma(n-r-q+1) - lgamma(N-m-n+q+1) + lC);
+   }
+   return val;
+
+}
+
+
+double
 zeta
 (
    size_t i,
@@ -128,18 +152,19 @@ zeta
    size_t N
 )
 {
-   // TODO: check that this is indeed equation (6) in the final doc.
-   // Take out the terms of the sum that do not depend on 'r'
-   // in equation (6).
-   const double C = exp(lgamma(N-m+1)+lgamma(n+1)-lgamma(N+1));
-   const double lz = log(1-eta(i)) - log(eta(i)) - log(U) - log(3);
+
+   if (N < m) return 0.0;
+
+   // Take out the terms of the sum that do not depend on 'r'.
+   const double lC = lgamma(N-m+1)+lgamma(n+1)+lgamma(N-n+1)-lgamma(N+1);
+   const double lu = i * log(1-U);
    double val = 0.0;
-   size_t top = N-m < n ? N-m : n;
-   for (int r = 0 ; r <= top ; r++) {
-      val += exp(lgamma(N-r+1) - lgamma(r+1)
-                     - lgamma(N-m-r+1) - lgamma(n-r+1) + r*lz);
+   size_t topr = N-m < n ? N-m : n;
+   for (int r = 1 ; r <= topr ; r++) {
+      val += psi(i,m,n,r,N) * \
+             exp(r*lu - lgamma(r+1) - lgamma(N-m-r+1) + lC);
    }
-   return val * C;
+   return val;
 }
 
 
@@ -165,7 +190,6 @@ clean_mem_prob // VISIBLE //
    for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
    bzero(ARRAY, MAXN * sizeof(trunc_pol_t *));
 
-   MAX_PRECISION = 0;
    ERRNO = 0;
 
    return;
@@ -270,22 +294,27 @@ new_trunc_pol_A
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   // These polynomials are null when N is 0.
+   // When N is 0, these polynomials are non-null
+   // only if 'm' and 'n' are zero.
    if (N == 0) {
+      if (m == 0 && n == 0) {
+         new->monodeg = 1;
+         new->coeff[1] = P;
+      }
       return new;
    }
 
    // This is not a monomial.
    new->monodeg = K+1;
 
-   double omega_p_pow_of_q = omega(N,m) * P;
+   double omega_p_pow_of_q = omega(n,N) * P;
    for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = (1 - pow(xi(i),N)) * omega_p_pow_of_q;
+      new->coeff[i] = (1 - pow(xi(i-1),N)) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
    for (int i = G+1 ; i <= K ; i++) {
-      new->coeff[i] = (1 - pow(xi(i),m) * (1-pow(eta(i), N-m) *
-               zeta(i,m,n,N))) * omega_p_pow_of_q;
+      new->coeff[i] = (1 - pow(xi(i-1),m) *
+            (1- zeta(i-1,m,n,N))) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
    return new;
@@ -339,18 +368,25 @@ new_trunc_pol_C
    const size_t m,    // Initial state (down).
    const size_t N     // Number of duplicates.
 )
+// Note: the polynomials are defined in the case m > N, but
+// they have no meaning in the present context. Here they are
+// simply not forbidden, but also not used (and not tested).
 {
 
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-
-   // These polynomials are null when N is 0.
+   // Special case that 'N' is 0. Assuming that 'm' is 0 (see
+   // remark above), this is a monomial equal to 1.
    if (N == 0) {
+      new->monodeg = 0;
+      new->coeff[0] = 1.0;
       return new;
    }
 
-   // This is not a monomial.
+   // This is not a monomial (except in the case that
+   // 'G' is 1 and 'm' is 1, but this is too rare to justify
+   // the extra code (it won't trigger a mistake anyway).
    new->monodeg = K+1;
 
    double pow_of_q = 1.0;
@@ -519,7 +555,6 @@ in_case_of_failure:
 
 
 
-// TODO: rewrite completely.
 matrix_t *
 new_matrix_M
 (
@@ -527,7 +562,7 @@ new_matrix_M
 )
 {
 
-   const size_t dim = N+G+1;
+   const size_t dim = G+N+1;
    matrix_t *M = new_null_matrix(dim);
    handle_memory_error(M);
 
@@ -750,7 +785,7 @@ mem_seed_prob // VISIBLE //
 
       // Update weighted generating function with
       // one-segment reads (i.e. tail only).
-      trunc_pol_update_add(w, M->term[G+2]);
+      trunc_pol_update_add(w, M->term[G+N]);
 
       // Create two temporary matrices 'powM1' and 'powM2' to compute
       // the powers of M. On first iteration, powM1 = M*M, and later
@@ -759,15 +794,15 @@ mem_seed_prob // VISIBLE //
       // allows the operations to be performed without requesting more
       // memory. The temporary matrices are implicitly erased in the
       // course of the multiplication by 'matrix_mult()'.
-      powM1 = new_zero_matrix(G+2);
-      powM2 = new_zero_matrix(G+2);
+      powM1 = new_zero_matrix(G+N+1);
+      powM2 = new_zero_matrix(G+N+1);
       handle_memory_error(powM1);
       handle_memory_error(powM2);
 
       matrix_mult(powM1, M, M);
 
       // Update weighted generating function with two-segment reads.
-      trunc_pol_update_add(w, powM1->term[G+2]);
+      trunc_pol_update_add(w, powM1->term[G+N]);
 
       // There is at least one sequencing error for every three
       // segments. We bound the probability that a read of size k has
@@ -778,11 +813,14 @@ mem_seed_prob // VISIBLE //
          // Increase the number of segments and update
          // the weighted generating function accordingly.
          matrix_mult(powM2, M, powM1);
-         trunc_pol_update_add(w, powM2->term[G+2]);
+         trunc_pol_update_add(w, powM2->term[G+N]);
          matrix_mult(powM1, M, powM2);
-         trunc_pol_update_add(w, powM1->term[G+2]);
+         trunc_pol_update_add(w, powM1->term[G+N]);
+
+#ifdef MAX_PRECISION_MODE
          // In max precision debug mode, get all possible digits.
-         if (MAX_PRECISION) continue;
+         continue;
+#endif
          // Otherwise, stop when reaching 1% precision.
          double x = floor((m+2)/3) / ((double) K);
          double bound_on_imprecision = exp(-HH(x, P)*K);

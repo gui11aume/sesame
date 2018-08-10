@@ -416,14 +416,14 @@ new_trunc_pol_D
 )
 {
 
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
       ERRNO = __LINE__;
       goto in_case_of_failure;
    }   
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
 
    // In the case that 'N' is 0, the only polynomial that is
    // defined is D(1,0,0) -- the others are set to 0. In the

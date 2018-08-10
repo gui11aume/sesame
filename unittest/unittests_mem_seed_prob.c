@@ -683,6 +683,8 @@ test_new_trunc_pol_A
       test_assert(fabs(A->coeff[i]-target) < 1e-9);
    }
 
+   free(A);
+
    clean_mem_prob();
 
 }
@@ -1050,6 +1052,9 @@ test_new_trunc_pol_D
    for (int i = 0 ; i <= ksz ; i++) {
       test_assert(D->coeff[i] == 0);
    }
+
+   free(D);
+   D = NULL;
 
    // Test the special cases that 'N' is 0.
 

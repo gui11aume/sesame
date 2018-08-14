@@ -108,7 +108,7 @@ test_uninitialized_error
    redirect_stderr();
    double x = mem_seed_prob(5, 20);
    unredirect_stderr();
-   test_assert_stderr("[mem_seed_prob] error in function `mem_");
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
    test_assert(x != x);
 
    return;
@@ -1599,55 +1599,72 @@ test_error_new_matrix_M
 
 
 void
-test_mem_seed_prob
+test_compute_mem_prob_wgf
 (void)
 {
+
+   trunc_pol_t *w0  = NULL;
+   trunc_pol_t *w1  = NULL;
+   trunc_pol_t *w2  = NULL;
+   trunc_pol_t *w3  = NULL;
+   trunc_pol_t *w4  = NULL;
+   trunc_pol_t *w20 = NULL;
 
    int success = set_params_mem_prob(17, 19, 0.01, 0.05);
    test_assert_critical(success);
 
+   w0 = compute_mem_prob_wgf(0);
+   w1 = compute_mem_prob_wgf(1);
+   w2 = compute_mem_prob_wgf(2);
+   w3 = compute_mem_prob_wgf(3);
+   w4 = compute_mem_prob_wgf(4);
+   w20 = compute_mem_prob_wgf(20);
+
+   test_assert_critical(w0 != NULL);
+   test_assert_critical(w1 != NULL);
+   test_assert_critical(w2 != NULL);
+   test_assert_critical(w3 != NULL);
+   test_assert_critical(w4 != NULL);
+   test_assert_critical(w20 != NULL);
+
    // The first terms can be computed directly.
    for (int i = 0 ; i < 17 ; i++) {
-      test_assert(fabs(mem_seed_prob(0,i)-1) < 1e-9);
+      test_assert(fabs(w0->coeff[i]-1) < 1e-9);
    }
 
    for (int i = 0 ; i < 17 ; i++) {
-      test_assert(fabs(mem_seed_prob(1,i)-1) < 1e-9);
+      test_assert(fabs(w1->coeff[i]-1) < 1e-9);
    }
 
    for (int i = 0 ; i < 17 ; i++) {
-      test_assert(fabs(mem_seed_prob(2,i)-1) < 1e-9);
+      test_assert(fabs(w2->coeff[i]-1) < 1e-9);
    }
 
    // N = 2, k = 17.
    double target_17 = 1-pow(.99,17);
-   test_assert(fabs(mem_seed_prob(2,17)-target_17) < 1e-9);
+   test_assert(fabs(w2->coeff[17]-target_17) < 1e-9);
 
 
    // N = 2, k = 18.
    double target_18;
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2);
-   test_assert(fabs(mem_seed_prob(2,18)-target_18) < 1e-9);
+   test_assert(fabs(w2->coeff[18]-target_18) < 1e-9);
 
    // N = 3, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(3,18)-target_18) < 1e-9);
+   test_assert(fabs(w3->coeff[18]-target_18) < 1e-9);
 
    // N = 4, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(4,18)-target_18) < 1e-9);
+   test_assert(fabs(w4->coeff[18]-target_18) < 1e-9);
 
    // N = 20, k = 18.
    target_18 = 1-pow(.99,18) - \
       2*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,20);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(20,18)-target_18) < 1e-9);
-
+   test_assert(fabs(w20->coeff[18]-target_18) < 1e-9);
 
    // N = 1, k = 19.
    double target_19;
@@ -1657,7 +1674,7 @@ test_mem_seed_prob
       2*.01*.01*pow(.99,17) * (1-pow(.95,17)*.05/3) - \
       .01*.01*pow(.99,17) * (1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3);
-   test_assert(fabs(mem_seed_prob(1,19)-target_19) < 1e-9);
+   test_assert(fabs(w1->coeff[19]-target_19) < 1e-9);
 
    // N = 2, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1666,7 +1683,7 @@ test_mem_seed_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,2) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,2);
-   test_assert(fabs(mem_seed_prob(2,19)-target_19) < 1e-9);
+   test_assert(fabs(w2->coeff[19]-target_19) < 1e-9);
 
    // N = 3, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1675,8 +1692,7 @@ test_mem_seed_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,3) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,3);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(3,19)-target_19) < 1e-9);
+   test_assert(fabs(w3->coeff[19]-target_19) < 1e-9);
 
    // N = 4, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1685,8 +1701,7 @@ test_mem_seed_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,4) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,4);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(4,19)-target_19) < 1e-9);
+   test_assert(fabs(w4->coeff[19]-target_19) < 1e-9);
 
    // N = 20, k = 19.
    target_19 = 1-pow(.99,19) - \
@@ -1695,52 +1710,73 @@ test_mem_seed_prob
       2*.01*.01*pow(.99,17) * pow(1-pow(.95,17)*.05/3,20) - \
       .01*.01*pow(.99,17) * pow(1-pow(.95,17)*(.05/3)*(.05/3) -
             2*pow(.95,17)*(1-.05/3)*.05/3,20);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(20,19)-target_19) < 1e-9);
+   test_assert(fabs(w20->coeff[19]-target_19) < 1e-9);
 
+   free(w0);  w0 = NULL;
+   free(w1);  w1 = NULL;
+   free(w2);  w2 = NULL;
+   free(w3);  w3 = NULL;
+   free(w4);  w4 = NULL;
+   free(w20); w20 = NULL;
 
    // Other test case with longer seeds.
-
-   success = set_params_mem_prob(20, 50, 0.02, 0.05);
+   
+   success = set_params_mem_prob(20, 21, 0.02, 0.05);
    test_assert_critical(success);
 
+   w0 = compute_mem_prob_wgf(0);
+   w1 = compute_mem_prob_wgf(1);
+   w2 = compute_mem_prob_wgf(2);
+   w3 = compute_mem_prob_wgf(3);
+   w4 = compute_mem_prob_wgf(4);
+
+   test_assert_critical(w0 != NULL);
+   test_assert_critical(w1 != NULL);
+   test_assert_critical(w2 != NULL);
+   test_assert_critical(w3 != NULL);
+   test_assert_critical(w4 != NULL);
+
    for (int i = 0 ; i < 20 ; i++) {
-      test_assert(fabs(mem_seed_prob(0,i)-1) < 1e-9);
-      test_assert(fabs(mem_seed_prob(1,i)-1) < 1e-9);
-      test_assert(fabs(mem_seed_prob(2,i)-1) < 1e-9);
+      test_assert(fabs(w0->coeff[i]-1) < 1e-9);
+      test_assert(fabs(w1->coeff[i]-1) < 1e-9);
+      test_assert(fabs(w2->coeff[i]-1) < 1e-9);
    }
 
    const double target_20 = 1-pow(.98,20);
-   test_assert(fabs(mem_seed_prob(0,20)-target_20) < 1e-9);
-   test_assert(fabs(mem_seed_prob(1,20)-target_20) < 1e-9);
-   test_assert(fabs(mem_seed_prob(2,20)-target_20) < 1e-9);
-   test_assert(fabs(mem_seed_prob(3,20)-target_20) < 1e-9);
+   test_assert(fabs(w0->coeff[20]-target_20) < 1e-9);
+   test_assert(fabs(w1->coeff[20]-target_20) < 1e-9);
+   test_assert(fabs(w2->coeff[20]-target_20) < 1e-9);
+   test_assert(fabs(w3->coeff[20]-target_20) < 1e-9);
 
    double target_21;
 
    // Special case N = 0.
    target_21 = 1-pow(.98,21) - 2*.02*pow(.98,20);
-   test_assert(fabs(mem_seed_prob(0,21)-target_21) < 1e-9);
+   test_assert(fabs(w0->coeff[21]-target_21) < 1e-9);
 
    // Special case N = 1.
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * (1-pow(.95,20)*.05/3);
-   test_assert(fabs(mem_seed_prob(1,21)-target_21) < 1e-9);
+   test_assert(fabs(w1->coeff[21]-target_21) < 1e-9);
 
    // Cases N > 1.
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,2);
-   test_assert(fabs(mem_seed_prob(2,21)-target_21) < 1e-9);
+   test_assert(fabs(w2->coeff[21]-target_21) < 1e-9);
 
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,3);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(3,21)-target_21) < 1e-9);
+   test_assert(fabs(w3->coeff[21]-target_21) < 1e-9);
 
    target_21 = 1-pow(.98,21) - \
       2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,4);
-   // FIXME this test fails.
-   test_assert(fabs(mem_seed_prob(4,21)-target_21) < 1e-9);
+   test_assert(fabs(w4->coeff[21]-target_21) < 1e-9);
+
+   free(w0);
+   free(w1);
+   free(w2);
+   free(w3);
+   free(w4);
 
    clean_mem_prob();
 
@@ -1760,31 +1796,31 @@ test_error_mem_seed_prob
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `mem_");
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
 
    int success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
    redirect_stderr();
    // The error is that 'N' is greater than 'MAXN'.
-   x = mem_seed_prob(1025,2);
+   x = mem_seed_prob(2,1025);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `mem_");
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
 
    redirect_stderr();
    // The error is that 'k' is greater than specified value above.
-   x = mem_seed_prob(2,51);
+   x = mem_seed_prob(51,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `mem_");
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   x = mem_seed_prob(2,10);
+   x = mem_seed_prob(10,2);
    unredirect_stderr();
    reset_alloc();
 
@@ -1794,13 +1830,12 @@ test_error_mem_seed_prob
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (somewhere else).
-   x = mem_seed_prob(2,10);
+   x = mem_seed_prob(10,2);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
    test_assert_stderr("[mem_seed_prob] error in function `new_n");
-
    clean_mem_prob();
 
 }
@@ -1944,6 +1979,40 @@ test_misc_correctness
 }
 
 
+void
+test_mcmc_method
+(void)
+{
+
+   trunc_pol_t *w  = NULL;
+   double *mc = NULL;
+
+   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   test_assert_critical(success);
+
+   w = compute_mem_prob_wgf(5);
+   test_assert_critical(w != NULL);
+
+   mc = compute_mem_prob_mcmc(5);
+   test_assert_critical(mc != NULL);
+
+   // First values are equal to 1 (the precision
+   // is not very high for these first values).
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(mc[i]-1) < 1e-4);
+   }
+
+   // Check that the MCMC esimates are within 2
+   // standard deviations of the exact value.
+   const size_t R = 10000000;
+   for (int i = 17 ; i <= 50 ; i++) {
+      double SD = sqrt(w->coeff[i] * (1-w->coeff[i]) / R);
+      test_assert(fabs(mc[i] - w->coeff[i]) < 2*SD);
+   }
+
+}
+
+
 // Test cases for export.
 const test_case_t test_cases_mem_seed_prob[] = {
    {"omega",                       test_omega},
@@ -1974,8 +2043,9 @@ const test_case_t test_cases_mem_seed_prob[] = {
    {"error_new_zero_matrix",       test_error_new_zero_matrix},
    {"new_matrix_M",                test_new_matrix_M},
    {"error_new_matrix_M",          test_error_new_matrix_M},
-   {"mem_seed_prob",               test_mem_seed_prob},
+   {"compute_mem_prob_wgf",        test_compute_mem_prob_wgf},
    {"error_mem_seed_prob",         test_error_mem_seed_prob},
    {"misc_correctness",            test_misc_correctness},
+   {"mcmc_method",                 test_mcmc_method},
    {NULL, NULL},
 };

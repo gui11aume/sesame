@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
+#include "random.h"
 
 // MACROS //
 
@@ -38,12 +39,10 @@
 typedef struct trunc_pol_t  trunc_pol_t;
 typedef struct matrix_t     matrix_t;
 
-// TODO : explain how monomials work. Right now it is broken, but
-// the principle is that the variable 'monodeg' is a number
-// from 0 to 'K' to signify that the polynomial is a monomial. If the
-// value is greater than 'K', the polynomial is not a monomial. The
-// null polynomial is thus a monomial of degree 0 with a coefficient
-// equal to 0.
+// The variable 'monodeg' is a number from 0 to 'K' to signify that the
+// polynomial is a monomial. If the value is greater than 'K', the
+// polynomial is not a monomial. The null polynomial is thus a monomial
+// of degree 0 with a coefficient equal to 0.
 
 
 struct trunc_pol_t {
@@ -57,7 +56,6 @@ struct matrix_t {
 };
 
 
-
 // GLOBAL VARIABLES / CONSTANTS //
 
 static size_t    G = 0;       // Minimum size of MEM seeds.
@@ -68,8 +66,17 @@ static double    U = 0.0;     // Divergence rate between duplicates.
 
 static size_t    KSZ = 0;     // Size of the 'trunc_pol_t' struct.
 
-static trunc_pol_t * TEMP = NULL;        // For matrix multipliciation.
-static trunc_pol_t * ARRAY[MAXN] = {0};  // Store results indexed by N.
+static trunc_pol_t * TEMP = NULL;  // For matrix multipliciation.
+
+static double * XI;     // Precomputed values of 'xi'.
+static double * XIc;    // Precomputed values of '1-xi'.
+static double * ETA;    // Precomputed values of 'eta'.
+static double * ETAc;   // Precomputed values of '1-eta'.
+
+// Computation method.
+static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
+
+static double * ARRAY[MAXN] = {0};  // Store results indexed by N.
 
 static int ERRNO = 0;
 
@@ -81,9 +88,10 @@ const char internal_error[] =
 
 // FUNCTION DEFINITIONS //
 
-// IO and error report functions (all VISIBLE).
-int  get_mem_prob_error_code (void) { return ERRNO; }
-void reset_mem_prob_error (void) { ERRNO = 0; }
+// IO and error report functions
+int  get_mem_prob_error_code (void) { return ERRNO; }   // VISIBLE
+void reset_mem_prob_error (void) { ERRNO = 0; }         // VISIBLE
+void set_mem_prob_method (int m) { METH = m; }          // VISIBLE
 
 
 void
@@ -184,11 +192,14 @@ clean_mem_prob // VISIBLE //
    KSZ = 0;
 
    // Free everything.
-   free(TEMP);
-   TEMP = NULL;
+   free(TEMP); TEMP = NULL;
+   free(XI); XI = NULL;
+   free(XIc); XIc = NULL;
+   free(ETA); ETA = NULL;
+   free(ETAc); ETAc = NULL;
 
    for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
-   bzero(ARRAY, MAXN * sizeof(trunc_pol_t *));
+   bzero(ARRAY, MAXN * sizeof(double *));
 
    ERRNO = 0;
 
@@ -235,12 +246,30 @@ set_params_mem_prob // VISIBLE //
    P = p;  // Sequencing error.
    U = u;  // Divergence rate.
 
+   // Precompute intermediate quantities.
+   
+   free(XI); XI = malloc((K+1) * sizeof(double));
+   free(XIc); XIc = malloc((K+1) * sizeof(double));
+   free(ETA); ETA = malloc((K+1) * sizeof(double));
+   free(ETAc); ETAc = malloc((K+1) * sizeof(double));
+   handle_memory_error(XI);
+   handle_memory_error(XIc);
+   handle_memory_error(ETA);
+   handle_memory_error(ETAc);
+
+   for (int i = 0 ; i <= K ; i++) {
+      XI[i]   = 1 - pow(1-U,i);
+      XIc[i]  = 1 - XI[i];
+      ETA[i]  = 1 - pow(1-U,i) * U/3.0;
+      ETAc[i] = 1 - ETA[i];
+   }
+
    // All 'trunc_pol_t' must be congruent.
    KSZ = sizeof(trunc_pol_t) + (K+1) * sizeof(double);
 
    // Clean previous values (if any).
    for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
-   bzero(ARRAY, MAXN * sizeof(trunc_pol_t *));
+   bzero(ARRAY, MAXN * sizeof(double *));
 
    // Allocate or reallocate 'TEMP'.
    free(TEMP);
@@ -254,7 +283,6 @@ in_case_of_failure:
    return FAILURE;
 
 }
-
 
 
 // Definitions of weighted generating functions.
@@ -346,8 +374,8 @@ new_trunc_pol_B
       // Zero if i is not 1.
       if (i != 1)
          return new;
-		new->monodeg = 1;
-		new->coeff[1] = 1-P;
+         new->monodeg = 1;
+         new->coeff[1] = 1-P;
       return new;
    }
 
@@ -714,32 +742,20 @@ in_case_of_failure:
 }
 
 
-
-// Need this snippet to compute a bound of the numerical imprecision.
-double HH(double x, double y)
-         {  return x*log(x/y)+(1-x)*log((1-x)/(1-y));  }
-
-double
-mem_seed_prob // VISIBLE //
+int
+fault_in_params
 (
-   const size_t N,    // Number of duplicates.
-   const size_t k     // Segment or read size.
+   const size_t k,    // Segment or read size.
+   const size_t N     // Number of duplicates.
 )
 {
-   
-   // Those variables must be declared here so that
-   // they can be cleaned in case of failure.
-   matrix_t *          M = NULL;  // Transfer matix.
-   matrix_t *      powM1 = NULL;  // Computation intermediate.
-   matrix_t *      powM2 = NULL;  // Computation intermediate.
-   trunc_pol_t *       w = NULL;  // Result.
 
    // Check if sequencing parameters were set. Otherwise
    // warn user and fail gracefully (return nan).
    if (G == 0 || K == 0 || P == 0 || U == 0 || KSZ == 0) {
       warning("parameters unset: call `set_params_mem_prob'",
             __func__, __LINE__);
-      goto in_case_of_failure;
+      return YES;
    }
 
    // Check input.
@@ -748,7 +764,7 @@ mem_seed_prob // VISIBLE //
       snprintf(msg, 128, "argument N greater than %d", MAXN);
       warning(msg, __func__, __LINE__);
       ERRNO = __LINE__;
-      goto in_case_of_failure;
+      return YES;
    }
 
    if (k > K) {
@@ -756,95 +772,284 @@ mem_seed_prob // VISIBLE //
       snprintf(msg, 128, "argument k greater than set value (%ld)", K);
       warning(msg, __func__, __LINE__);
       ERRNO = __LINE__;
-      goto in_case_of_failure;
+      return YES;
    }
 
+   return NO;
+
+}
+
+
+// Need this snippet to compute a bound of the numerical imprecision.
+double HH(double x, double y)
+         {  return x*log(x/y)+(1-x)*log((1-x)/(1-y));  }
+
+trunc_pol_t *
+compute_mem_prob_wgf
+(
+   const size_t N    // Number of duplicates.
+)
+{
+
+   // Assume parameters were checked by the caller.
+
+   // The truncated polynomial 'w' stands the weighted generating
+   // function of the reads without on-target MEM seed for set
+   // parameters and 'N' duplicates.
+   trunc_pol_t *w = new_zero_trunc_pol();
+
+   // The matrix 'M' is the transfer matrix of reads without MEM
+   // seed. The row and column of the head state have been deleted
+   // because the reads can be assumed to start in state "double-
+   // down". The entries of 'M' are truncated polynomials that
+   // stand for weighted generating functions of segments joining
+   // different states. The m-th power of 'M' contains the weighted
+   // generating functions of sequences of m segments joining the
+   // dfferent states. We thus update 'w' with the entry of M^m
+   // that joins the initial "double-down" state to the tail state.
+   matrix_t *M = new_matrix_M(N);
+
+   // Create two temporary matrices 'powM1' and 'powM2' to compute
+   // the powers of M. On first iteration, powM1 = M*M, and later
+   // perform the operations powM2 = M*powM1 and powM1 = M*powM2,
+   // so that powM1 is M^2m at iteration m. Using two matrices
+   // allows the operations to be performed without requesting more
+   // memory. The temporary matrices are implicitly erased in the
+   // course of the multiplication by 'matrix_mult()'.
+   matrix_t *powM1 = new_zero_matrix(G+N+1);
+   matrix_t *powM2 = new_zero_matrix(G+N+1);
+
+   handle_memory_error(w);
+   handle_memory_error(M);
+   handle_memory_error(powM1);
+   handle_memory_error(powM2);
+
+   // Update weighted generating function with
+   // one-segment reads (i.e. tail only).
+   trunc_pol_update_add(w, M->term[G+N]);
+
+   matrix_mult(powM1, M, M);
+
+   // Update weighted generating function with two-segment reads.
+   trunc_pol_update_add(w, powM1->term[G+N]);
+
+   // There is at least one sequencing error for every three
+   // segments. We bound the probability that a read of size k has
+   // at least m/3 errors by a formula for the binomial distribution,
+   // where m is the number of segments, i.e. the power of matirx M.
+   // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
+   for (int m = 2 ; m < K ; m += 2) {
+      // Increase the number of segments and update
+      // the weighted generating function accordingly.
+      matrix_mult(powM2, M, powM1);
+      trunc_pol_update_add(w, powM2->term[G+N]);
+      matrix_mult(powM1, M, powM2);
+      trunc_pol_update_add(w, powM1->term[G+N]);
+#ifdef MAX_PRECISION_MODE
+      // In max precision debug mode, get all possible digits.
+      continue;
+#endif
+      // Otherwise, stop when reaching 1% precision.
+      double x = floor((m+2)/3) / ((double) K);
+      double bound_on_imprecision = exp(-HH(x, P)*K);
+      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+   }
+
+   // Clean temporary variables.
+   destroy_mat(powM1);
+   destroy_mat(powM2);
+   destroy_mat(M);
+
+   return w;
+
+in_case_of_failure:
+   // Clean everything.
+   destroy_mat(powM1);
+   destroy_mat(powM2);
+   destroy_mat(M);
+   free(w);
+   return NULL;
+
+}
+
+
+size_t
+rgeom
+(void)
+{
+   return ceil( log(runifMT()) / log(1-P) );
+}
+
+
+size_t
+rpos
+(
+   const size_t m,
+   const size_t i
+)
+{
+   if (m == 0) return 1;
+   const double mth_root_of_unif = pow(runifMT(), 1.0/m);
+   return ceil( log(1-XI[i]*mth_root_of_unif) / log(1-U) );
+}
+
+
+void
+one_mcmc
+(
+   const size_t   N,
+         double * pos
+)
+{
+
+   size_t i;     // Size of the error-free segment.
+   size_t m = 0; // Number of hard masks.
+
+   // Note: stop if last nucleotide is an error.
+   for (int sz = K ; sz > 0 ; sz -= (i+1)) {
+
+      // Get size of the error-free segment.
+      i = rgeom() - 1;
+
+      if (i >= sz) {
+         // If the error-free segment is longer than the read, resize
+         // the error-free segment to 'sz' and ignore soft masks.
+         
+         // If the size of the read is shorter than the minimum
+         // seed size 'g', then there is no on-target MEM seed.
+         int long_enough = sz >= G;
+         // Otherwise, there is an on-target MEM seed if there is
+         // no survivng hard mask.
+         int unmasked = rbinom(m, XIc[sz]) == 0;
+         if (unmasked && long_enough) {
+            // The segment is unmasked and long enough: there is a global
+            // MEM seed. We need to find its position.
+            size_t failpos = rpos(m, sz);
+            size_t from = failpos < G ? K-sz + G : K-sz + failpos;
+            for (int j = from ; j <= K ; j++) pos[j]++;
+         }
+         return;
+      }
+      else {
+         // The next error is before the end of the read.
+         // Get the number of hard masks that survive i
+         // nucleotides -- each survives with probability (1-u)^i.
+         size_t hsurv = rbinom(m, XIc[i]);
+
+         // Get the number of soft masks that survive i+1
+         // nucleotides -- each survives with probability (1-u)^i*u/3.
+         size_t ssurv = rbinom(N-m, ETAc[i]);
+
+         // If the segment has size greater than the
+         // minimum seed length and there are no surviving
+         // threads then there is an on-target MEM seed.
+         int unmasked = hsurv == 0;
+         int long_enough = i >= G;
+         if (unmasked && long_enough) {
+            int all_soft_masks_failed = ssurv == 0;
+            size_t failpos = rpos(m, i);
+            size_t from = failpos < G ? K-sz + G : K-sz + failpos;
+            if (all_soft_masks_failed) {
+               for (int j = from ; j <= K ; j++) pos[j]++;
+               return;
+            }
+            else {
+               size_t to = K-sz+i;
+               for (int j = from ; j <= to ; j++) pos[j]++;
+            }
+         }
+
+         // Otherwise, get the number of strictly masking threads (m).
+         // All the surviving soft masks become strictly masking. The
+         // hard masks have a probability u/3 of matching the error.
+         // The soft masks that did not survive have a probability
+         // pp = u/3 * xi / eta of matching the error. 
+         double pp = 1 - (1 - U/3.0) / ETA[i];
+         // The new state is down/m.
+         m = ssurv + rbinom(m, U/3.0) + rbinom(N-m-ssurv, pp);
+
+      }
+
+   }
+
+}
+
+
+double *
+compute_mem_prob_mcmc
+(
+   const size_t N    // Number of duplicates.
+)
+{
+
+   // Assume parameters were checked by the caller.
+   
+   // Perform 10 million resamplings.
+   // TODO: allow user to change this.
+   const size_t R = 10000000;
+   
+   double * seeds = malloc((K+1) * sizeof(double));
+   handle_memory_error(seeds);
+
+   for (int i = 0 ; i < R ; i++) {
+      one_mcmc(N, seeds);
+   }
+
+   for (int i = 0 ; i <= K ; i++) {
+      seeds[i] = 1.0 - seeds[i] / R;
+   }
+
+   return seeds;
+
+in_case_of_failure:
+   return NULL;
+
+}
+   
+
+double
+mem_seed_prob
+(
+   const size_t k,       // Segment or read size.
+   const size_t N        // Number of duplicates.
+)
+{
+   
+   // Check parameters.
+   if (fault_in_params(k,N)) {
+      goto in_case_of_failure;
+   }
 
    // If results were not computed for given number of duplicates (N),
    // need to compute truncated genearting function and store the
    // results for future use.
    if (ARRAY[N] == NULL) {
+
+      // Choose method. If N > 20 use MCMC.
+      int use_method_wgf = METH == METHOD_WGF ||
+                              (METH == METHOD_AUTO && N < 21);
       
-      // The truncated polynomial 'w' stands the weighted generating
-      // function of the reads without MEM seed for set parameters and
-      // 'N' duplicate sequences.
-      w = new_zero_trunc_pol();
-      handle_memory_error(w);
-
-      // The matrix 'M' is the transfer matrix of reads without MEM
-      // seed. The row and column of the head state have been deleted
-      // because the reads can be assumed to start in state "double-
-      // down". The entries of 'M' are truncated polynomials that
-      // stand for weighted generating functions of segments joining
-      // different states. The m-th power of 'M' contains the weighted
-      // generating functions of sequences of m segments joining the
-      // dfferent states. We thus update 'w' with the entry of M^m
-      // that joins the initial "double-down" state to the tail state.
-      M = new_matrix_M(N);
-      handle_memory_error(M);
-
-      // Update weighted generating function with
-      // one-segment reads (i.e. tail only).
-      trunc_pol_update_add(w, M->term[G+N]);
-
-      // Create two temporary matrices 'powM1' and 'powM2' to compute
-      // the powers of M. On first iteration, powM1 = M*M, and later
-      // perform the operations powM2 = M*powM1 and powM1 = M*powM2,
-      // so that powM1 is M^2m at iteration m. Using two matrices
-      // allows the operations to be performed without requesting more
-      // memory. The temporary matrices are implicitly erased in the
-      // course of the multiplication by 'matrix_mult()'.
-      powM1 = new_zero_matrix(G+N+1);
-      powM2 = new_zero_matrix(G+N+1);
-      handle_memory_error(powM1);
-      handle_memory_error(powM2);
-
-      matrix_mult(powM1, M, M);
-
-      // Update weighted generating function with two-segment reads.
-      trunc_pol_update_add(w, powM1->term[G+N]);
-
-      // There is at least one sequencing error for every three
-      // segments. We bound the probability that a read of size k has
-      // at least m/3 errors by a formula for the binomial distribution,
-      // where m is the number of segments, i.e. the power of matirx M.
-      // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
-      for (int m = 2 ; m < K ; m += 2) {
-         // Increase the number of segments and update
-         // the weighted generating function accordingly.
-         matrix_mult(powM2, M, powM1);
-         trunc_pol_update_add(w, powM2->term[G+N]);
-         matrix_mult(powM1, M, powM2);
-         trunc_pol_update_add(w, powM1->term[G+N]);
-
-#ifdef MAX_PRECISION_MODE
-         // In max precision debug mode, get all possible digits.
-         continue;
-#endif
-         // Otherwise, stop when reaching 1% precision.
-         double x = floor((m+2)/3) / ((double) K);
-         double bound_on_imprecision = exp(-HH(x, P)*K);
-         if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+      if (use_method_wgf) {
+         trunc_pol_t *w = compute_mem_prob_wgf(N);
+         if (w == NULL)
+            goto in_case_of_failure;
+         // Copy results to ARRAY.
+         ARRAY[N] = malloc((K+1) * sizeof(double));
+         handle_memory_error(ARRAY[N]);
+         memcpy(ARRAY[N], w->coeff, (K+1) * sizeof(double));
+         free(w);
       }
-
-      // Clean temporary variables.
-      destroy_mat(powM1);
-      destroy_mat(powM2);
-      destroy_mat(M);
-
-      // Memoize the results for future calls.
-      ARRAY[N] = w;
+      else {
+         ARRAY[N] = compute_mem_prob_mcmc(N);
+         if (ARRAY[N] == NULL)
+            goto in_case_of_failure;
+      }
 
    }
 
-   return ARRAY[N]->coeff[k];
+   return ARRAY[N][k];
 
 in_case_of_failure:
-   // Clean everything.
-   free(w);
-   destroy_mat(powM1);
-   destroy_mat(powM2);
-   destroy_mat(M);
    return 0.0/0.0;  //  nan
 
 }

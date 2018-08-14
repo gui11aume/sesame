@@ -1,6 +1,6 @@
 P= main
 
-OBJECTS= mem_seed_prob.o
+OBJECTS= mem_seed_prob.o random.o
 
 CC= gcc
 CFLAGS= -std=gnu99 -Wall
@@ -16,8 +16,8 @@ profile: CFLAGS += -g -pg -O3 -fprofile-arcs -ftest-coverage
 profile: $(P)
 
 
-$(P): $(OBJECTS) main.c
-	gcc $(CFLAGS) main.c $< -lm -o $@
+$(P): main.c $(OBJECTS)
+	gcc $(CFLAGS) $^ -lm -o $@
 
 clean:
 	rm -f $(P) $(OBJECTS)

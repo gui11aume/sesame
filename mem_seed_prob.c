@@ -36,13 +36,17 @@
 
 //  TYPE DECLARATIONS  //
 
-typedef struct trunc_pol_t  trunc_pol_t;
-typedef struct matrix_t     matrix_t;
-
+// The most important type declared here is the truncated polynomial
+// 'trunc_pol_t'. It consists of a 'monodeg' member and a variable-size
+// array of double 'coeff'.
+//
 // The variable 'monodeg' is a number from 0 to 'K' to signify that the
 // polynomial is a monomial. If the value is greater than 'K', the
 // polynomial is not a monomial. The null polynomial is thus a monomial
 // of degree 0 with a coefficient equal to 0.
+
+typedef struct trunc_pol_t  trunc_pol_t;
+typedef struct matrix_t     matrix_t;
 
 
 struct trunc_pol_t {
@@ -76,7 +80,7 @@ static double * ETAc;   // Precomputed values of '1-eta'.
 // Computation method.
 static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
 
-static double * ARRAY[MAXN] = {0};  // Store results indexed by N.
+static double * ARRAY[MAXN+1] = {0};  // Store results indexed by N.
 
 static int ERRNO = 0;
 
@@ -510,6 +514,131 @@ in_case_of_failure:
 }
 
 
+trunc_pol_t *
+new_trunc_pol_r_plus
+(
+   const size_t i
+)
+{
+
+   if (i > G-2) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   // This is a monomial.
+   new->monodeg = i+1;
+   new->coeff[i+1] = pow((1-P)*(1-U), i) * (1-P)*U;
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_r_minus
+(
+   const size_t i
+)
+{
+
+   if (i > G-2) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   // This is a monomial.
+   new->monodeg = i+1;
+   new->coeff[i+1] = pow((1-P)*(1-U), i) * P * U/3.0;
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_R
+(
+   const size_t j
+)
+{
+
+   if (j > G-1) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   // This is a monomial only when 'i' is 0.
+   new->monodeg = j == 0 ? 1 : K+1;
+
+   const double a = (1-P)*(1-U);
+   const double d = P*(1-U/3.0);
+   double pow_of_a = 1.0;
+   for (int i = 0 ; i <= j ; i++) {
+      new->coeff[i+1] = pow_of_a * d;
+      pow_of_a *= a;
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_F
+(
+   const size_t j
+)
+{
+
+   if (j > G-1) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   // This is a monomial only when 'i' is 0.
+   new->monodeg = j == 0 ? 0 : K+1;
+
+   const double a = (1-P)*(1-U);
+   double pow_of_a = 1.0;
+   for (int i = 0 ; i <= j ; i++) {
+      new->coeff[i] = pow_of_a;
+      pow_of_a *= a;
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
 
 matrix_t *
 new_null_matrix
@@ -627,6 +756,84 @@ in_case_of_failure:
 }
 
 
+matrix_t *
+new_matrix_L
+(void)
+{
+
+   const size_t dim = 2*G;
+   matrix_t *L = new_null_matrix(dim);
+   handle_memory_error(L);
+
+   // First row.
+   handle_memory_error(
+      L->term[0] = new_trunc_pol_R(G-1)
+   );
+   for (int j = 0 ; j <= G-2 ; j++) {
+      handle_memory_error(
+         L->term[j+1] = new_trunc_pol_r_plus(j)
+      );
+   }
+   for (int j = 0 ; j <= G-2 ; j++) {
+      handle_memory_error(
+         L->term[j+G] = new_trunc_pol_r_minus(j)
+      );
+   }
+   handle_memory_error(
+      L->term[dim-1] = new_trunc_pol_F(G-1)
+   );
+
+   // Next 'G-1' rows -- matrices A(z) and B(z).
+   for (int i = 1 ; i <= G-1 ; i++) {
+      handle_memory_error(
+         L->term[i*dim] = new_trunc_pol_R(G-1-i)
+      );
+      for (int j = 0 ; j <= ((int)G)-2-i ; j++) {
+         handle_memory_error(
+            L->term[i*dim+i+j+1] = new_trunc_pol_r_plus(j)
+         );
+      }
+      for (int j = 0 ; j <= G-1-i ; j++) {
+         handle_memory_error(
+            L->term[i*dim+j+G] = new_trunc_pol_r_minus(j)
+         );
+      }
+      handle_memory_error(
+         L->term[i*dim+dim-1] = new_trunc_pol_F(G-1-i)
+      );
+   }
+
+   // Next G-1 rows -- matrices C(z) and D(z).
+   for (int i = G ; i <= 2*G-2 ; i++) {
+      L->term[i*dim] = new_trunc_pol_R(2*G-2-i);
+      handle_memory_error(L->term[i*dim]);
+      for (int j = 0 ; j <= 2*G-2-i ; j++) {
+         handle_memory_error(
+            L->term[i*dim+j+1] = new_trunc_pol_r_plus(j)
+         );
+      }
+      for (int j = 0 ; j <= (2*(int)G)-3-i ; j++) {
+         handle_memory_error(
+            L->term[i*dim+j+G+(i-G+1)] = new_trunc_pol_r_minus(j)
+         );
+      }
+      handle_memory_error(
+         L->term[i*dim+dim-1] = new_trunc_pol_F(2*G-2-i)
+      );
+   }
+
+   // Last row is null (nothing to do).
+
+   return L;
+
+in_case_of_failure:
+   destroy_mat(L);
+   return NULL;
+
+}
+
+
+
 trunc_pol_t *
 trunc_pol_mult
 (
@@ -742,6 +949,105 @@ in_case_of_failure:
 }
 
 
+double
+exact_seed_prob
+(
+   const size_t g,
+   const size_t k,
+   const double p
+)
+// Use recurrence formula (12) from doi:10.3390/a11010003
+// "Analytic Combinatorics for Computing Seeding Probabilities".
+{
+
+   if (k < g) return 1.0;
+
+   double *s = malloc((k+1) * sizeof(double));
+   handle_memory_error(s);
+
+   const double q_pow_gamma = pow(1-p,g);
+   const double pq_pow_gamma = p * q_pow_gamma;
+
+   for (int i = 0 ; i < g ; i++) s[i] = 1.0;
+   s[g] = 1.0 - q_pow_gamma;
+   for (int i = g+1 ; i <= k ; i++) {
+      s[i] = s[i-1] - pq_pow_gamma * s[i-g-1];
+   }
+
+   double value = s[k];
+   free(s);
+
+   return value;
+
+in_case_of_failure:
+   return 0.0 / 0.0; // nan
+
+}
+
+double
+average_errors
+(
+   const size_t g,
+   const size_t k,
+   const double p
+)
+// Use recurrence.
+{
+
+   if (k <= g) return p*k;
+
+   // Allocate at least '2*g+2' numbers for convenience.
+   size_t sz = (k+1 < 2*g+2 ? 2*g+2 : k+1) * sizeof(double);
+   double *s = malloc(sz);
+   handle_memory_error(s);
+
+   const double two_pq_pow_gamma = 2 * p * pow(1-p,g);
+   const double pq_pow_gamma_square = pow(p * pow(1-p,g),2);
+
+   for (int i = 0 ; i <= g ; i++) s[i] = p*i;
+
+   s[g+1] = p*(g+1) - two_pq_pow_gamma;
+
+   for (int i = g+2 ; i < 2*g+1 ; i++) {
+      s[i] = 2*s[i-1] - s[i-2] -
+         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]);
+   }
+
+   s[2*g+1] = 2*s[2*g] - s[2*g-1] -
+      two_pq_pow_gamma * (s[g] - s[g-1]) + p*pow(1-p,2*g);
+
+   for (int i = 2*g+2 ; i <= k ; i++) {
+      s[i] = 2*s[i-1] - s[i-2] -
+         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]) -
+         pq_pow_gamma_square * s[i-2*g-2];
+   }
+
+   double value = s[k];
+   free(s);
+
+   return value;
+
+in_case_of_failure:
+   return 0.0 / 0.0; // nan
+
+}
+
+double
+special_average
+(
+   const size_t g,
+   const size_t k,
+   const double p
+)
+{
+
+   const double num = p*k - average_errors(g,k,p);
+   const double denom = 1.0 - exact_seed_prob(g,k,0) - pow(1-p,k);
+   return num / denom; 
+
+}
+
+
 int
 fault_in_params
 (
@@ -759,9 +1065,9 @@ fault_in_params
    }
 
    // Check input.
-   if (N > MAXN-1) {
+   if (N > MAXN) {
       char msg[128];
-      snprintf(msg, 128, "argument N greater than %d", MAXN);
+      snprintf(msg, 128, "argument N (%lu) greater than %d", N, MAXN);
       warning(msg, __func__, __LINE__);
       ERRNO = __LINE__;
       return YES;
@@ -769,7 +1075,8 @@ fault_in_params
 
    if (k > K) {
       char msg[128];
-      snprintf(msg, 128, "argument k greater than set value (%ld)", K);
+      snprintf(msg, 128,
+            "argument k (%lu) greater than set value (%ld)", k, K);
       warning(msg, __func__, __LINE__);
       ERRNO = __LINE__;
       return YES;
@@ -867,6 +1174,77 @@ in_case_of_failure:
    destroy_mat(powM1);
    destroy_mat(powM2);
    destroy_mat(M);
+   free(w);
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+compute_L_prob_wgf
+(void)
+{
+
+   // Assume parameters were checked by the caller.
+
+   trunc_pol_t *w = new_zero_trunc_pol();
+   matrix_t *L = new_matrix_L();
+
+   matrix_t *powL1 = new_zero_matrix(2*G);
+   matrix_t *powL2 = new_zero_matrix(2*G);
+
+   handle_memory_error(w);
+   handle_memory_error(L);
+   handle_memory_error(powL1);
+   handle_memory_error(powL2);
+
+   // Update weighted generating function with
+   // one-segment reads (i.e. tail only).
+   trunc_pol_update_add(w, L->term[2*G-1]);
+
+   matrix_mult(powL1, L, L);
+
+   // Update weighted generating function with two-segment reads.
+   trunc_pol_update_add(w, powL1->term[2*G-1]);
+
+   // There is at least one terminator for every two segments. We bound
+   // the probability that a read of size k has at least m terminators by
+   // a formula for the binomial distribution, where m is the number of
+   // segments, i.e. the power of matirx L.
+   // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
+   const double b = P * U/3.0;
+   const double c = (1-P) * U;
+   const double d = P * (1-U/3.0);
+   const double prob = b > c ? (b > d ? b : d) : (c > d ? c : d);
+   for (int m = 2 ; m < K ; m += 2) {
+      // Increase the number of segments and update
+      // the weighted generating function accordingly.
+      matrix_mult(powL2, L, powL1);
+      trunc_pol_update_add(w, powL2->term[2*G-1]);
+      matrix_mult(powL1, L, powL2);
+      trunc_pol_update_add(w, powL1->term[2*G-1]);
+#ifdef MAX_PRECISION_MODE
+      // In max precision debug mode, get all possible digits.
+      continue;
+#endif
+      // Otherwise, stop when reaching 1% precision.
+      double x = floor(m-1) / ((double) K);
+      double bound_on_imprecision = exp(-HH(x, prob)*K);
+      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+   }
+
+   // Clean temporary variables.
+   destroy_mat(powL1);
+   destroy_mat(powL2);
+   destroy_mat(L);
+
+   return w;
+
+in_case_of_failure:
+   // Clean everything.
+   destroy_mat(powL1);
+   destroy_mat(powL2);
+   destroy_mat(L);
    free(w);
    return NULL;
 
@@ -988,7 +1366,7 @@ compute_mem_prob_mcmc
    // TODO: allow user to change this.
    const size_t R = 10000000;
    
-   double * seeds = malloc((K+1) * sizeof(double));
+   double * seeds = calloc(1, (K+1) * sizeof(double));
    handle_memory_error(seeds);
 
    for (int i = 0 ; i < R ; i++) {
@@ -1025,9 +1403,9 @@ mem_seed_prob
    // results for future use.
    if (ARRAY[N] == NULL) {
 
-      // Choose method. If N > 20 use MCMC.
+      // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
       int use_method_wgf = METH == METHOD_WGF ||
-                              (METH == METHOD_AUTO && N < 21);
+                     (METH == METHOD_AUTO && N < 21 && P < .05);
       
       if (use_method_wgf) {
          trunc_pol_t *w = compute_mem_prob_wgf(N);

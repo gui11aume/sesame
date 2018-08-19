@@ -8,6 +8,10 @@ test_set_params_mem_prob
 
    int success;
 
+   // The parameters are 'G' (gamma) the minimum seed size,
+   // 'K' the maximum size of the reads, 'P' the probability of
+   // read error and 'U' (mu) the divergence rate between
+   // the duplicates and the target.
    success = set_params_mem_prob(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
@@ -1212,6 +1216,262 @@ test_error_new_trunc_pol_E
 
 
 void
+test_new_trunc_pol_F
+(void)
+{
+
+   size_t ksz = 50;
+
+   int success = set_params_mem_prob(17, ksz, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *F;
+
+   F = new_trunc_pol_F(0);
+   test_assert_critical(F != NULL);
+
+   // F polynomials with j = 0 are monomials.
+   test_assert(F->monodeg == 0);
+   test_assert(F->coeff[0] == 1);
+   for (int i = 1 ; i <= ksz ; i++) {
+      test_assert(F->coeff[i] == 0);
+   }
+
+   free(F);
+   F = NULL;
+
+   F = new_trunc_pol_F(16);
+   test_assert_critical(F != NULL);
+
+   test_assert(F->monodeg > ksz);
+   for (int i = 0 ; i <= 16 ; i++) {
+      double target = pow(.99*.95,i);
+      test_assert(fabs(F->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= ksz ; i++) {
+      test_assert(F->coeff[i] == 0);
+   }
+
+   free(F);
+
+   clean_mem_prob();
+
+}
+
+
+void
+test_error_new_trunc_pol_F
+(void)
+{
+
+   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *F;
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   F = new_trunc_pol_F(2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(F == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than G-1
+   F = new_trunc_pol_F(17);
+   unredirect_stderr();
+
+   test_assert(F == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+
+   clean_mem_prob();
+
+}
+
+
+void
+test_new_trunc_pol_R
+(void)
+{
+
+   size_t ksz = 50;
+
+   int success = set_params_mem_prob(17, ksz, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *R;
+
+   R = new_trunc_pol_R(0);
+   test_assert_critical(R != NULL);
+
+   // R polynomials with j = 0 are monomials.
+   test_assert(R->monodeg == 1);
+   test_assert(R->coeff[1] == .01*(1-.05/3));
+   test_assert(R->coeff[0] == 0);
+   for (int i = 2 ; i <= ksz ; i++) {
+      test_assert(R->coeff[i] == 0);
+   }
+
+   free(R);
+   R = NULL;
+
+   R = new_trunc_pol_R(16);
+   test_assert_critical(R != NULL);
+
+   test_assert(R->monodeg > ksz);
+   test_assert(R->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = pow(.99*.95,i-1) * .01*(1-.05/3);
+      test_assert(fabs(R->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= ksz ; i++) {
+      test_assert(R->coeff[i] == 0);
+   }
+
+   free(R);
+
+   clean_mem_prob();
+
+}
+
+
+void
+test_error_new_trunc_pol_R
+(void)
+{
+
+   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *R;
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   R = new_trunc_pol_F(2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(R == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than G-1
+   R = new_trunc_pol_R(17);
+   unredirect_stderr();
+
+   test_assert(R == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+
+   clean_mem_prob();
+
+}
+
+
+void
+test_new_trunc_pol_r
+(void)
+{
+
+   size_t ksz = 50;
+
+   int success = set_params_mem_prob(17, ksz, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *r;
+
+   // Test r+ polynomials.
+   for (int i = 0 ; i <= 15 ; i++) {
+      r = new_trunc_pol_r_plus(i);
+      test_assert_critical(r != NULL);
+
+      test_assert(r->monodeg == i+1);
+      for (int j = 0 ; j <= ksz ; j++) {
+         double target = 0;
+         if (j == i+1) target = pow(.99*.95, i-1) * .99*.05;
+         test_assert((r->coeff[j]-target) < 1e-9);
+      }
+
+      free(r);
+      r = NULL;
+   }
+
+   // Test r- polynomials.
+   for (int i = 0 ; i <= 15 ; i++) {
+      r = new_trunc_pol_r_minus(i);
+      test_assert_critical(r != NULL);
+
+      test_assert(r->monodeg == i+1);
+      for (int j = 0 ; j <= ksz ; j++) {
+         double target = 0;
+         if (j == i+1) target = pow(.99*.95, i-1) * .01*.05/3;
+         test_assert((r->coeff[j]-target) < 1e-9);
+      }
+
+      free(r);
+      r = NULL;
+   }
+
+   clean_mem_prob();
+
+}
+
+
+void
+test_error_new_trunc_pol_r
+(void)
+{
+
+   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   test_assert_critical(success);
+
+   trunc_pol_t *r;
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   r = new_trunc_pol_r_plus(2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(r == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   r = new_trunc_pol_r_minus(2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(r == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than G-1
+   r = new_trunc_pol_r_plus(16);
+   unredirect_stderr();
+
+   test_assert(r == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than G-1
+   r = new_trunc_pol_r_minus(16);
+   unredirect_stderr();
+
+   test_assert(r == NULL);
+   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+
+   clean_mem_prob();
+
+}
+
+
+void
 test_new_null_matrix
 (void)
 {
@@ -1999,15 +2259,101 @@ test_mcmc_method
    // First values are equal to 1 (the precision
    // is not very high for these first values).
    for (int i = 0 ; i < 17 ; i++) {
-      test_assert(fabs(mc[i]-1) < 1e-4);
+      test_assert(fabs(mc[i]-1) < 1e-7);
    }
 
-   // Check that the MCMC esimates are within 2
-   // standard deviations of the exact value.
+   // Check that the MCMC esimates are within 2.2 standard deviations of
+   // the exact value (note that the Gaussian approximation becomes bad
+   // at the tail of the binomial distribution).
    const size_t R = 10000000;
    for (int i = 17 ; i <= 50 ; i++) {
       double SD = sqrt(w->coeff[i] * (1-w->coeff[i]) / R);
-      test_assert(fabs(mc[i] - w->coeff[i]) < 2*SD);
+      test_assert(fabs(mc[i] - w->coeff[i]) < 2.2 * SD);
+   }
+
+}
+
+
+void
+test_exact_seed_prob
+(void)
+{
+
+   double array[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      0.157056806616073, 0.148627374682234, 0.140197942748395,
+      0.131768510814555, 0.123339078880716, 0.114909646946877,
+      0.106480215013038, 0.0980507830791983, 0.0896213511453591,
+      0.0811919192115198, 0.0727624872776805, 0.0643330553438413,
+      0.055903623410002, 0.0474741914761627, 0.0390447595423234,
+      0.0306153276084842, 0.0221858956746449, 0.0137564637408056,
+      0.0124325640796893, 0.0111797197413002, 0.0099979307256383,
+      0.00888719703270364, 0.00784751866249621, 0.00687889561501601,
+      0.00598132789026304, 0.0051548154882373, 0.00439935840893878,
+      0.0037149566523675, 0.00310161021852345, 0.00255931910740662,
+      0.00208808331901703, 0.00168790285335466, 0.00135877771041952,
+      0.00110070789021162, 0.000913693392730939, 0.00079773421797749,
+      0.000692934765304654, 0.000598696078705965, 0.000514419202174956,
+      0.000439505179705163, 0.000373355055290118, 0.000315369872923355,
+      0.000264950676598408, 0.000221498510308811, 0.000184414418048099,
+      0.000153099443809803, 0.00012695463158746, 0.000105381025374601,
+      8.77796691647619e-05, 7.35516069514757e-05, 6.20978827282764e-05,
+      5.28195404886977e-05, 4.51176242262736e-05, 3.83931779345379e-05,
+      3.25521314958114e-05, 2.7505463651303e-05, 2.31692020011093e-05,
+      1.94644230042148e-05, 1.6317251978492e-05, 1.3658863100701e-05,
+      1.14254794064901e-05, 9.55837279039515e-06, 8.00386400584013e-06,
+      6.71332266513674e-06, 5.64316723948461e-06, 4.75486505897122e-06,
+      4.01493231257193e-06, 3.39493404814997e-06, 2.87148417245643e-06,
+      2.42624545113028e-06, 2.04592950869837e-06, 1.72229682857541e-06,
+      1.44790085183008e-06, 1.21604541817273e-06, 1.02074220694301e-06,
+      8.56668178097524e-07, 7.19123013197522e-07, 6.03986556396534e-07,
+      5.07676255428043e-07, 4.27104602593146e-07, 3.59636575748211e-07,
+      3.0304707929254e-07, 2.55478385156033e-07, 2.15397573786844e-07};
+   
+   for (int i = 0 ; i <= 50 ; i++) {
+      test_assert(fabs(exact_seed_prob(17, i ,.01)-array[i]) < 1e-9);
+   }
+
+}
+
+
+void
+test_average_errors
+(void)
+{
+
+   double array[] = { 0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07,
+      0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17,
+      0.163141136132321, 0.156113683625966, 0.148917642480934,
+      0.141553012697225, 0.13401979427484, 0.126317987213777,
+      0.118447591514038, 0.110408607175622, 0.102201034198529,
+      0.0938248725827594, 0.085280122328313, 0.0765667834351898,
+      0.0676848559033898, 0.0586343397329131, 0.0494152349237596,
+      0.0400275414759292, 0.0304712593894221, 0.0278519209369612,
+      0.0253482151367323, 0.0229622736484174, 0.0206962281316983,
+      0.0185522102462568, 0.0165323516517746, 0.0146387840079337,
+      0.0128736389744158, 0.0112390482109028, 0.00973714337707639,
+      0.0083700561326185, 0.0071399181372109, 0.00604886105053543,
+      0.00509901653227388, 0.00429251624210809, 0.00363149183971987,
+      0.00311807498479103, 0.00275439733700339, 0.00242279935474554,
+      0.0021218189616605, 0.00184997012315102, 0.00160574284637961,
+      0.00138760318026852, 0.00119399321549972, 0.00102333108451495,
+      0.00087401096151568, 0.000744403062463109, 0.000632853645078193,
+      0.000537685008841622, 0.000457195494993832, 0.000389659486534996,
+      0.000333327408225031, 0.000286425726583594, 0.000247156949890084,
+      0.000213699628183641, 0.000184208353263147, 0.000158328416353586,
+      0.000135721541310787, 0.000116066137064366, 9.90575500606736e-05,
+      8.44083167057381e-05, 7.18484158082088e-05, 6.11255210223017e-05,
+      5.20052532907434e-05, 4.42714332877157e-05, 3.77263338617996e-05,
+      3.21909324789203e-05, 2.7505163665291e-05, 2.35281714503576e-05,
+      2.01385618097431e-05, 1.7234655108192e-05, 1.47347385425144e-05,
+      1.25773185845308e-05, 1.07213734240163e-05, 9.12958180670945e-06,
+      7.76814988713323e-06, 6.60663552787539e-06, 5.61777004532791e-06,
+      4.77727740188584e-06, 4.06369084460529e-06, 3.45816699032078e-06,
+      2.94429735722175e-06, 2.50791734288845e-06, 2.13691264878695e-06,
+      1.82102315122354e-06, 1.55164421875829e-06 };
+   
+   for (int i = 0 ; i <= 50 ; i++) {
+      test_assert(fabs(average_errors(17, i ,.01)-array[i]) < 1e-9);
    }
 
 }
@@ -2037,6 +2383,12 @@ const test_case_t test_cases_mem_seed_prob[] = {
    {"error_new_trunc_pol_D",       test_error_new_trunc_pol_D},
    {"new_trunc_pol_E",             test_new_trunc_pol_E},
    {"error_new_trunc_pol_E",       test_error_new_trunc_pol_E},
+   {"new_trunc_pol_F",             test_new_trunc_pol_F},
+   {"error_new_trunc_pol_F",       test_error_new_trunc_pol_F},
+   {"new_trunc_pol_R",             test_new_trunc_pol_R},
+   {"error_new_trunc_pol_R",       test_error_new_trunc_pol_R},
+   {"new_trunc_pol_r",             test_new_trunc_pol_r},
+   {"error_new_trunc_pol_r",       test_error_new_trunc_pol_r},
    {"new_null_matrix",             test_new_null_matrix},
    {"error_new_null_matrix",       test_error_new_null_matrix},
    {"new_zero_matrix",             test_new_zero_matrix},
@@ -2047,5 +2399,7 @@ const test_case_t test_cases_mem_seed_prob[] = {
    {"error_mem_seed_prob",         test_error_mem_seed_prob},
    {"misc_correctness",            test_misc_correctness},
    {"mcmc_method",                 test_mcmc_method},
+   {"exact_seed_prob",             test_exact_seed_prob},
+   {"average_errors",              test_average_errors},
    {NULL, NULL},
 };

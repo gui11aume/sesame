@@ -8,22 +8,19 @@
 // MACROS //
 
 #define LIBNAME "mem_seed_prob"
-#define VERSION "1.0 08-03-2018"
-
-#define YES 1
-#define NO  0
+#define VERSION "1.0 08-23-2018"
 
 #define SUCCESS 1
 #define FAILURE 0
 
-// Maximum allowed number of duplicates.
-#define MAXN 1024
+#define HSIZE 4096
 
 // Prob that one of m altnerative threads survives i steps.
-#define xi(i)  (      1.0 - pow(1.0-U,(i))            )
-#define eta(i) (      1.0 - pow(1.0-U,(i)) * U/3      )
+#define xi(i)  (      1.0 - pow(1.0-u,(i))            )
+#define eta(i) (      1.0 - pow(1.0-u,(i)) * u/3      )
 
-#define iszero(p) (p == NULL || (p->monodeg == 0 && p->coeff[0] == 0))
+#define iszero(poly) \
+   ((poly) == NULL || ((poly)->monodeg == 0 && (poly)->coeff[0] == 0))
 
 // Macro to simplify error handling.
 #define handle_memory_error(x) do { \
@@ -45,13 +42,15 @@
 // polynomial is not a monomial. The null polynomial is thus a monomial
 // of degree 0 with a coefficient equal to 0.
 
-typedef struct trunc_pol_t  trunc_pol_t;
 typedef struct matrix_t     matrix_t;
+typedef struct rec_t        rec_t;
+typedef struct trunc_pol_t  trunc_pol_t;
 
-
-struct trunc_pol_t {
-   size_t monodeg;       // Monomial (if applicable).
-   double coeff[];       // Terms of the polynomial.
+struct rec_t {
+	size_t   lgN;         // Number of duplicates (log2).
+	double   u;           // Divergence rate.
+	double * prob;        // False positive probabilities.
+   rec_t  * next;        // Next record if any.
 };
 
 struct matrix_t {
@@ -59,16 +58,30 @@ struct matrix_t {
    trunc_pol_t * term[]; // Terms of the matrix.
 };
 
+struct trunc_pol_t {
+   size_t monodeg;       // Monomial (if applicable).
+   double coeff[];       // Terms of the polynomial.
+};
+
 
 // GLOBAL VARIABLES / CONSTANTS //
 
+// Methods options.
+static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
+
+// Precision options.
+static int MAX_PRECISION = 0;
+static size_t MCMC_RESAMPLINGS = 10000000;
+
+
+// Global specifications of he seeding problem.
 static size_t    G = 0;       // Minimum size of MEM seeds.
 static size_t    K = 0;       // Max degree (read size).
-
 static double    P = 0.0;     // Probability of a read error.
-static double    U = 0.0;     // Divergence rate between duplicates.
 
 static size_t    KSZ = 0;     // Size of the 'trunc_pol_t' struct.
+
+static rec_t * HTAB[HSIZE] = {0};  // Hash table of probabilities.
 
 static trunc_pol_t * TEMP = NULL;  // For matrix multipliciation.
 
@@ -77,14 +90,10 @@ static double * XIc;    // Precomputed values of '1-xi'.
 static double * ETA;    // Precomputed values of 'eta'.
 static double * ETAc;   // Precomputed values of '1-eta'.
 
-// Computation method.
-static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
+static int PARAMS_INITIALIZED = 0;
 
-static double * ARRAY[MAXN+1] = {0};  // Store results indexed by N.
-
+// Error report.
 static int ERRNO = 0;
-
-// Error message.
 const char internal_error[] =
    "internal error (please contact guillaume.filion@gmail.com)";
 
@@ -117,25 +126,27 @@ warning
 double
 omega
 (
-   size_t m,
-   size_t N
+   const size_t m,
+   const double u,
+   const size_t N
 )
 {
    if (m > N) {
       return 0.0;
    }
    double log_N_choose_m = lgamma(N+1)-lgamma(m+1)-lgamma(N-m+1);
-   return exp(log_N_choose_m + (N-m)*log(1-U/3) + m*log(U/3));
+   return exp(log_N_choose_m + (N-m)*log(1-u/3) + m*log(u/3));
 }
 
 double
 psi
 (
-   size_t i,
-   size_t m,
-   size_t n,
-   size_t r,
-   size_t N
+   const size_t i,
+   const size_t m,
+   const size_t n,
+   const size_t r,
+   const double u,
+   const size_t N
 )
 {
 
@@ -158,10 +169,11 @@ psi
 double
 zeta
 (
-   size_t i,
-   size_t m,
-   size_t n,
-   size_t N
+   const size_t i,
+   const size_t m,
+   const size_t n,
+   const double u,
+   const size_t N
 )
 {
 
@@ -169,11 +181,11 @@ zeta
 
    // Take out the terms of the sum that do not depend on 'r'.
    const double lC = lgamma(N-m+1)+lgamma(n+1)+lgamma(N-n+1)-lgamma(N+1);
-   const double lu = i * log(1-U);
+   const double lu = i * log(1-u);
    double val = 0.0;
    size_t topr = N-m < n ? N-m : n;
    for (int r = 1 ; r <= topr ; r++) {
-      val += psi(i,m,n,r,N) * \
+      val += psi(i,m,n,r,u,N) * \
              exp(r*lu - lgamma(r+1) - lgamma(N-m-r+1) + lC);
    }
    return val;
@@ -183,28 +195,141 @@ zeta
 
 // Initialization and clean up.
 
+// -- Destructors -- //
+
+void
+destroy_mat
+(
+   matrix_t * mat
+)
+{
+
+   // Do not try anything on NULL.
+   if (mat == NULL) return;
+
+   size_t nterms = (mat->dim)*(mat->dim);
+   for (size_t i = 0 ; i < nterms ; i++)
+      free(mat->term[i]);
+   free(mat);
+
+}
+
+
+void
+destroy_hash
+(void)
+{
+   for (int i = 0 ; i < HSIZE ; i++) {
+      for (rec_t *rec = HTAB[i] ; rec != NULL ; rec = rec->next) {
+         // Free record, don't erase pointer value.
+         free(rec->prob);
+         free(rec);
+      }    
+      HTAB[i] = NULL;
+   }
+}
+
+
+// -- Constructors -- //
+
+trunc_pol_t *
+new_zero_trunc_pol
+(void)
+{
+
+   // Cannot be called before 'set_params_mem_prob()'.
+   if (!PARAMS_INITIALIZED) {
+      warning("parameters unset: call `set_params_mem_prob'",
+            __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = calloc(1, KSZ);
+   handle_memory_error(new);
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+matrix_t *
+new_null_matrix
+(
+   const size_t dim
+)
+// Create a matrix where all truncated polynomials
+// (trunc_pol_t) are set NULL.
+{
+
+   // Initialize to zero.
+   size_t sz = sizeof(matrix_t) + dim*dim * sizeof(trunc_pol_t *);
+   matrix_t *new = calloc(1, sz);
+   handle_memory_error(new);
+
+   // The dimension is set upon creation
+   // and must never change afterwards.
+   *(size_t *)&new->dim = dim;
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+matrix_t *
+new_zero_matrix
+(
+   const size_t dim
+)
+// Create a matrix where all terms
+// are 'trunc_pol_t' struct set to zero.
+{
+
+   // NOTE: cannot be called before 'set_params_mem_prob()'.
+   matrix_t *new = new_null_matrix(dim);
+   handle_memory_error(new);
+
+   for (int i = 0 ; i < dim*dim ; i++) {
+      new->term[i] = new_zero_trunc_pol();
+      handle_memory_error(new->term[i]);
+   }
+
+   return new;
+
+in_case_of_failure:
+   destroy_mat(new);
+   return NULL;
+
+}
+
+
 void
 clean_mem_prob // VISIBLE //
 (void)
 {
 
+   PARAMS_INITIALIZED = 0;
+
    // Set global variables to "fail" values.
    G = 0;
    K = 0;
    P = 0.0;
-   U = 0.0;
    KSZ = 0;
 
    // Free everything.
-   free(TEMP); TEMP = NULL;
-   free(XI); XI = NULL;
-   free(XIc); XIc = NULL;
-   free(ETA); ETA = NULL;
-   free(ETAc); ETAc = NULL;
+   free(TEMP);  TEMP = NULL;
+   free(XI);    XI   = NULL;
+   free(XIc);   XIc  = NULL;
+   free(ETA);   ETA  = NULL;
+   free(ETAc);  ETAc = NULL;
 
-   for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
-   bzero(ARRAY, MAXN * sizeof(double *));
-
+   // Clean hash table.
+   destroy_hash();
+   
    ERRNO = 0;
 
    return;
@@ -217,8 +342,7 @@ set_params_mem_prob // VISIBLE //
 (
    size_t g,
    size_t k,
-   double p,
-   double u
+   double p
 )
 // Initialize the global variables from user-defined values.
 {
@@ -238,47 +362,20 @@ set_params_mem_prob // VISIBLE //
       goto in_case_of_failure;
    }
 
-   if (u <= 0.0 || u >= 1.0) {
-      ERRNO = __LINE__;
-      warning("parameter u must be between 0 and 1",
-            __func__, __LINE__); 
-      goto in_case_of_failure;
-   }
-
    G = g;  // MEM size.
    K = k;  // Read size.
    P = p;  // Sequencing error.
-   U = u;  // Divergence rate.
-
-   // Precompute intermediate quantities.
-   
-   free(XI); XI = malloc((K+1) * sizeof(double));
-   free(XIc); XIc = malloc((K+1) * sizeof(double));
-   free(ETA); ETA = malloc((K+1) * sizeof(double));
-   free(ETAc); ETAc = malloc((K+1) * sizeof(double));
-   handle_memory_error(XI);
-   handle_memory_error(XIc);
-   handle_memory_error(ETA);
-   handle_memory_error(ETAc);
-
-   for (int i = 0 ; i <= K ; i++) {
-      XI[i]   = 1 - pow(1-U,i);
-      XIc[i]  = 1 - XI[i];
-      ETA[i]  = 1 - pow(1-U,i) * U/3.0;
-      ETAc[i] = 1 - ETA[i];
-   }
 
    // All 'trunc_pol_t' must be congruent.
    KSZ = sizeof(trunc_pol_t) + (K+1) * sizeof(double);
 
-   // Clean previous values (if any).
-   for (int i = 0 ; i < MAXN ; i++) free(ARRAY[i]);
-   bzero(ARRAY, MAXN * sizeof(double *));
+   PARAMS_INITIALIZED = 1;
 
-   // Allocate or reallocate 'TEMP'.
-   free(TEMP);
-   TEMP = calloc(1, KSZ);
-   handle_memory_error(TEMP);
+   // Clean previous values (if any).
+   destroy_hash();
+
+   free(TEMP); // Nothing happens if 'TEMP' is NULL.
+   handle_memory_error(TEMP = new_zero_trunc_pol());
 
    return SUCCESS;
 
@@ -292,37 +389,17 @@ in_case_of_failure:
 // Definitions of weighted generating functions.
 
 trunc_pol_t *
-new_zero_trunc_pol
-(void)
-// IMPORTANT: do not call before set_params_mem_prob().
-{
-
-   if (G == 0 || K == 0 || P == 0 || U == 0 || KSZ == 0) {
-      warning("parameters unset: call `set_params_mem_prob'",
-            __func__, __LINE__);
-      goto in_case_of_failure;
-   }
-
-   trunc_pol_t *new = calloc(1, KSZ);
-   handle_memory_error(new);
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
 new_trunc_pol_A
 (
    const size_t m,    // Initial state (down).
    const size_t n,    // Final state (down).
+   const double u,    // Divergence rate.
    const size_t N     // Number of duplicates.
 )
 {
 
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+   
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
@@ -339,14 +416,14 @@ new_trunc_pol_A
    // This is not a monomial.
    new->monodeg = K+1;
 
-   double omega_p_pow_of_q = omega(n,N) * P;
+   double omega_p_pow_of_q = omega(n,u,N) * P;
    for (int i = 1 ; i <= G ; i++) {
       new->coeff[i] = (1 - pow(xi(i-1),N)) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
    for (int i = G+1 ; i <= K ; i++) {
       new->coeff[i] = (1 - pow(xi(i-1),m) *
-            (1- zeta(i-1,m,n,N))) * omega_p_pow_of_q;
+            (1- zeta(i-1,m,n,u,N))) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
    return new;
@@ -361,9 +438,12 @@ trunc_pol_t *
 new_trunc_pol_B
 (
    const size_t i,    // Final state (up).
+   const double u,    // Divergence rate.
    const size_t N     // Number of duplicates.
 )
 {
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
    if (i < 1) {
       warning(internal_error, __func__, __LINE__);
@@ -398,12 +478,15 @@ trunc_pol_t *
 new_trunc_pol_C
 (
    const size_t m,    // Initial state (down).
+   const double u,    // Divergence rate.
    const size_t N     // Number of duplicates.
 )
 // Note: the polynomials are defined in the case m > N, but
 // they have no meaning in the present context. Here they are
 // simply not forbidden, but also not used (and not tested).
 {
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
@@ -444,9 +527,12 @@ new_trunc_pol_D
 (
    const size_t j,    // Initial state (up).
    const size_t m,    // Final state (down).
+   const double u,    // Divergence rate.
    const size_t N     // Number of duplicates.
 )
 {
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
@@ -467,7 +553,7 @@ new_trunc_pol_D
    // This is a monomial only if j is equal to G-1.
    new->monodeg = j == G-1 ? 1 : K+1;
 
-   double omega_p_pow_of_q = omega(m,N) * P;
+   double omega_p_pow_of_q = omega(m,u,N) * P;
    for (int i = 1 ; i <= G-j ; i++) {
       new->coeff[i] = omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
@@ -515,13 +601,16 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_r_plus
+new_trunc_pol_F
 (
-   const size_t i
+   const size_t j,
+   const double u    // Divergence rate.
 )
 {
 
-   if (i > G-2) {
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
       ERRNO = __LINE__;
       goto in_case_of_failure;
@@ -530,37 +619,15 @@ new_trunc_pol_r_plus
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   // This is a monomial.
-   new->monodeg = i+1;
-   new->coeff[i+1] = pow((1-P)*(1-U), i) * (1-P)*U;
+   // This is a monomial only when 'i' is 0.
+   new->monodeg = j == 0 ? 0 : K+1;
 
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-trunc_pol_t *
-new_trunc_pol_r_minus
-(
-   const size_t i
-)
-{
-
-   if (i > G-2) {
-      warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
-      goto in_case_of_failure;
+   const double a = (1-P)*(1-u);
+   double pow_of_a = 1.0;
+   for (int i = 0 ; i <= j ; i++) {
+      new->coeff[i] = pow_of_a;
+      pow_of_a *= a;
    }
-
-   trunc_pol_t *new = new_zero_trunc_pol();
-   handle_memory_error(new);
-
-   // This is a monomial.
-   new->monodeg = i+1;
-   new->coeff[i+1] = pow((1-P)*(1-U), i) * P * U/3.0;
 
    return new;
 
@@ -573,9 +640,12 @@ in_case_of_failure:
 trunc_pol_t *
 new_trunc_pol_R
 (
-   const size_t j
+   const size_t j,
+   const double u    // Divergence rate.
 )
 {
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
@@ -589,8 +659,8 @@ new_trunc_pol_R
    // This is a monomial only when 'i' is 0.
    new->monodeg = j == 0 ? 1 : K+1;
 
-   const double a = (1-P)*(1-U);
-   const double d = P*(1-U/3.0);
+   const double a = (1-P)*(1-u);
+   const double d = P*(1-u/3.0);
    double pow_of_a = 1.0;
    for (int i = 0 ; i <= j ; i++) {
       new->coeff[i+1] = pow_of_a * d;
@@ -606,13 +676,16 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_F
+new_trunc_pol_r_plus
 (
-   const size_t j
+   const size_t i,
+   const double u    // Divergence rate.
 )
 {
 
-   if (j > G-1) {
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (i > G-2) {
       warning(internal_error, __func__, __LINE__);
       ERRNO = __LINE__;
       goto in_case_of_failure;
@@ -621,16 +694,41 @@ new_trunc_pol_F
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   // This is a monomial only when 'i' is 0.
-   new->monodeg = j == 0 ? 0 : K+1;
+   // This is a monomial.
+   new->monodeg = i+1;
+   new->coeff[i+1] = pow((1-P)*(1-u), i) * (1-P)*u;
 
-   const double a = (1-P)*(1-U);
-   double pow_of_a = 1.0;
-   for (int i = 0 ; i <= j ; i++) {
-      new->coeff[i] = pow_of_a;
-      pow_of_a *= a;
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_r_minus
+(
+   const size_t i,
+   const double u    // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (i > G-2) {
+      warning(internal_error, __func__, __LINE__);
+      ERRNO = __LINE__;
+      goto in_case_of_failure;
    }
 
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   // This is a monomial.
+   new->monodeg = i+1;
+   new->coeff[i+1] = pow((1-P)*(1-u), i) * P * u/3.0;
+
    return new;
 
 in_case_of_failure:
@@ -640,81 +738,60 @@ in_case_of_failure:
 
 
 
-matrix_t *
-new_null_matrix
+rec_t *
+lookup
 (
-   const size_t dim
-)
-// Create a matrix where all truncated polynomials
-// (trunc_pol_t) are set NULL.
-{
-
-   // Initialize to zero.
-   size_t sz = sizeof(matrix_t) + dim*dim * sizeof(trunc_pol_t *);
-   matrix_t *new = calloc(1, sz);
-   handle_memory_error(new);
-
-   // The dimension is set upon creation
-   // and must never change afterwards.
-   *(size_t *)&new->dim = dim;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-void
-destroy_mat
-(
-   matrix_t * mat
+    const size_t N,
+    const double u
 )
 {
 
-   // Do not try anything on NULL.
-   if (mat == NULL) return;
-
-   size_t nterms = (mat->dim)*(mat->dim);
-   for (size_t i = 0 ; i < nterms ; i++)
-      free(mat->term[i]);
-   free(mat);
-
-}
-
-
-
-matrix_t *
-new_zero_matrix
-(
-   const size_t dim
-)
-// Create a matrix where all terms
-// are 'trunc_pol_t' struct set to zero.
-{
-
-   matrix_t *new = new_null_matrix(dim);
-   handle_memory_error(new);
-
-   for (int i = 0 ; i < dim*dim ; i++) {
-      new->term[i] = new_zero_trunc_pol();
-      handle_memory_error(new->term[i]);
+   size_t lgN = floor(log2(N));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+   for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
+      if (rec->lgN == lgN && rec->u == u) return rec;
    }
 
+   // Entry not found.
+   return NULL;
+   
+}
+
+
+rec_t *
+insert
+(
+    const size_t   N,
+    const double   u,
+          double * prob
+)
+{
+
+   size_t lgN = floor(log2(N));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+
+   rec_t *new = malloc(sizeof(rec_t));
+   handle_memory_error(new);
+
+   new->lgN = lgN;
+   new->u = u;
+   new->prob = prob;
+   new->next = HTAB[addr];
+
+   HTAB[addr] = new;
+
    return new;
 
 in_case_of_failure:
-   destroy_mat(new);
    return NULL;
 
 }
-
 
 
 matrix_t *
 new_matrix_M
 (
+   const double u,    // Divergence rate.
    const size_t N    // Number of duplicates.
 )
 {
@@ -726,23 +803,30 @@ new_matrix_M
    // First N+1 series of rows.
    for (int j = 0 ; j <= N ; j++) {
       for (int i = 0 ; i <= N ; i++) {
-         M->term[j*dim+i] = new_trunc_pol_A(j,i,N);
-         handle_memory_error(M->term[j*dim+i]);
+         handle_memory_error(
+            M->term[j*dim+i] = new_trunc_pol_A(j,i,u,N)
+         );
       }
       for (int i = N+1 ; i <= N+G-1 ; i++) {
-         M->term[j*dim+i] = new_trunc_pol_B(i-N,N);
-         handle_memory_error(M->term[j*dim+i]);
+         handle_memory_error(
+            M->term[j*dim+i] = new_trunc_pol_B(i-N,u,N)
+         );
       }
-      M->term[j*dim+(N+G)] = new_trunc_pol_C(j,N);
+      handle_memory_error(
+         M->term[j*dim+(N+G)] = new_trunc_pol_C(j,u,N)
+      );
    }
 
    // Next G-1 rows.
    for (int j = N+1 ; j <= N+G-1 ; j++) {
       for (int i = 0 ; i <= N ; i++) {
-         M->term[j*dim+i] = new_trunc_pol_D(j-N,i,N);
-         handle_memory_error(M->term[j*dim+i]);
+         handle_memory_error(
+            M->term[j*dim+i] = new_trunc_pol_D(j-N,i,u,N)
+         );
       }
-      M->term[j*dim+(N+G)] = new_trunc_pol_E(j-N);
+      handle_memory_error(
+         M->term[j*dim+(N+G)] = new_trunc_pol_E(j-N)
+      );
    }
 
    // Last row is null (nothing to do).
@@ -758,7 +842,9 @@ in_case_of_failure:
 
 matrix_t *
 new_matrix_L
-(void)
+(
+   const double u        // Divergence rate.
+)
 {
 
    const size_t dim = 2*G;
@@ -767,58 +853,59 @@ new_matrix_L
 
    // First row.
    handle_memory_error(
-      L->term[0] = new_trunc_pol_R(G-1)
+      L->term[0] = new_trunc_pol_R(G-1,u)
    );
    for (int j = 0 ; j <= G-2 ; j++) {
       handle_memory_error(
-         L->term[j+1] = new_trunc_pol_r_plus(j)
+         L->term[j+1] = new_trunc_pol_r_plus(j,u)
       );
    }
    for (int j = 0 ; j <= G-2 ; j++) {
       handle_memory_error(
-         L->term[j+G] = new_trunc_pol_r_minus(j)
+         L->term[j+G] = new_trunc_pol_r_minus(j,u)
       );
    }
    handle_memory_error(
-      L->term[dim-1] = new_trunc_pol_F(G-1)
+      L->term[dim-1] = new_trunc_pol_F(G-1,u)
    );
 
    // Next 'G-1' rows -- matrices A(z) and B(z).
    for (int i = 1 ; i <= G-1 ; i++) {
       handle_memory_error(
-         L->term[i*dim] = new_trunc_pol_R(G-1-i)
+         L->term[i*dim] = new_trunc_pol_R(G-1-i,u)
       );
       for (int j = 0 ; j <= ((int)G)-2-i ; j++) {
          handle_memory_error(
-            L->term[i*dim+i+j+1] = new_trunc_pol_r_plus(j)
+            L->term[i*dim+i+j+1] = new_trunc_pol_r_plus(j,u)
          );
       }
       for (int j = 0 ; j <= G-1-i ; j++) {
          handle_memory_error(
-            L->term[i*dim+j+G] = new_trunc_pol_r_minus(j)
+            L->term[i*dim+j+G] = new_trunc_pol_r_minus(j,u)
          );
       }
       handle_memory_error(
-         L->term[i*dim+dim-1] = new_trunc_pol_F(G-1-i)
+         L->term[i*dim+dim-1] = new_trunc_pol_F(G-1-i,u)
       );
    }
 
    // Next G-1 rows -- matrices C(z) and D(z).
    for (int i = G ; i <= 2*G-2 ; i++) {
-      L->term[i*dim] = new_trunc_pol_R(2*G-2-i);
-      handle_memory_error(L->term[i*dim]);
+      handle_memory_error(
+         L->term[i*dim] = new_trunc_pol_R(2*G-2-i,u)
+      );
       for (int j = 0 ; j <= 2*G-2-i ; j++) {
          handle_memory_error(
-            L->term[i*dim+j+1] = new_trunc_pol_r_plus(j)
+            L->term[i*dim+j+1] = new_trunc_pol_r_plus(j,u)
          );
       }
       for (int j = 0 ; j <= (2*(int)G)-3-i ; j++) {
          handle_memory_error(
-            L->term[i*dim+j+G+(i-G+1)] = new_trunc_pol_r_minus(j)
+            L->term[i*dim+j+G+(i-G+1)] = new_trunc_pol_r_minus(j,u)
          );
       }
       handle_memory_error(
-         L->term[i*dim+dim-1] = new_trunc_pol_F(2*G-2-i)
+         L->term[i*dim+dim-1] = new_trunc_pol_F(2*G-2-i,u)
       );
    }
 
@@ -949,41 +1036,74 @@ in_case_of_failure:
 }
 
 
-double
-exact_seed_prob
+int
+params_OK
 (
-   const size_t g,
-   const size_t k,
-   const double p
+   const size_t k,    // Segment or read size.
+   const double u,    // Divergence rate.
+   const size_t N     // Number of duplicates.
 )
+{
+
+   // Check if sequencing parameters were set. Otherwise
+   // warn user and fail gracefully (return nan).
+   if (!PARAMS_INITIALIZED) {
+      warning("parameters unset: call `set_params_mem_prob'",
+            __func__, __LINE__);
+      return FAILURE;
+   }
+
+   if (k > K) {
+      char msg[128];
+      snprintf(msg, 128,
+            "argument k (%lu) greater than set value (%ld)", k, K);
+      warning(msg, __func__, __LINE__);
+      ERRNO = __LINE__;
+      return FAILURE;
+   }
+
+   if (u <= 0.0 || u >= 1.0) {
+      ERRNO = __LINE__;
+      warning("parameter u must be between 0 and 1",
+            __func__, __LINE__); 
+      return FAILURE;
+   }
+
+   return SUCCESS;
+
+}
+
+
+trunc_pol_t *
+compute_exact_seed_prob
+(void)
 // Use recurrence formula (12) from doi:10.3390/a11010003
 // "Analytic Combinatorics for Computing Seeding Probabilities".
 {
 
-   if (k < g) return 1.0;
+   trunc_pol_t *w = new_zero_trunc_pol();
+   handle_memory_error(w);
 
-   double *s = malloc((k+1) * sizeof(double));
-   handle_memory_error(s);
+   // Not a monomial.
+   w->monodeg = K+1;
 
-   const double q_pow_gamma = pow(1-p,g);
-   const double pq_pow_gamma = p * q_pow_gamma;
+   const double q_pow_gamma = pow(1-P,G);
+   const double pq_pow_gamma = P * q_pow_gamma;
 
-   for (int i = 0 ; i < g ; i++) s[i] = 1.0;
-   s[g] = 1.0 - q_pow_gamma;
-   for (int i = g+1 ; i <= k ; i++) {
-      s[i] = s[i-1] - pq_pow_gamma * s[i-g-1];
+   for (int i = 0 ; i < G ; i++) w->coeff[i] = 1.0;
+   w->coeff[G] = 1.0 - q_pow_gamma;
+   for (int i = G+1 ; i <= K ; i++) {
+      w->coeff[i] = w->coeff[i-1] - pq_pow_gamma * w->coeff[i-G-1];
    }
 
-   double value = s[k];
-   free(s);
-
-   return value;
+   return w;
 
 in_case_of_failure:
-   return 0.0 / 0.0; // nan
+   return NULL;
 
 }
 
+#if 0
 double
 average_errors
 (
@@ -1039,6 +1159,7 @@ special_average
    const size_t k,
    const double p
 )
+// TODO: explain the logic of this in the LaTex document.
 {
 
    const double num = p*k - average_errors(g,k,p);
@@ -1046,46 +1167,7 @@ special_average
    return num / denom; 
 
 }
-
-
-int
-fault_in_params
-(
-   const size_t k,    // Segment or read size.
-   const size_t N     // Number of duplicates.
-)
-{
-
-   // Check if sequencing parameters were set. Otherwise
-   // warn user and fail gracefully (return nan).
-   if (G == 0 || K == 0 || P == 0 || U == 0 || KSZ == 0) {
-      warning("parameters unset: call `set_params_mem_prob'",
-            __func__, __LINE__);
-      return YES;
-   }
-
-   // Check input.
-   if (N > MAXN) {
-      char msg[128];
-      snprintf(msg, 128, "argument N (%lu) greater than %d", N, MAXN);
-      warning(msg, __func__, __LINE__);
-      ERRNO = __LINE__;
-      return YES;
-   }
-
-   if (k > K) {
-      char msg[128];
-      snprintf(msg, 128,
-            "argument k (%lu) greater than set value (%ld)", k, K);
-      warning(msg, __func__, __LINE__);
-      ERRNO = __LINE__;
-      return YES;
-   }
-
-   return NO;
-
-}
-
+#endif
 
 // Need this snippet to compute a bound of the numerical imprecision.
 double HH(double x, double y)
@@ -1094,6 +1176,7 @@ double HH(double x, double y)
 trunc_pol_t *
 compute_mem_prob_wgf
 (
+   const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
 {
@@ -1114,7 +1197,7 @@ compute_mem_prob_wgf
    // generating functions of sequences of m segments joining the
    // dfferent states. We thus update 'w' with the entry of M^m
    // that joins the initial "double-down" state to the tail state.
-   matrix_t *M = new_matrix_M(N);
+   matrix_t *M = new_matrix_M(u, N);
 
    // Create two temporary matrices 'powM1' and 'powM2' to compute
    // the powers of M. On first iteration, powM1 = M*M, and later
@@ -1152,10 +1235,9 @@ compute_mem_prob_wgf
       trunc_pol_update_add(w, powM2->term[G+N]);
       matrix_mult(powM1, M, powM2);
       trunc_pol_update_add(w, powM1->term[G+N]);
-#ifdef MAX_PRECISION_MODE
       // In max precision debug mode, get all possible digits.
-      continue;
-#endif
+      if (MAX_PRECISION)
+         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor((m+2)/3) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, P)*K);
@@ -1181,14 +1263,16 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-compute_L_prob_wgf
-(void)
+compute_dual_prob_wgf
+(
+   const double u     // Divergence rate.
+)
 {
 
    // Assume parameters were checked by the caller.
 
    trunc_pol_t *w = new_zero_trunc_pol();
-   matrix_t *L = new_matrix_L();
+   matrix_t *L = new_matrix_L(u);
 
    matrix_t *powL1 = new_zero_matrix(2*G);
    matrix_t *powL2 = new_zero_matrix(2*G);
@@ -1212,9 +1296,9 @@ compute_L_prob_wgf
    // a formula for the binomial distribution, where m is the number of
    // segments, i.e. the power of matirx L.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
-   const double b = P * U/3.0;
-   const double c = (1-P) * U;
-   const double d = P * (1-U/3.0);
+   const double b = P * u/3.0;
+   const double c = (1-P) * u;
+   const double d = P * (1-u/3.0);
    const double prob = b > c ? (b > d ? b : d) : (c > d ? c : d);
    for (int m = 2 ; m < K ; m += 2) {
       // Increase the number of segments and update
@@ -1223,10 +1307,9 @@ compute_L_prob_wgf
       trunc_pol_update_add(w, powL2->term[2*G-1]);
       matrix_mult(powL1, L, powL2);
       trunc_pol_update_add(w, powL1->term[2*G-1]);
-#ifdef MAX_PRECISION_MODE
       // In max precision debug mode, get all possible digits.
-      continue;
-#endif
+      if (MAX_PRECISION)
+         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor(m-1) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, prob)*K);
@@ -1268,7 +1351,7 @@ rpos
 {
    if (m == 0) return 1;
    const double mth_root_of_unif = pow(runifMT(), 1.0/m);
-   return ceil( log(1-XI[i]*mth_root_of_unif) / log(1-U) );
+   return ceil( log(1-XI[i]*mth_root_of_unif) / log(XIc[1]) );
 }
 
 
@@ -1342,9 +1425,9 @@ one_mcmc
          // hard masks have a probability u/3 of matching the error.
          // The soft masks that did not survive have a probability
          // pp = u/3 * xi / eta of matching the error. 
-         double pp = 1 - (1 - U/3.0) / ETA[i];
+         double pp = 1 - ETA[0] / ETA[i];
          // The new state is down/m.
-         m = ssurv + rbinom(m, U/3.0) + rbinom(N-m-ssurv, pp);
+         m = ssurv + rbinom(m, ETAc[0]) + rbinom(N-m-ssurv, pp);
 
       }
 
@@ -1353,81 +1436,126 @@ one_mcmc
 }
 
 
-double *
+trunc_pol_t *
 compute_mem_prob_mcmc
 (
+   const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
 {
 
-   // Assume parameters were checked by the caller.
-   
-   // Perform 10 million resamplings.
-   // TODO: allow user to change this.
-   const size_t R = 10000000;
-   
-   double * seeds = calloc(1, (K+1) * sizeof(double));
-   handle_memory_error(seeds);
+   trunc_pol_t *w = NULL;
 
-   for (int i = 0 ; i < R ; i++) {
-      one_mcmc(N, seeds);
+   // Precompute intermediate quantities.
+   handle_memory_error(XI = malloc((K+1) * sizeof(double)));
+   handle_memory_error(XIc = malloc((K+1) * sizeof(double)));
+   handle_memory_error(ETA = malloc((K+1) * sizeof(double)));
+   handle_memory_error(ETAc = malloc((K+1) * sizeof(double)));
+
+   // Assume parameters were checked by the caller.
+   for (int i = 0 ; i <= K ; i++) {
+      XI[i]   = 1 - pow(1-u,i);
+      XIc[i]  = 1 - XI[i];
+      ETA[i]  = 1 - pow(1-u,i) * u/3.0;
+      ETAc[i] = 1 - ETA[i];
+   }
+   
+   handle_memory_error(w = new_zero_trunc_pol());
+
+   w->monodeg = K+1;
+   for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
+      one_mcmc(N, w->coeff);
    }
 
    for (int i = 0 ; i <= K ; i++) {
-      seeds[i] = 1.0 - seeds[i] / R;
+      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_RESAMPLINGS;
    }
 
-   return seeds;
+   free(XI);    XI   = NULL;
+   free(XIc);   XIc  = NULL;
+   free(ETA);   ETA  = NULL;
+   free(ETAc);  ETAc = NULL;
+
+   return w;
 
 in_case_of_failure:
+   free(XI);    XI   = NULL;
+   free(XIc);   XIc  = NULL;
+   free(ETA);   ETA  = NULL;
+   free(ETAc);  ETAc = NULL;
+   free(w);
    return NULL;
 
 }
    
 
 double
-mem_seed_prob
+mem_false_pos
 (
    const size_t k,       // Segment or read size.
+   const double u,       // Divergence rate.
    const size_t N        // Number of duplicates.
 )
 {
+
+   trunc_pol_t *P1 = NULL;
+   trunc_pol_t *P2 = NULL;
+   trunc_pol_t *P3 = NULL;
    
    // Check parameters.
-   if (fault_in_params(k,N)) {
+   if (!params_OK(k,u,N)) {
       goto in_case_of_failure;
    }
 
-   // If results were not computed for given number of duplicates (N),
-   // need to compute truncated genearting function and store the
-   // results for future use.
-   if (ARRAY[N] == NULL) {
+   rec_t *rec = lookup(u, N);
+
+   // Need to compute the probability.
+   if (rec == NULL) {
 
       // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
       int use_method_wgf = METH == METHOD_WGF ||
                      (METH == METHOD_AUTO && N < 21 && P < .05);
       
-      if (use_method_wgf) {
-         trunc_pol_t *w = compute_mem_prob_wgf(N);
-         if (w == NULL)
-            goto in_case_of_failure;
-         // Copy results to ARRAY.
-         ARRAY[N] = malloc((K+1) * sizeof(double));
-         handle_memory_error(ARRAY[N]);
-         memcpy(ARRAY[N], w->coeff, (K+1) * sizeof(double));
-         free(w);
+      P1 = compute_exact_seed_prob();
+      P2 = compute_dual_prob_wgf(u);
+      P3 = use_method_wgf ?
+               compute_mem_prob_wgf(u,N):
+               compute_mem_prob_mcmc(u,N);
+      if (P1 == NULL || P2 == NULL || P3 == NULL)
+         goto in_case_of_failure;
+
+      double *prob = malloc((K+1) * sizeof(double));
+      handle_memory_error(prob);
+
+      // This is the probability that there is no on-target MEM
+      // seed, minus the probability that there is no positive
+      // at all. The latter is computed as the probability that
+      // there is no exact seed (on-target or off-target) given
+      // that there is no on-target exact seed, multiplied by the
+      // probability that there is no on-target exact seed.
+      for (int i = 0 ; i <= K ; i++) {
+         prob[i] = P3->coeff[i] -
+            P1->coeff[i] * pow(P2->coeff[i] / P1->coeff[i], N);
       }
-      else {
-         ARRAY[N] = compute_mem_prob_mcmc(N);
-         if (ARRAY[N] == NULL)
-            goto in_case_of_failure;
+
+      free(P1);
+      free(P2);
+      free(P3);
+
+      rec = insert(u, N, prob);
+      if (rec == NULL) {
+         free(prob);
+         goto in_case_of_failure;
       }
 
    }
 
-   return ARRAY[N][k];
+   return rec->prob[k];
 
 in_case_of_failure:
+   free(P1);
+   free(P2);
+   free(P3);
    return 0.0/0.0;  //  nan
 
 }

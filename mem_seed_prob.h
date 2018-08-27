@@ -4,9 +4,9 @@
 // Visible functions.
 
 void   clean_mem_prob (void);
-double mem_seed_prob(size_t, size_t);
+double mem_false_pos(size_t, double, size_t);
 int    get_mem_prob_error_code (void);
 void   reset_mem_prob_error (void);
-int    set_params_mem_prob (size_t, size_t, double, double);
+int    set_params_mem_prob (size_t, size_t, double);
 
 #endif

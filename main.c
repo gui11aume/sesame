@@ -3,15 +3,16 @@
 
 int main(void) {
 
-   int success = set_params_mem_prob(17, 100, .01, .016);
+   // Worst mu: 0.016
+   int success = set_params_mem_prob(17, 100, .01);
    if (!success) return -1;
 
+   // N curves.
    size_t N[] = {0,1,5,20,100,500,10000};
 
    for (int i = 0 ; i <= 6 ; i++) {
-      fprintf(stdout, "%.12f", mem_seed_prob(17, N[i]));
-      for (int k = 18 ; k <= 100 ; k++) {
-         fprintf(stdout, "\t%.12f", mem_seed_prob(k, N[i]));
+      for (int k = 17 ; k <= 100 ; k++) {
+         fprintf(stdout, "\t%.12f", mem_false_pos(k, .016, N[i]));
       }
       fprintf(stdout, "\n");
    }

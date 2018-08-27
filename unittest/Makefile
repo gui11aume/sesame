@@ -12,8 +12,7 @@ CC= gcc
 INCLUDES= -I.. -Ilib
 COVERAGE= -fprofile-arcs -ftest-coverage
 PROFILE= -pg
-DEFINES= -DMAX_PRECISION_MODE
-CFLAGS= -std=gnu99 -g -Wall -O0 $(INCLUDES) $(COVERAGE) $(PROFILE) $(DEFINES)
+CFLAGS= -std=gnu99 -g -Wall -O0 $(INCLUDES) $(COVERAGE) $(PROFILE)
 LDLIBS= -L. -Wl,-rpath,. -lunittest -lz -lm -lpthread
 # Use different flags on Linux and MacOS.
 ifeq ($(shell uname -s),Darwin)

@@ -178,7 +178,7 @@ test_uninitialized_error
    redirect_stderr();
    double x = mem_false_pos(5, .05, 20);
    unredirect_stderr();
-   test_assert_stderr("[mem_seed_prob] error in function `params");
+   test_assert_stderr("[mem_seed_prob] error in function `dynamic_p");
    test_assert(x != x);
 
    return;
@@ -315,8 +315,7 @@ test_trunc_pol_mult
 
    test_assert_critical(a != NULL);
 
-   // Note: 'trunc_pol_mult' returns NULL but 'a' is not set to NULL.
-   test_assert(trunc_pol_mult(a, NULL, NULL) == NULL);
+   test_assert(trunc_pol_mult(a, NULL, NULL) == a);
 
    test_assert_critical(a != NULL);
    test_assert(a->monodeg == 0);
@@ -327,7 +326,7 @@ test_trunc_pol_mult
    trunc_pol_t *b = new_zero_trunc_pol();
    test_assert_critical(b != NULL);
 
-   test_assert(trunc_pol_mult(a, b, NULL) == NULL);
+   test_assert(trunc_pol_mult(a, b, NULL) == a);
 
    // Same remark as above.
    test_assert_critical(a != NULL);
@@ -336,7 +335,7 @@ test_trunc_pol_mult
       test_assert(a->coeff[i] == 0);
    }
 
-   test_assert(trunc_pol_mult(a, NULL, b) == NULL);
+   test_assert(trunc_pol_mult(a, NULL, b) == a);
 
    // Same remark as above.
    test_assert_critical(a != NULL);
@@ -348,9 +347,7 @@ test_trunc_pol_mult
    trunc_pol_t *c = new_zero_trunc_pol();
    test_assert_critical(c != NULL);
 
-   // Here 'b' and 'c' are still zero polynomials,
-   // so same remark as above.
-   test_assert(trunc_pol_mult(a, b, c) == NULL);
+   test_assert(trunc_pol_mult(a, b, c) == a);
 
    // Same remark as above.
    test_assert_critical(a != NULL);
@@ -2240,18 +2237,19 @@ test_compute_mem_prob_wgf
             2*pow(.95,17)*(1-.05/3)*.05/3,20);
    test_assert(fabs(w20->coeff[19]-target_19) < 1e-9);
 
-   free(w0);  w0 = NULL;
-   free(w1);  w1 = NULL;
-   free(w2);  w2 = NULL;
-   free(w3);  w3 = NULL;
-   free(w4);  w4 = NULL;
-   free(w20); w20 = NULL;
+   free(w0);
+   free(w1);
+   free(w2);
+   free(w3);
+   free(w4);
+   free(w20);
 
    // Other test case with longer seeds.
    
    success = set_params_mem_prob(20, 21, 0.02);
    test_assert_critical(success);
 
+   // Compute with maximum precision.
    set_mem_prob_max_prcsn();
 
    w0 = compute_mem_prob_wgf(.05,0);
@@ -2309,6 +2307,65 @@ test_compute_mem_prob_wgf
    free(w4);
 
    unset_mem_prob_max_prcsn();
+
+   // Recompute without maximum precision. Test relative
+   // error (results must be within 1% of the target).
+
+   w0 = compute_mem_prob_wgf(.05,0);
+   w1 = compute_mem_prob_wgf(.05,1);
+   w2 = compute_mem_prob_wgf(.05,2);
+   w3 = compute_mem_prob_wgf(.05,3);
+   w4 = compute_mem_prob_wgf(.05,4);
+
+   test_assert_critical(w0 != NULL);
+   test_assert_critical(w1 != NULL);
+   test_assert_critical(w2 != NULL);
+   test_assert_critical(w3 != NULL);
+   test_assert_critical(w4 != NULL);
+
+   for (int i = 0 ; i < 20 ; i++) {
+      test_assert(fabs(w0->coeff[i]-1) < 1e-2);
+      test_assert(fabs(w1->coeff[i]-1) < 1e-2);
+      test_assert(fabs(w2->coeff[i]-1) < 1e-2);
+   }
+
+   test_assert(fabs(w0->coeff[20]/target_20 - 1) < 1e-2);
+   test_assert(fabs(w1->coeff[20]/target_20 - 1) < 1e-2);
+   test_assert(fabs(w2->coeff[20]/target_20 - 1) < 1e-2);
+   test_assert(fabs(w3->coeff[20]/target_20 - 1) < 1e-2);
+
+   // Special case N = 0.
+   target_21 = 1-pow(.98,21) - 2*.02*pow(.98,20);
+   test_assert(fabs(w0->coeff[21]/target_21 - 1) < 1e-2);
+
+   // Special case N = 1.
+   target_21 = 1-pow(.98,21) - \
+      2*.02*pow(.98,20) * (1-pow(.95,20)*.05/3);
+   test_assert(fabs(w1->coeff[21]/target_21 - 1) < 1e-2);
+
+   // Cases N > 1.
+   target_21 = 1-pow(.98,21) - \
+      2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,2);
+   test_assert(fabs(w2->coeff[21]/target_21 - 1) < 1e-2);
+
+   // Just make sure that max precision is off (this one
+   // requires more iterations to be accurate to within 1e-9).
+   test_assert(fabs(w3->coeff[21]-target_21) > 1e-9);
+
+   target_21 = 1-pow(.98,21) - \
+      2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,3);
+   test_assert(fabs(w3->coeff[21]/target_21 - 1) < 1e-2);
+
+   target_21 = 1-pow(.98,21) - \
+      2*.02*pow(.98,20) * pow(1-pow(.95,20)*.05/3,4);
+   test_assert(fabs(w4->coeff[21]/target_21 - 1) < 1e-2);
+
+   free(w0);
+   free(w1);
+   free(w2);
+   free(w3);
+   free(w4);
+
    clean_mem_prob();
 
 }

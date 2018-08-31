@@ -70,8 +70,7 @@
 // are consistent.
 //
 // The product of two monomials is a monomial. The addition of two
-// monomials is never a monomial, even if the monomials have the same
-// degree.
+// monomials is a monomial only if the monomials have the same degree.
 //
 // The null struct of type 'trunc_poly_t' (i.e. with all members set to
 // 0) is a monomial of degree 0 whose coefficient is 0 (it is thus a
@@ -265,7 +264,7 @@ zeta
 
 
 
-// SECTION 4.4. INITIALIZATION AND CLEAN UP FUNCTIONS //
+// SECTION 4.4. INITIALIZATION, BOOKKEEPING AND CLEAN UP FUNCTIONS //
 
 // SECTION 4.4.1. DESTRUCTORS //
 
@@ -419,8 +418,135 @@ in_case_of_failure:
 }
 
 
-// SECTION 4.4.3. LIBRARY INITIALIATION AND CLEAN UP //
+// SECTION 4.4.3 HASH MANIPULATION FUNCTIONS //
 
+rec_t *
+lookup
+(
+    const size_t N,
+    const double u
+)
+// SYNOPSIS:
+//   Look for the entry of the global hash 'HTAB' associated with the key
+//   (N,u). Both 'N' and 'u' are "coarse-grained" in the sense that
+//   'N' is log-transformed (see below) and 'u' varies by 0.1 increments
+//   (i.e. it can have only 11 possible values, only 9 of which are
+//   conform).
+//
+// RETURN:
+//   A pointer to the struct of type 'rec_t' that corresponds to the key
+//   (or its coarse-grained variants) if present, or NULL otherwise.
+{
+
+   // NOTE 4.4.3.1. Shared buckets for the values of N.
+   //
+   // The value of log2(N) changes at N = 0, 1, 3, 7, 15, 31, 63, 127,
+   // 255, 511, 1023, 2047, 4095, 8191... In other words, 0 has its own
+   // bucket, 1 and 2 have the same bucket, so do 3, 4, 5 and 5 etc.
+   
+   size_t lgN = floor(log2(N+1));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+   for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
+      if (rec->lgN == lgN && rec->u == u) return rec;
+   }
+
+   // Entry not found.
+   return NULL;
+   
+}
+
+
+rec_t *
+insert
+(
+    const size_t   N,
+    const double   u,
+          double * prob
+)
+// SYNOPSIS:
+//   Create an entry in the global hash 'HTAB' associated with the key
+//   (N,u), and associate it with the array 'prob'. Both 'N' and 'u' are
+//   "coarse-grained" in the sense that 'N' is log-transformed (see
+//   below) and 'u' varies by 0.1 increments (i.e. it can have only 11
+//   possible values, only 9 of which are conform).
+//
+// RETURN:
+//   A pointer to the struct of type 'rec_t' that corresponds to the
+//   inserted key, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if 'malloc()' fails.
+{
+
+   // See note 4.4.3.1.
+   size_t lgN = floor(log2(N));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+
+   rec_t *new = malloc(sizeof(rec_t));
+   handle_memory_error(new);
+
+   new->lgN = lgN;
+   new->u = u;
+   new->prob = prob;
+   new->next = HTAB[addr];
+
+   HTAB[addr] = new;
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+// SECTION 4.4.4. LIBRARY INITIALIATION AND CLEAN UP //
+
+
+int
+dynamic_params_OK
+(
+   const size_t k,    // Segment or read size.
+   const double u,    // Divergence rate.
+   const size_t N     // Number of duplicates.
+)
+// SYNOPSIS:
+//   Check if dynamic parameters (see note 3.1) are conform to
+//   specifications.
+//
+// RETURN:
+//   SUCCESS (1) upon success or FAILURE (0) upon failure.
+//
+// FAILURE:
+//   Fails if dynamic parameters do not conform specifications or if
+//   static parameters are not initialized.
+{
+
+   // Check if sequencing parameters were set. Otherwise
+   // warn user and fail gracefully (return nan).
+   if (!PARAMS_INITIALIZED) {
+      warning("parameters unset: call `set_params_mem_prob'",
+            __func__, __LINE__);
+      return FAILURE;
+   }
+
+   if (k > K) {
+      char msg[128];
+      snprintf(msg, 128,
+            "argument k (%lu) greater than set value (%ld)", k, K);
+      warning(msg, __func__, __LINE__);
+      return FAILURE;
+   }
+
+   if (u <= 0.0 || u >= 1.0) {
+      warning("parameter u must be between 0 and 1",
+            __func__, __LINE__); 
+      return FAILURE;
+   }
+
+   return SUCCESS;
+
+}
 
 void
 clean_mem_prob // VISIBLE //
@@ -506,52 +632,6 @@ set_params_mem_prob // VISIBLE //
 in_case_of_failure:
    clean_mem_prob();
    return FAILURE;
-
-}
-
-
-int
-dynamic_params_OK
-(
-   const size_t k,    // Segment or read size.
-   const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
-)
-// SYNOPSIS:
-//   Check if dynamic parameters (see note 3.1) are conform to
-//   specifications.
-//
-// RETURN:
-//   SUCCESS (1) upon success or FAILURE (0) upon failure.
-//
-// FAILURE:
-//   Fails if dynamic parameters do not conform specifications or if
-//   static parameters are not initialized.
-{
-
-   // Check if sequencing parameters were set. Otherwise
-   // warn user and fail gracefully (return nan).
-   if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `set_params_mem_prob'",
-            __func__, __LINE__);
-      return FAILURE;
-   }
-
-   if (k > K) {
-      char msg[128];
-      snprintf(msg, 128,
-            "argument k (%lu) greater than set value (%ld)", k, K);
-      warning(msg, __func__, __LINE__);
-      return FAILURE;
-   }
-
-   if (u <= 0.0 || u >= 1.0) {
-      warning("parameter u must be between 0 and 1",
-            __func__, __LINE__); 
-      return FAILURE;
-   }
-
-   return SUCCESS;
 
 }
 
@@ -923,8 +1003,35 @@ new_matrix_M
    const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t' and initialize
+//   the entries (with a mix of NULL and non NULL pointers) to obtain the
+//   transfer matrix M(z) of reads without on-target MEM seed for the
+//   given static and dynamic parameters.
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are not initialized, or if there is a
+//   memory error.
 {
 
+   // NOTE 4.6.1. Checking dynamic parameters //
+   //
+   // In the library, this function is called only by 'mem_false_pos()',
+   // which already checks that dynamic parameters 'k', 'u' and 'N' are
+   // conform. If thie code, is reused somewhere else, it may be a good
+   // thing to check them on every call by uncommenting the following
+   // code block.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters (pass 'K', which never triggers an error).
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
+   
    const size_t dim = G+N+1;
    matrix_t *M = new_null_matrix(dim);
    handle_memory_error(M);
@@ -974,7 +1081,35 @@ new_matrix_L
 (
    const double u        // Divergence rate.
 )
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t' and initialize
+//   the entries (with a mix of NULL and non NULL pointers) to obtain the
+//   transfer matrix L(z) of reads with neither on-target nor off-target
+//   exact gamma seed when there is N = 1 duplicate.
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are not initialized or if there is a
+//   memory error.
 {
+
+   // NOTE 4.6.1. Checking dynamic parameters //
+   //
+   // In the library, this function is called only by 'mem_false_pos()',
+   // which already checks that dynamic parameters 'k', 'u' and 'N' are
+   // conform. If thie code, is reused somewhere else, it may be a good
+   // thing to check them on every call by uncommenting the following
+   // code block.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters (pass 'K', which never triggers an error,
+   // and 0 instead of 'N' for the same reason).
+   //if (!dynamic_params_OK(K,u,0)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
 
    const size_t dim = 2*G;
    matrix_t *L = new_null_matrix(dim);
@@ -1059,14 +1194,18 @@ trunc_pol_mult
    const trunc_pol_t * a,
    const trunc_pol_t * b
 )
+// SYNOPSIS:
+//   Multiply two truncated polynomials 'a' and 'b', and store the result
+//   in 'dest'.
+//
+// RETURN:
+//   A pointer to 'dest'.
 {
 
-   // Erase destination.
+   // Erase 'dest' (set it to zero).
    bzero(dest, KSZ);
 
-   // If any of the two k-polynomials is zero, keep 'dest' as
-   // zero and return 'NULL' (not dest). See macro 'iszero'.
-   if (iszero(a) || iszero(b)) return NULL;
+   if (iszero(a) || iszero(b)) return dest;
 
    if (a->monodeg < K+1 && b->monodeg < K+1) {
       // Both are monomials, just do one multiplication.
@@ -1112,6 +1251,8 @@ trunc_pol_update_add
          trunc_pol_t * dest,
    const trunc_pol_t * a
 )
+// SYNOPSIS:
+//   Add polynomial 'a' to 'dest' and store the result in 'dest'.
 {
 
    // No update when adding zero.
@@ -1141,6 +1282,15 @@ matrix_mult
    const matrix_t * a,
    const matrix_t * b
 )
+// SYNOPSIS:
+//   Multiply matrices 'a' and 'b', and store the result in 'dest'.
+//
+// RETURN:
+//   A pointer to 'dest'.
+//
+// FAILURE:
+//   Fails if matrices are not congruent (i.e. square matrices with
+//   identical dimensions).
 {
 
    if (a->dim != dest->dim || b->dim != dest->dim) {
@@ -1169,66 +1319,25 @@ in_case_of_failure:
 }
 
 
-
-// SECTION 4.9. HASH MANIPULATION FUNCTIONS //
-
-rec_t *
-lookup
-(
-    const size_t N,
-    const double u
-)
-{
-
-   size_t lgN = floor(log2(N));
-   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
-   for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
-      if (rec->lgN == lgN && rec->u == u) return rec;
-   }
-
-   // Entry not found.
-   return NULL;
-   
-}
-
-
-rec_t *
-insert
-(
-    const size_t   N,
-    const double   u,
-          double * prob
-)
-{
-
-   size_t lgN = floor(log2(N));
-   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
-
-   rec_t *new = malloc(sizeof(rec_t));
-   handle_memory_error(new);
-
-   new->lgN = lgN;
-   new->u = u;
-   new->prob = prob;
-   new->next = HTAB[addr];
-
-   HTAB[addr] = new;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
-
-//
+// SECTION 4.9. HIGH LEVEL WGF COMPUTATION FUNCTIONS //
 
 trunc_pol_t *
 compute_exact_seed_prob
 (void)
-// Use recurrence formula (12) from doi:10.3390/a11010003
-// "Analytic Combinatorics for Computing Seeding Probabilities".
+// SYNOPSIS:
+//   Compute the probabilities that reads do not contain an on-target
+//   exact gamma seed for specified static parameters using recurrence
+//   formula (12) from doi:10.3390/a11010003 "Analytic Combinatorics for
+//   Computing Seeding Probabilities".
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fails. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
 {
 
    trunc_pol_t *w = new_zero_trunc_pol();
@@ -1253,71 +1362,6 @@ in_case_of_failure:
 
 }
 
-#if 0
-double
-average_errors
-(
-   const size_t g,
-   const size_t k,
-   const double p
-)
-// Use recurrence.
-{
-
-   if (k <= g) return p*k;
-
-   // Allocate at least '2*g+2' numbers for convenience.
-   size_t sz = (k+1 < 2*g+2 ? 2*g+2 : k+1) * sizeof(double);
-   double *s = malloc(sz);
-   handle_memory_error(s);
-
-   const double two_pq_pow_gamma = 2 * p * pow(1-p,g);
-   const double pq_pow_gamma_square = pow(p * pow(1-p,g),2);
-
-   for (int i = 0 ; i <= g ; i++) s[i] = p*i;
-
-   s[g+1] = p*(g+1) - two_pq_pow_gamma;
-
-   for (int i = g+2 ; i < 2*g+1 ; i++) {
-      s[i] = 2*s[i-1] - s[i-2] -
-         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]);
-   }
-
-   s[2*g+1] = 2*s[2*g] - s[2*g-1] -
-      two_pq_pow_gamma * (s[g] - s[g-1]) + p*pow(1-p,2*g);
-
-   for (int i = 2*g+2 ; i <= k ; i++) {
-      s[i] = 2*s[i-1] - s[i-2] -
-         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]) -
-         pq_pow_gamma_square * s[i-2*g-2];
-   }
-
-   double value = s[k];
-   free(s);
-
-   return value;
-
-in_case_of_failure:
-   return 0.0 / 0.0; // nan
-
-}
-
-double
-special_average
-(
-   const size_t g,
-   const size_t k,
-   const double p
-)
-// TODO: explain the logic of this in the LaTex document.
-{
-
-   const double num = p*k - average_errors(g,k,p);
-   const double denom = 1.0 - exact_seed_prob(g,k,0) - pow(1-p,k);
-   return num / denom; 
-
-}
-#endif
 
 // Need this snippet to compute a bound of the numerical imprecision.
 double HH(double x, double y)
@@ -1329,32 +1373,51 @@ compute_mem_prob_wgf
    const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
+// SYNOPSIS:
+//   Compute the probabilities that reads do not contain an on-target
+//   MEM seed for specified static and dynamic parameters.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fails. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
 {
 
-   // Assume parameters were checked by the caller.
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters (pass 'K', which never triggers an error).
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
 
    // The truncated polynomial 'w' stands the weighted generating
-   // function of the reads without on-target MEM seed for set
-   // parameters and 'N' duplicates.
+   // function of the reads without on-target MEM seed for set parameters
+   // and 'N' duplicates.
    trunc_pol_t *w = new_zero_trunc_pol();
 
-   // The matrix 'M' is the transfer matrix of reads without MEM
-   // seed. The row and column of the head state have been deleted
-   // because the reads can be assumed to start in state "double-
-   // down". The entries of 'M' are truncated polynomials that
-   // stand for weighted generating functions of segments joining
-   // different states. The m-th power of 'M' contains the weighted
-   // generating functions of sequences of m segments joining the
-   // dfferent states. We thus update 'w' with the entry of M^m
-   // that joins the initial "double-down" state to the tail state.
+   // The matrix 'M' is the transfer matrix of reads without MEM seed.
+   // The row and column of the head state have been deleted because the
+   // reads can be assumed to start in state "down/0".  The entries of
+   // 'M' are truncated polynomials that stand for weighted generating
+   // functions of segments joining different states. The m-th power of
+   // 'M' contains the weighted generating functions of sequences of m
+   // segments joining the dfferent states. We thus update 'w' with the
+   // entry of M^m that joins the initial "down/0" state to the tail
+   // state.
    matrix_t *M = new_matrix_M(u, N);
 
-   // Create two temporary matrices 'powM1' and 'powM2' to compute
-   // the powers of M. On first iteration, powM1 = M*M, and later
-   // perform the operations powM2 = M*powM1 and powM1 = M*powM2,
-   // so that powM1 is M^2m at iteration m. Using two matrices
-   // allows the operations to be performed without requesting more
-   // memory. The temporary matrices are implicitly erased in the
+   // Create two temporary matrices 'powM1' and 'powM2' to compute the
+   // powers of M. On first iteration, powM1 = M * M, and later perform
+   // the operations powM2 = M * powM1 and powM1 = M * powM2, so that
+   // powM1 is M^2m at iteration m. Using two matrices allows the
+   // operations to be performed without requesting additional memory.
+   // The temporary matrices are implicitly erased (not freed) in the
    // course of the multiplication by 'matrix_mult()'.
    matrix_t *powM1 = new_zero_matrix(G+N+1);
    matrix_t *powM2 = new_zero_matrix(G+N+1);
@@ -1364,19 +1427,28 @@ compute_mem_prob_wgf
    handle_memory_error(powM1);
    handle_memory_error(powM2);
 
-   // Update weighted generating function with
-   // one-segment reads (i.e. tail only).
+   // Update weighted generating function with one-segment reads (i.e.
+   // tail only). The weighte generating function of tail segments
+   // following the state "down/0" is in the top-right entry of 'M', i.e.
+   // at 'M[dim]', where dim = G+N is the dimension of the matrix.
    trunc_pol_update_add(w, M->term[G+N]);
 
    matrix_mult(powM1, M, M);
 
-   // Update weighted generating function with two-segment reads.
+   // Update weighted generating function with two-segment reads. Same
+   // comment as above, 'M[dim]' contains the weighted generating
+   // function of tail segments in two-segment reads starting in state
+   // "down/0".
    trunc_pol_update_add(w, powM1->term[G+N]);
 
-   // There is at least one sequencing error for every three
-   // segments. We bound the probability that a read of size k has
-   // at least m/3 errors by a formula for the binomial distribution,
-   // where m is the number of segments, i.e. the power of matirx M.
+   // A read with m segments has at least x = floor((m-1)/2) errors.
+   // Indeed, a non-error terminator (states "up/i") cannot follow
+   // another, so the read must contain at least so many error
+   // terminators (the tail segment has no terminator). We bound the
+   // probability that a read of size k has more than 'm' segments -- and
+   // thus more than x errors -- by a formula for the binomial
+   // distribution, where m is the number of segments, i.e. the power of
+   // matirx M. For detail see link below.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
    for (int m = 2 ; m < K ; m += 2) {
       // Increase the number of segments and update
@@ -1385,11 +1457,12 @@ compute_mem_prob_wgf
       trunc_pol_update_add(w, powM2->term[G+N]);
       matrix_mult(powM1, M, powM2);
       trunc_pol_update_add(w, powM1->term[G+N]);
-      // In max precision debug mode, get all possible digits.
+      // In max precision mode, get all possible digits by computing all
+      // the powers of 'M' up to 'K'.
       if (MAX_PRECISION)
          continue;
       // Otherwise, stop when reaching 1% precision.
-      double x = floor((m+2)/3) / ((double) K);
+      double x = floor((m-1)/2) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, P)*K);
       if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
    }
@@ -1417,10 +1490,33 @@ compute_dual_prob_wgf
 (
    const double u     // Divergence rate.
 )
+// SYNOPSIS:
+//   Compute the probabilities that reads contain neither an on-target
+//   exact gamma seed nor an off-target exact gamma seed for the
+//   specified static and dynamic parameters, where there is N = 1
+//   duplicate of the target.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fails. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
 {
 
-   // Assume parameters were checked by the caller.
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters (pass 'K', which never triggers an error).
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
 
+   // The logic of this function is the same as 'compute_mem_prob_wgf()'.
+   // See the comments there for more detail on what is going on.
    trunc_pol_t *w = new_zero_trunc_pol();
    matrix_t *L = new_matrix_L(u);
 
@@ -1441,10 +1537,13 @@ compute_dual_prob_wgf
    // Update weighted generating function with two-segment reads.
    trunc_pol_update_add(w, powL1->term[2*G-1]);
 
-   // There is at least one terminator for every two segments. We bound
-   // the probability that a read of size k has at least m terminators by
-   // a formula for the binomial distribution, where m is the number of
-   // segments, i.e. the power of matirx L.
+   // Every non-tail segment contains a terminator that is a mismatch for
+   // at least one of the two sequences. The probabilities of occurrence
+   // of these symbols are 'b', 'c' and 'd' (below), so the probability
+   // of occurrence of a terminator is bounded by 'prob' = max(b,c,d).
+   // With an argument similar to that expalained in the function
+   // 'compute_mem_prob_wgf()', we can bound the probabibility that a
+   // read contains more than m segments with the Binomial distribution.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
    const double b = P * u/3.0;
    const double c = (1-P) * u;
@@ -1484,6 +1583,8 @@ in_case_of_failure:
 }
 
 
+// SECTION 4.10. LOW-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
+
 size_t
 rgeom
 (void)
@@ -1495,11 +1596,38 @@ rgeom
 size_t
 rpos
 (
-   const size_t m,
-   const size_t i
+   const size_t m,    // The number of hard masks.
+   const size_t i     // Segment size (max value).
 )
+// SYNOPSIS:
+//   Simulate the random position where the last hard mask fails.
+//
+// RETURN:
+//   A number greater than or equal to 1 indicating the position where
+//   the last hard mask failed.
 {
    if (m == 0) return 1;
+
+   // The principle is to invert the probability distribution. The
+   // probability that all m hard masks have failed at position j is
+   // (1-(1-u)^j)^m. This is the cumulative distribution of the random
+   // variable j. The probability that they have all failed at position
+   // j, given that they have all failed at position i >= j is the ratio
+   // (1-(1-u)^j)^m / (1-(1-u)^i)^m, which is now the cumulative
+   // distribution of the random variable j, given that it is less than
+   // or equal to i.
+   //
+   // If X is the m-th root of a U(0,1) random variable, the event
+   //
+   //          j  <  log(1-(1-(1-u)^i)*X) / log(1-u)  <  j+1 
+   //
+   // is equivalent to the event
+   //
+   //  (1-(1-u)^j) / (1-(1-u)^i) <  X  < (1-(1-u)^(j+1)) / (1-(1-u)^i),
+   //
+   // which corresponds to the probability distribution of j given that
+   // it is less than i. The formula below directly generates a random
+   // variable with the requested probability distribution.
    const double mth_root_of_unif = pow(runifMT(), 1.0/m);
    return ceil( log(1-XI[i]*mth_root_of_unif) / log(XIc[1]) );
 }
@@ -1511,6 +1639,11 @@ one_mcmc
    const size_t   N,
          double * pos
 )
+// SYNOPSIS:
+//   Simulate one read using Monte Carlo Markov chains with the specified
+//   static parameters. Update the vector 'pos' with the positions of the
+//   read where a MEM seed is present, i.e., the positions such that a
+//   MEM seed would be present if the read terminated at this position.
 {
 
    size_t i;     // Size of the error-free segment.
@@ -1586,13 +1719,37 @@ one_mcmc
 }
 
 
+// SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
+
 trunc_pol_t *
 compute_mem_prob_mcmc
 (
    const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
+// SYNOPSIS:
+//   Compute the probabilities that reads do not contain an on-target
+//   MEM seed for specified static and dynamic parameters, using the
+//   Monte Carlo Markov chain approach.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fains. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
 {
+
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters (pass 'K', which never triggers an error).
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
 
    trunc_pol_t *w = NULL;
 
@@ -1602,7 +1759,6 @@ compute_mem_prob_mcmc
    handle_memory_error(ETA = malloc((K+1) * sizeof(double)));
    handle_memory_error(ETAc = malloc((K+1) * sizeof(double)));
 
-   // Assume parameters were checked by the caller.
    for (int i = 0 ; i <= K ; i++) {
       XI[i]   = 1 - pow(1-u,i);
       XIc[i]  = 1 - XI[i];
@@ -1639,6 +1795,8 @@ in_case_of_failure:
 }
    
 
+// SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
+
 double
 mem_false_pos            // VISIBLE //
 (
@@ -1646,13 +1804,26 @@ mem_false_pos            // VISIBLE //
    const double u,       // Divergence rate.
    const size_t N        // Number of duplicates.
 )
+// SYNOPSIS:
+//   Compute the probability that the MEM seeding process generates a
+//   false positive for specified static and dynamic parameters. The
+//   results are memoized in the global hash 'HTAB' for future calls.
+//
+// RETURN:
+//   A double-precision number with the probability of interest, or 'nan'
+//   in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform, if insertion in 'HTAB' fails or if
+//   'malloc()' fails.
 {
 
    trunc_pol_t *P1 = NULL;
    trunc_pol_t *P2 = NULL;
    trunc_pol_t *P3 = NULL;
    
-   // Check parameters.
+   // Check dynamic parameters.
    if (!dynamic_params_OK(k,u,N)) {
       goto in_case_of_failure;
    }
@@ -1684,14 +1855,15 @@ mem_false_pos            // VISIBLE //
       // that there is no on-target exact seed, multiplied by the
       // probability that there is no on-target exact seed.
       for (int i = 0 ; i <= K ; i++) {
-         prob[i] = P3->coeff[i] -
-            P1->coeff[i] * pow(P2->coeff[i] / P1->coeff[i], N);
+         double P0 = P1->coeff[i] * pow(P2->coeff[i] / P1->coeff[i], N);
+         prob[i] = (P3->coeff[i] - P0) / (1-P0);
       }
 
       free(P1);
       free(P2);
       free(P3);
 
+      // Insert in the global hash 'HTAB'.
       rec = insert(u, N, prob);
       if (rec == NULL) {
          free(prob);
@@ -1709,3 +1881,71 @@ in_case_of_failure:
    return 0.0/0.0;  //  nan
 
 }
+
+
+
+#if 0
+double
+average_errors
+(
+   const size_t g,
+   const size_t k,
+   const double p
+)
+// Use recurrence.
+{
+
+   if (k <= g) return p*k;
+
+   // Allocate at least '2*g+2' numbers for convenience.
+   size_t sz = (k+1 < 2*g+2 ? 2*g+2 : k+1) * sizeof(double);
+   double *s = malloc(sz);
+   handle_memory_error(s);
+
+   const double two_pq_pow_gamma = 2 * p * pow(1-p,g);
+   const double pq_pow_gamma_square = pow(p * pow(1-p,g),2);
+
+   for (int i = 0 ; i <= g ; i++) s[i] = p*i;
+
+   s[g+1] = p*(g+1) - two_pq_pow_gamma;
+
+   for (int i = g+2 ; i < 2*g+1 ; i++) {
+      s[i] = 2*s[i-1] - s[i-2] -
+         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]);
+   }
+
+   s[2*g+1] = 2*s[2*g] - s[2*g-1] -
+      two_pq_pow_gamma * (s[g] - s[g-1]) + p*pow(1-p,2*g);
+
+   for (int i = 2*g+2 ; i <= k ; i++) {
+      s[i] = 2*s[i-1] - s[i-2] -
+         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]) -
+         pq_pow_gamma_square * s[i-2*g-2];
+   }
+
+   double value = s[k];
+   free(s);
+
+   return value;
+
+in_case_of_failure:
+   return 0.0 / 0.0; // nan
+
+}
+
+double
+special_average
+(
+   const size_t g,
+   const size_t k,
+   const double p
+)
+// TODO: explain the logic of this in the LaTex document.
+{
+
+   const double num = p*k - average_errors(g,k,p);
+   const double denom = 1.0 - exact_seed_prob(g,k,0) - pow(1-p,k);
+   return num / denom; 
+
+}
+#endif

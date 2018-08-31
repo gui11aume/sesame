@@ -5,46 +5,83 @@
 
 #include "random.h"
 
-// MACROS //
+// SECTION 1. MACROS //
 
 #define LIBNAME "mem_seed_prob"
-#define VERSION "1.0 08-23-2018"
+#define VERSION "1.0 08-31-2018"
 
 #define SUCCESS 1
 #define FAILURE 0
 
+// Number of entries in the global hash 'HTAB'.
 #define HSIZE 4096
 
-// Prob that one of m altnerative threads survives i steps.
-#define xi(i)  (      1.0 - pow(1.0-u,(i))            )
-#define eta(i) (      1.0 - pow(1.0-u,(i)) * u/3      )
-
+// Check if a polynomial is null.
 #define iszero(poly) \
    ((poly) == NULL || ((poly)->monodeg == 0 && (poly)->coeff[0] == 0))
 
-// Macro to simplify error handling.
+
+// NOTE 1.1. Error handling. //
+//
+// All the functions that may fail at runtime -- mostly the function that
+// directly or indirectly call 'malloc()' -- have a 'in_case_of_failure'
+// section after the final 'return' statement. This section contains the
+// instructions for handling errors and exceptions without crashing. In
+// general, this means freeing the allocated memory and returning a
+// special value that will inform the caller that something went wrong,
+// so that the error can be further propagated.
+//
+// The macro below simplifies error handling for memory errors. See
+// function 'warning()' defined in section 4.1.
+
 #define handle_memory_error(x) do { \
    if ((x) == NULL) { \
       warning("memory_error", __func__, __LINE__); \
-      ERRNO = __LINE__; \
       goto in_case_of_failure; \
 }} while (0)
 
 
-//  TYPE DECLARATIONS  //
 
-// The most important type declared here is the truncated polynomial
-// 'trunc_pol_t'. It consists of a 'monodeg' member and a variable-size
-// array of double 'coeff'.
+//  SECTION 2. TYPE DECLARATIONS  //
+
+// NOTE 2.1. 'trunc_pol_t' and monomials //
 //
-// The variable 'monodeg' is a number from 0 to 'K' to signify that the
-// polynomial is a monomial. If the value is greater than 'K', the
-// polynomial is not a monomial. The null polynomial is thus a monomial
-// of degree 0 with a coefficient equal to 0.
+// The most important type declared here is the truncated polynomial
+// 'trunc_pol_t'. It consists of a 'monodeg' member (of type 'size_t')
+// and a 'coeff' member (variable-size array of type 'double').
+//
+// The member 'monodeg' encodes whether the polynomial is a monomial and
+// if so, what its degree is. This is important to gain speed while
+// multiplying truncated polynomials. If 'monodeg' is a number from 0 to
+// 'K' (the maximum degree of every truncated polynomial), the polynomial
+// is a monomial of degree 'monodeg'. If the value is greater than 'K',
+// the polynomial is not a monomial.
+//
+// The member 'coeff' contains the coefficients of the truncated
+// polynomial. The encoding is natural in the sense that 'coeff[i]' is
+// the coefficient of degree 'i'. If the polynomial is a monomial (i.e.
+// 'monodeg' is less than or equal to 'K'), then only the entry
+// 'coeff[monodeg]' may be non-zero. If this is not the case (which
+// should not happen for the sake of consistency), the terms of degree
+// different from 'monodeg' are ignored.
+//
+// It is not a problem to have a polynomial with only one non-zero
+// coefficient. The multiplications are somewhat slower, but the results
+// are consistent.
+//
+// The product of two monomials is a monomial. The addition of two
+// monomials is never a monomial, even if the monomials have the same
+// degree.
+//
+// The null struct of type 'trunc_poly_t' (i.e. with all members set to
+// 0) is a monomial of degree 0 whose coefficient is 0 (it is thus a
+// proper definition of the null polynomial). For addition and
+// multiplication of polynomials, a pointer of 'trunc_pol_t' that is set
+// to 'NULL' is considered to be a pointer to the null polynomial.
 
-typedef struct matrix_t     matrix_t;
-typedef struct rec_t        rec_t;
-typedef struct trunc_pol_t  trunc_pol_t;
+typedef struct matrix_t     matrix_t;      // Transfer matrices.
+typedef struct rec_t        rec_t;         // Hash table records.
+typedef struct trunc_pol_t  trunc_pol_t;   // Truncated polynomials.
 
 struct rec_t {
 	size_t   lgN;         // Number of duplicates (log2).
@@ -59,27 +96,38 @@ struct matrix_t {
 };
 
 struct trunc_pol_t {
-   size_t monodeg;       // Monomial (if applicable).
+   size_t monodeg;       // Monomial (see note 2.1).
    double coeff[];       // Terms of the polynomial.
 };
 
 
-// GLOBAL VARIABLES / CONSTANTS //
 
-// Methods options.
+// SECTION 3. GLOBALS //
+
+// Methods options (to compute the probability of on-target MEM seeds).
 static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
 
 // Precision options.
-static int MAX_PRECISION = 0;
-static size_t MCMC_RESAMPLINGS = 10000000;
+static int    MAX_PRECISION = 0;             // 'double' precision.
+static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
 
+// NOTE 3.1 Static parameters. //
+//
+// The static parameters of the seeding problem are 'G' (a.k.a gamma, the
+// minimum size of MEM seeds), 'K' (the maximum degree of all truncated
+// polynomial, standing for the longest possible sequencing read) and 'P'
+// (the probability of a sequencing error). They define the properties of
+// the sequencing instrument and the choice of a minimum size by the
+// user. The other parameters (actual read size, number of duplicates and
+// rate of divergence) can depend on the read under consideration and are
+// called "dynamic". Static parameters are set by initializing the
+// library with 'set_params_mem_prob()'.
 
-// Global specifications of he seeding problem.
-static size_t    G = 0;       // Minimum size of MEM seeds.
-static size_t    K = 0;       // Max degree (read size).
-static double    P = 0.0;     // Probability of a read error.
+static size_t  G = 0;       // Minimum size of MEM seeds.
+static size_t  K = 0;       // Max degree of 'trunc_pol_t' (read size).
+static double  P = 0.0;     // Probability of a read error.
 
-static size_t    KSZ = 0;     // Size of the 'trunc_pol_t' struct.
+static size_t  KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
 
 static rec_t * HTAB[HSIZE] = {0};  // Hash table of probabilities.
 
@@ -90,23 +138,24 @@ static double * XIc;    // Precomputed values of '1-xi'.
 static double * ETA;    // Precomputed values of 'eta'.
 static double * ETAc;   // Precomputed values of '1-eta'.
 
-static int PARAMS_INITIALIZED = 0;
+static int PARAMS_INITIALIZED = 0;  // Parameters bookkeeping
 
-// Error report.
-static int ERRNO = 0;
+// The following should never appear. This is only to give the end users
+// a means to contact us and hopefully fix the problems with them.
 const char internal_error[] =
    "internal error (please contact guillaume.filion@gmail.com)";
 
 
 
-// FUNCTION DEFINITIONS //
+// SECTION 4. FUNCTION DEFINITIONS //
 
-// IO and error report functions
-int  get_mem_prob_error_code (void) { return ERRNO; }   // VISIBLE
-void reset_mem_prob_error (void) { ERRNO = 0; }         // VISIBLE
-void set_mem_prob_method (int m) { METH = m; }          // VISIBLE
+// SECTION 4.1. OPTION SETTING FUNCTIONS //
+void set_mem_prob_method (int m) { METH = m; }               // VISIBLE
+void set_mem_prob_max_prcsn (void) { MAX_PRECISION = 1; }    // VISIBLE
+void unset_mem_prob_max_prcsn (void) { MAX_PRECISION = 0; }  // VISIBLE
 
 
+// SECTION 4.2. ERROR HANDLING FUNCTIONS //
 void
 warning
 (
@@ -114,14 +163,30 @@ warning
    const char * function,
    const int    line
 )
-// Print warning message to stderr.
+// SYNOPSIS:
+//   Print warning message to stderr. This function is used to report
+//   errors using the error macros (see macros defined in section 1 and
+//   see note 1.1 about error handling).
 {
    fprintf(stderr, "[%s] error in function `%s' (line %d): %s\n",
          LIBNAME, function, line, msg);
 }
 
 
-// Mathematical functions.
+// SECTION 4.3. MATHEMATICAL FUNCTIONS //
+
+double
+xi
+(
+   const size_t i,
+   const double u
+)
+{
+
+   return 1 - pow(1-u, i);
+
+}
+
 
 double
 omega
@@ -131,12 +196,16 @@ omega
    const size_t N
 )
 {
+
    if (m > N) {
       return 0.0;
    }
+
    double log_N_choose_m = lgamma(N+1)-lgamma(m+1)-lgamma(N-m+1);
    return exp(log_N_choose_m + (N-m)*log(1-u/3) + m*log(u/3));
+
 }
+
 
 double
 psi
@@ -154,13 +223,14 @@ psi
 
    // Take out the terms of the sum that do not depend on 'q'.
    const double lC = lgamma(m+1) + lgamma(N-m-r+1);
-   const double lx = log(xi(i));
+   const double lx = log(xi(i,u));
    double val = 0.0;
    size_t topq = n-r < m ? n-r : m;
    for (int q = 0 ; q <= topq ; q++) {
       val += exp((n-r-q) * lx - lgamma(q+1) - lgamma(m-q+1)
                      - lgamma(n-r-q+1) - lgamma(N-m-n+q+1) + lC);
    }
+
    return val;
 
 }
@@ -188,26 +258,30 @@ zeta
       val += psi(i,m,n,r,u,N) * \
              exp(r*lu - lgamma(r+1) - lgamma(N-m-r+1) + lC);
    }
+
    return val;
+
 }
 
 
 
-// Initialization and clean up.
+// SECTION 4.4. INITIALIZATION AND CLEAN UP FUNCTIONS //
 
-// -- Destructors -- //
+// SECTION 4.4.1. DESTRUCTORS //
 
 void
 destroy_mat
 (
    matrix_t * mat
 )
+// SYNOPSIS:
+//   Free the memory for all entries of the matrix passed as argument.
 {
 
-   // Do not try anything on NULL.
+   // Do nothing if 'mat' is the NULL pointer.
    if (mat == NULL) return;
 
-   size_t nterms = (mat->dim)*(mat->dim);
+   size_t nterms = (mat->dim) * (mat->dim);
    for (size_t i = 0 ; i < nterms ; i++)
       free(mat->term[i]);
    free(mat);
@@ -218,6 +292,8 @@ destroy_mat
 void
 destroy_hash
 (void)
+// SYNOPSIS:
+//   Free the memory for all entries of the golbal hash 'HTAB'.
 {
    for (int i = 0 ; i < HSIZE ; i++) {
       for (rec_t *rec = HTAB[i] ; rec != NULL ; rec = rec->next) {
@@ -230,11 +306,23 @@ destroy_hash
 }
 
 
-// -- Constructors -- //
+// SECTION 4.4.2. CONSTRUCTORS //
 
 trunc_pol_t *
 new_zero_trunc_pol
 (void)
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'trunc_pol_t', initialize
+//   it to 0 (i.e. null polynomial).
+//
+// RETURN:
+//   A pointer to the new struct of type 'trunc_pol_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if parameters are not initialized (if 'K' is unknown, we
+//   cannot call 'malloc()' with the proper size) or if there is a memory
+//   error.
 {
 
    // Cannot be called before 'set_params_mem_prob()'.
@@ -260,8 +348,19 @@ new_null_matrix
 (
    const size_t dim
 )
-// Create a matrix where all truncated polynomials
-// (trunc_pol_t) are set NULL.
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t', initialize all
+//   entries to 0 (i.e. all are NULL pointers). Since the entries of
+//   matrix are pointers to 'trunc_pol_t', each of them corresponds to a
+//   null polynomial. Still, the entries are not writable because no
+//   memory has been allocatd for them (see 'new_zero_matrix()').
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if there is a memory error.
 {
 
    // Initialize to zero.
@@ -269,8 +368,9 @@ new_null_matrix
    matrix_t *new = calloc(1, sz);
    handle_memory_error(new);
 
-   // The dimension is set upon creation
-   // and must never change afterwards.
+   // The dimension is set upon creation and never changes afterwards.
+   // In the declaration of the struct, the member 'dim' is a constant,
+   // the syntax below is way to go around the 'const' qualifier.
    *(size_t *)&new->dim = dim;
 
    return new;
@@ -285,17 +385,29 @@ new_zero_matrix
 (
    const size_t dim
 )
-// Create a matrix where all terms
-// are 'trunc_pol_t' struct set to zero.
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t', initialize all
+//   entries to different null polynomials (i.e. all are non NULL
+//   pointers to struct of type 'trunc_pol_t' with all their coefficients
+//   set to 0). Unlike 'new_null_matrix()', the entries are writable.
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if parameters are not initialized (if 'K' is unknown, we
+//   cannot call 'malloc()' with the proper size for the truncated
+//   polynomials) or if there is a memory error. Checking that parameters
+//   are set is done indirectly in the call to 'new_zero_trunc_pol()'.
 {
 
-   // NOTE: cannot be called before 'set_params_mem_prob()'.
    matrix_t *new = new_null_matrix(dim);
    handle_memory_error(new);
 
+   // NOTE: cannot be called before 'set_params_mem_prob()'.
    for (int i = 0 ; i < dim*dim ; i++) {
-      new->term[i] = new_zero_trunc_pol();
-      handle_memory_error(new->term[i]);
+      handle_memory_error(new->term[i] = new_zero_trunc_pol());
    }
 
    return new;
@@ -307,9 +419,16 @@ in_case_of_failure:
 }
 
 
+// SECTION 4.4.3. LIBRARY INITIALIATION AND CLEAN UP //
+
+
 void
 clean_mem_prob // VISIBLE //
 (void)
+// SYNOPSIS:
+//   Rest global parameters to their uninitialized state and free
+//   allocated memory. The function must be called after using the
+//   library to prevent memory leaks.
 {
 
    PARAMS_INITIALIZED = 0;
@@ -330,8 +449,6 @@ clean_mem_prob // VISIBLE //
    // Clean hash table.
    destroy_hash();
    
-   ERRNO = 0;
-
    return;
 
 }
@@ -344,19 +461,26 @@ set_params_mem_prob // VISIBLE //
    size_t k,
    double p
 )
-// Initialize the global variables from user-defined values.
+// SYNOPSIS:
+//   Initialize static parameters from user-defined values.
+//
+// RETURN:
+//   SUCCESS (1) upon success or FAILURE (0) upon failure.
+//
+// FAILURE:
+//   Fails if static parameters do not conform specifications or if
+//   'malloc()' fails (the truncated polynomial 'TEMP' must be
+//   allocated).
 {
 
    // Check input
    if (g == 0 || k == 0) {
-      ERRNO = __LINE__;
       warning("parameters g and k must greater than 0",
             __func__, __LINE__); 
       goto in_case_of_failure;
    }
 
    if (p <= 0.0 || p >= 1.0) {
-      ERRNO = __LINE__;
       warning("parameter p must be between 0 and 1",
             __func__, __LINE__); 
       goto in_case_of_failure;
@@ -386,7 +510,69 @@ in_case_of_failure:
 }
 
 
-// Definitions of weighted generating functions.
+int
+dynamic_params_OK
+(
+   const size_t k,    // Segment or read size.
+   const double u,    // Divergence rate.
+   const size_t N     // Number of duplicates.
+)
+// SYNOPSIS:
+//   Check if dynamic parameters (see note 3.1) are conform to
+//   specifications.
+//
+// RETURN:
+//   SUCCESS (1) upon success or FAILURE (0) upon failure.
+//
+// FAILURE:
+//   Fails if dynamic parameters do not conform specifications or if
+//   static parameters are not initialized.
+{
+
+   // Check if sequencing parameters were set. Otherwise
+   // warn user and fail gracefully (return nan).
+   if (!PARAMS_INITIALIZED) {
+      warning("parameters unset: call `set_params_mem_prob'",
+            __func__, __LINE__);
+      return FAILURE;
+   }
+
+   if (k > K) {
+      char msg[128];
+      snprintf(msg, 128,
+            "argument k (%lu) greater than set value (%ld)", k, K);
+      warning(msg, __func__, __LINE__);
+      return FAILURE;
+   }
+
+   if (u <= 0.0 || u >= 1.0) {
+      warning("parameter u must be between 0 and 1",
+            __func__, __LINE__); 
+      return FAILURE;
+   }
+
+   return SUCCESS;
+
+}
+
+
+
+// SECTION 4.5. WEIGHTED GENERATING FUNCTIONS //
+
+// NOTE 4.5.1. Internal errors in weighted generating functions //
+// The functions below do not have detailed synopsis because they all
+// follow the same pattern of allocating a particular polynomial defined
+// in the theory of computing MEM seeding probabilities by the symbolic
+// method. Some functions check the value of the input paramters and can
+// trigger an "internal error" (see note 1.1), whereas others do not. The
+// logic is that the polynomials can be mathematically undefined (when
+// the expression involves a division by zero for instance) or simply not
+// used in the present theory. The former case triggers an internal
+// error, whereas the second does not. This is to allow anyone to reuse
+// the code for their own purpose, without "hurting themselves" by
+// triggering undefined, unpredictable or unwanted behaviors. Calling the
+// visible functions of this library should never trigger an internal
+// error.
 
 trunc_pol_t *
 new_trunc_pol_A
@@ -418,11 +604,11 @@ new_trunc_pol_A
 
    double omega_p_pow_of_q = omega(n,u,N) * P;
    for (int i = 1 ; i <= G ; i++) {
-      new->coeff[i] = (1 - pow(xi(i-1),N)) * omega_p_pow_of_q;
+      new->coeff[i] = (1 - pow(xi(i-1,u),N)) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
    for (int i = G+1 ; i <= K ; i++) {
-      new->coeff[i] = (1 - pow(xi(i-1),m) *
+      new->coeff[i] = (1 - pow(xi(i-1,u),m) *
             (1- zeta(i-1,m,n,u,N))) * omega_p_pow_of_q;
       omega_p_pow_of_q *= (1.0-P);
    }
@@ -447,7 +633,6 @@ new_trunc_pol_B
 
    if (i < 1) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }   
 
@@ -465,7 +650,7 @@ new_trunc_pol_B
 
    // This is a monomial.
    new->monodeg = i;
-   new->coeff[i] = (pow(xi(i),N) - pow(xi(i-1),N)) * pow(1-P,i);
+   new->coeff[i] = (pow(xi(i,u),N) - pow(xi(i-1,u),N)) * pow(1-P,i);
    return new;
 
 in_case_of_failure:
@@ -506,11 +691,11 @@ new_trunc_pol_C
 
    double pow_of_q = 1.0;
    for (int i = 0 ; i <= G-1 ; i++) {
-      new->coeff[i] = (1 - pow(xi(i),N)) * pow_of_q;
+      new->coeff[i] = (1 - pow(xi(i,u),N)) * pow_of_q;
       pow_of_q *= (1.0-P);
    }
    for (int i = G ; i <= K ; i++) {
-      new->coeff[i] = (1 - pow(xi(i),m)) * pow_of_q;
+      new->coeff[i] = (1 - pow(xi(i,u),m)) * pow_of_q;
       pow_of_q *= (1.0-P);
    }
    return new;
@@ -519,7 +704,6 @@ in_case_of_failure:
    return NULL;
 
 }
-
 
 
 trunc_pol_t *
@@ -536,7 +720,6 @@ new_trunc_pol_D
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }   
 
@@ -576,7 +759,6 @@ new_trunc_pol_E
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -612,7 +794,6 @@ new_trunc_pol_F
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -649,7 +830,6 @@ new_trunc_pol_R
 
    if (j > G-1) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -687,7 +867,6 @@ new_trunc_pol_r_plus
 
    if (i > G-2) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -718,7 +897,6 @@ new_trunc_pol_r_minus
 
    if (i > G-2) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -737,61 +915,12 @@ in_case_of_failure:
 }
 
 
-
-rec_t *
-lookup
-(
-    const size_t N,
-    const double u
-)
-{
-
-   size_t lgN = floor(log2(N));
-   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
-   for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
-      if (rec->lgN == lgN && rec->u == u) return rec;
-   }
-
-   // Entry not found.
-   return NULL;
-   
-}
-
-
-rec_t *
-insert
-(
-    const size_t   N,
-    const double   u,
-          double * prob
-)
-{
-
-   size_t lgN = floor(log2(N));
-   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
-
-   rec_t *new = malloc(sizeof(rec_t));
-   handle_memory_error(new);
-
-   new->lgN = lgN;
-   new->u = u;
-   new->prob = prob;
-   new->next = HTAB[addr];
-
-   HTAB[addr] = new;
-
-   return new;
-
-in_case_of_failure:
-   return NULL;
-
-}
-
+// SECTION 4.6. TRANSFER MATRICES //
 
 matrix_t *
 new_matrix_M
 (
-   const double u,    // Divergence rate.
+   const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
 )
 {
@@ -921,6 +1050,8 @@ in_case_of_failure:
 
 
 
+// SECTION 4.7. POLYNOMIAL MANIPULATION FUNCTIONS //
+
 trunc_pol_t *
 trunc_pol_mult
 (
@@ -1000,6 +1131,9 @@ trunc_pol_update_add
 }
 
 
+
+// SECTION 4.8. MATRIX MANIPULATION FUNCTIONS //
+
 matrix_t *
 matrix_mult
 (
@@ -1011,7 +1145,6 @@ matrix_mult
 
    if (a->dim != dest->dim || b->dim != dest->dim) {
       warning(internal_error, __func__, __LINE__);
-      ERRNO = __LINE__;
       goto in_case_of_failure;
    }
 
@@ -1036,43 +1169,60 @@ in_case_of_failure:
 }
 
 
-int
-params_OK
+
+// SECTION 4.9. HASH MANIPULATION FUNCTIONS //
+
+rec_t *
+lookup
 (
-   const size_t k,    // Segment or read size.
-   const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+    const size_t N,
+    const double u
 )
 {
 
-   // Check if sequencing parameters were set. Otherwise
-   // warn user and fail gracefully (return nan).
-   if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `set_params_mem_prob'",
-            __func__, __LINE__);
-      return FAILURE;
+   size_t lgN = floor(log2(N));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+   for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
+      if (rec->lgN == lgN && rec->u == u) return rec;
    }
 
-   if (k > K) {
-      char msg[128];
-      snprintf(msg, 128,
-            "argument k (%lu) greater than set value (%ld)", k, K);
-      warning(msg, __func__, __LINE__);
-      ERRNO = __LINE__;
-      return FAILURE;
-   }
+   // Entry not found.
+   return NULL;
+   
+}
 
-   if (u <= 0.0 || u >= 1.0) {
-      ERRNO = __LINE__;
-      warning("parameter u must be between 0 and 1",
-            __func__, __LINE__); 
-      return FAILURE;
-   }
 
-   return SUCCESS;
+rec_t *
+insert
+(
+    const size_t   N,
+    const double   u,
+          double * prob
+)
+{
+
+   size_t lgN = floor(log2(N));
+   size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
+
+   rec_t *new = malloc(sizeof(rec_t));
+   handle_memory_error(new);
+
+   new->lgN = lgN;
+   new->u = u;
+   new->prob = prob;
+   new->next = HTAB[addr];
+
+   HTAB[addr] = new;
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
 
 }
 
+
+//
 
 trunc_pol_t *
 compute_exact_seed_prob
@@ -1490,7 +1640,7 @@ in_case_of_failure:
    
 
 double
-mem_false_pos
+mem_false_pos            // VISIBLE //
 (
    const size_t k,       // Segment or read size.
    const double u,       // Divergence rate.
@@ -1503,7 +1653,7 @@ mem_false_pos
    trunc_pol_t *P3 = NULL;
    
    // Check parameters.
-   if (!params_OK(k,u,N)) {
+   if (!dynamic_params_OK(k,u,N)) {
       goto in_case_of_failure;
    }
 
@@ -1516,9 +1666,9 @@ mem_false_pos
       int use_method_wgf = METH == METHOD_WGF ||
                      (METH == METHOD_AUTO && N < 21 && P < .05);
       
-      P1 = compute_exact_seed_prob();
-      P2 = compute_dual_prob_wgf(u);
-      P3 = use_method_wgf ?
+      P1 = compute_exact_seed_prob();  // Prob no exact gamma-seed.
+      P2 = compute_dual_prob_wgf(u);   // Prob no hit (two seq model).
+      P3 = use_method_wgf ?            // Prob no on target MEM seed.
                compute_mem_prob_wgf(u,N):
                compute_mem_prob_mcmc(u,N);
       if (P1 == NULL || P2 == NULL || P3 == NULL)

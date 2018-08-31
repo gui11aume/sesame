@@ -2252,7 +2252,7 @@ test_compute_mem_prob_wgf
    success = set_params_mem_prob(20, 21, 0.02);
    test_assert_critical(success);
 
-   MAX_PRECISION = 1;
+   set_mem_prob_max_prcsn();
 
    w0 = compute_mem_prob_wgf(.05,0);
    w1 = compute_mem_prob_wgf(.05,1);
@@ -2308,7 +2308,7 @@ test_compute_mem_prob_wgf
    free(w3);
    free(w4);
 
-   MAX_PRECISION = 0;
+   unset_mem_prob_max_prcsn();
    clean_mem_prob();
 
 }
@@ -2427,11 +2427,15 @@ test_misc_correctness
       double target = 0.0;
       // The position of the error is [j] (1-based).
       for (int j = 1 ; j <= 17 ; j++) {
-         target += 2 * (1.0 - pow(eta(k-j),N));
+         double eta_term = 1.0 - pow(1.0-u,k-j) * u/3;
+          target += 2 * (1.0 - pow(eta_term,N));
       }
       for (int j = 18 ; j <= k-17 ; j++) {
-         target +=  1 - ( pow(eta(j-1),N) + pow(eta(k-j),N) -
-             pow(1-.05/3 + .05/3 * xi(j-1) * xi(k-j),N) );
+         double first_eta_term = 1.0 - pow(1.0-u,j-1) * u/3;
+         double second_eta_term = 1.0 - pow(1.0-u,k-j) * u/3;
+         target +=  1 - ( pow(first_eta_term, N) + 
+               pow(second_eta_term, N) -
+               pow(1-.05/3 + .05/3 * xi(j-1,u) * xi(k-j,u),N) );
       }
       // Multiply by the probability that there is one error.
       target *= .01 * pow(.99, k-1);

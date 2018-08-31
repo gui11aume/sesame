@@ -3,10 +3,15 @@
 
 // Visible functions.
 
-void   clean_mem_prob (void);
-double mem_false_pos(size_t, double, size_t);
-int    get_mem_prob_error_code (void);
-void   reset_mem_prob_error (void);
+// Initialization and clean up.
 int    set_params_mem_prob (size_t, size_t, double);
+void   clean_mem_prob (void);
 
+// Options.
+void set_mem_prob_method (int);
+void set_mem_prob_max_prcsn (void);
+void unset_mem_prob_max_prcsn (void);
+
+// MEM seeding probabilities.
+double mem_false_pos(size_t, double, size_t);
 #endif

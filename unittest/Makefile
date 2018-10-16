@@ -5,7 +5,7 @@ vpath %.h lib
 
 P= runtests
 
-OBJECTS= libunittest.so random.o unittests_mem_seed_prob.o
+OBJECTS= libunittest.so unittests_mem_seed_prob.o
 SOURCES= mem_seed_prob.c
 
 CC= gcc

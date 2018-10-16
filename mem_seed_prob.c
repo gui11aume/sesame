@@ -80,6 +80,7 @@
 
 typedef struct matrix_t     matrix_t;      // Transfer matrices.
 typedef struct rec_t        rec_t;         // Hash table records.
+typedef struct sq_t         sq_t;          // Squished N values.
 typedef struct trunc_pol_t  trunc_pol_t;   // Truncated polynomials.
 
 struct rec_t {
@@ -92,6 +93,11 @@ struct rec_t {
 struct matrix_t {
    const size_t    dim;  // Column / row number.
    trunc_pol_t * term[]; // Terms of the matrix.
+};
+
+struct sq_t {
+   size_t lg;            // Log value (entry in the hash).
+   size_t nrm;           // Normalized value of N (see note 4.4.3.1).
 };
 
 struct trunc_pol_t {
@@ -420,10 +426,30 @@ in_case_of_failure:
 
 // SECTION 4.4.3 HASH MANIPULATION FUNCTIONS //
 
+sq_t
+squish
+(
+   size_t N
+)
+
+   // NOTE 4.4.3.1. Shared buckets for the values of N.
+   //
+   // The value of log2(N+1) changes at N = 0, 1, 3, 7, 15, 31, 63, 127,
+   // 255, 511, 1023, 2047, 4095, 8191, 16383. In other words, 0 has its
+   // own bucket, 1 and 2 have the same bucket, so do 3, 4, 5, 6 etc.
+   // The normalized values of 'N' are the mid-points of the intervals.
+{
+   const size_t normalized_values[] =
+      {0,1,4,10,22,46,94,190,382,766,1534,3070,6142,12286,24574};
+   size_t lgN = N < 16383 ? floor(log2(N+1)) : 14;
+   return (sq_t) { lgN, normalized_values[lgN] };
+}
+
+
 rec_t *
 lookup
 (
-    const size_t N,
+    const size_t lgN,
     const double u
 )
 // SYNOPSIS:
@@ -437,14 +463,7 @@ lookup
 //   A pointer to the struct of type 'rec_t' that corresponds to the key
 //   (or its coarse-grained variants) if present, or NULL otherwise.
 {
-
-   // NOTE 4.4.3.1. Shared buckets for the values of N.
-   //
-   // The value of log2(N) changes at N = 0, 1, 3, 7, 15, 31, 63, 127,
-   // 255, 511, 1023, 2047, 4095, 8191... In other words, 0 has its own
-   // bucket, 1 and 2 have the same bucket, so do 3, 4, 5 and 5 etc.
    
-   size_t lgN = floor(log2(N+1));
    size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
    for (rec_t *rec = HTAB[addr] ; rec != NULL ; rec = rec->next) {
       if (rec->lgN == lgN && rec->u == u) return rec;
@@ -459,7 +478,7 @@ lookup
 rec_t *
 insert
 (
-    const size_t   N,
+    const size_t   lgN,
     const double   u,
           double * prob
 )
@@ -478,8 +497,6 @@ insert
 //   Fails if 'malloc()' fails.
 {
 
-   // See note 4.4.3.1.
-   size_t lgN = floor(log2(N));
    size_t addr = (size_t) (30*lgN + 10*u) % HSIZE;
 
    rec_t *new = malloc(sizeof(rec_t));
@@ -1828,20 +1845,21 @@ mem_false_pos            // VISIBLE //
       goto in_case_of_failure;
    }
 
-   rec_t *rec = lookup(u, N);
+   sq_t sqN = squish(N);
+   rec_t *rec = lookup(sqN.lg, u);
 
    // Need to compute the probability.
    if (rec == NULL) {
 
       // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
       int use_method_wgf = METH == METHOD_WGF ||
-                     (METH == METHOD_AUTO && N < 21 && P < .05);
+                  (METH == METHOD_AUTO && sqN.nrm < 21 && P < .05);
       
       P1 = compute_exact_seed_prob();  // Prob no exact gamma-seed.
       P2 = compute_dual_prob_wgf(u);   // Prob no hit (two seq model).
       P3 = use_method_wgf ?            // Prob no on target MEM seed.
-               compute_mem_prob_wgf(u,N):
-               compute_mem_prob_mcmc(u,N);
+               compute_mem_prob_wgf(u,sqN.nrm):
+               compute_mem_prob_mcmc(u,sqN.nrm);
       if (P1 == NULL || P2 == NULL || P3 == NULL)
          goto in_case_of_failure;
 
@@ -1855,7 +1873,8 @@ mem_false_pos            // VISIBLE //
       // that there is no on-target exact seed, multiplied by the
       // probability that there is no on-target exact seed.
       for (int i = 0 ; i <= K ; i++) {
-         double P0 = P1->coeff[i] * pow(P2->coeff[i] / P1->coeff[i], N);
+         double P0 = P1->coeff[i] *
+            pow(P2->coeff[i] / P1->coeff[i], sqN.nrm);
          prob[i] = (P3->coeff[i] - P0) / (1-P0);
       }
 
@@ -1864,7 +1883,7 @@ mem_false_pos            // VISIBLE //
       free(P3);
 
       // Insert in the global hash 'HTAB'.
-      rec = insert(u, N, prob);
+      rec = insert(sqN.lg, u, prob);
       if (rec == NULL) {
          free(prob);
          goto in_case_of_failure;

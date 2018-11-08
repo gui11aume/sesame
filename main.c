@@ -12,7 +12,7 @@ int main(void) {
 
    for (int i = 0 ; i <= 6 ; i++) {
       for (int k = 17 ; k <= 100 ; k++) {
-         fprintf(stdout, "\t%.12f", mem_false_pos(k, .016, N[i]));
+         fprintf(stdout, "\t%.12f", prob_MEM_failure(k, .016, N[i]));
       }
       fprintf(stdout, "\n");
    }

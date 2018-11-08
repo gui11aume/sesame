@@ -1,6 +1,109 @@
 #include "unittest.h"
 #include "mem_seed_prob.c"
 
+#if 0
+
+void
+test_error_mem_seed_prob
+(void)
+{
+
+   double x;
+
+   redirect_stderr();
+   // The error is that the parameters are not initialized.
+   x = mem_seed_prob(2,2);
+   unredirect_stderr();
+
+   test_assert(x != x);
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+
+   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   test_assert_critical(success);
+
+   redirect_stderr();
+   // The error is that 'N' is greater than 'MAXN'.
+   x = mem_seed_prob(2,1025);
+   unredirect_stderr();
+
+   test_assert(x != x);
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+
+   redirect_stderr();
+   // The error is that 'k' is greater than specified value above.
+   x = mem_seed_prob(51,2);
+   unredirect_stderr();
+
+   test_assert(x != x);
+   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+
+   set_alloc_failure_countdown_to(0);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   x = mem_seed_prob(10,2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(x != x);
+   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+
+   set_alloc_failure_countdown_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail (somewhere else).
+   x = mem_seed_prob(10,2);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(x != x);
+   test_assert_stderr("[mem_seed_prob] error in function `new_n");
+   clean_mem_prob();
+
+}
+
+
+void
+test_average_errors
+(void)
+{
+
+   double array[] = { 0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07,
+      0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17,
+      0.163141136132321, 0.156113683625966, 0.148917642480934,
+      0.141553012697225, 0.13401979427484, 0.126317987213777,
+      0.118447591514038, 0.110408607175622, 0.102201034198529,
+      0.0938248725827594, 0.085280122328313, 0.0765667834351898,
+      0.0676848559033898, 0.0586343397329131, 0.0494152349237596,
+      0.0400275414759292, 0.0304712593894221, 0.0278519209369612,
+      0.0253482151367323, 0.0229622736484174, 0.0206962281316983,
+      0.0185522102462568, 0.0165323516517746, 0.0146387840079337,
+      0.0128736389744158, 0.0112390482109028, 0.00973714337707639,
+      0.0083700561326185, 0.0071399181372109, 0.00604886105053543,
+      0.00509901653227388, 0.00429251624210809, 0.00363149183971987,
+      0.00311807498479103, 0.00275439733700339, 0.00242279935474554,
+      0.0021218189616605, 0.00184997012315102, 0.00160574284637961,
+      0.00138760318026852, 0.00119399321549972, 0.00102333108451495,
+      0.00087401096151568, 0.000744403062463109, 0.000632853645078193,
+      0.000537685008841622, 0.000457195494993832, 0.000389659486534996,
+      0.000333327408225031, 0.000286425726583594, 0.000247156949890084,
+      0.000213699628183641, 0.000184208353263147, 0.000158328416353586,
+      0.000135721541310787, 0.000116066137064366, 9.90575500606736e-05,
+      8.44083167057381e-05, 7.18484158082088e-05, 6.11255210223017e-05,
+      5.20052532907434e-05, 4.42714332877157e-05, 3.77263338617996e-05,
+      3.21909324789203e-05, 2.7505163665291e-05, 2.35281714503576e-05,
+      2.01385618097431e-05, 1.7234655108192e-05, 1.47347385425144e-05,
+      1.25773185845308e-05, 1.07213734240163e-05, 9.12958180670945e-06,
+      7.76814988713323e-06, 6.60663552787539e-06, 5.61777004532791e-06,
+      4.77727740188584e-06, 4.06369084460529e-06, 3.45816699032078e-06,
+      2.94429735722175e-06, 2.50791734288845e-06, 2.13691264878695e-06,
+      1.82102315122354e-06, 1.55164421875829e-06 };
+   
+   for (int i = 0 ; i <= 50 ; i++) {
+      test_assert(fabs(average_errors(17, i ,.01)-array[i]) < 1e-9);
+   }
+
+}
+#endif
+
 
 void
 test_omega
@@ -98,7 +201,8 @@ test_set_params_mem_prob
    test_assert(KSZ == sizeof(trunc_pol_t) + 51*sizeof(double));
 
    for (int i = 0 ; i < HSIZE ; i++) {
-      test_assert(HTAB[i] == NULL);
+      test_assert(MEMF[i] == NULL);
+      test_assert(TYPI[i] == NULL);
    }
 
    test_assert_critical(TEMP != NULL);
@@ -176,7 +280,7 @@ test_uninitialized_error
 
    // Do not call 'set_params_mem_prob()'.
    redirect_stderr();
-   double x = mem_false_pos(5, .05, 20);
+   double x = prob_MEM_failure(5, .05, 20);
    unredirect_stderr();
    test_assert_stderr("[mem_seed_prob] error in function `dynamic_p");
    test_assert(x != x);
@@ -2552,109 +2656,6 @@ test_mcmc_method
    clean_mem_prob();
 
 }
-
-#if 0
-
-void
-test_error_mem_seed_prob
-(void)
-{
-
-   double x;
-
-   redirect_stderr();
-   // The error is that the parameters are not initialized.
-   x = mem_seed_prob(2,2);
-   unredirect_stderr();
-
-   test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
-
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
-   test_assert_critical(success);
-
-   redirect_stderr();
-   // The error is that 'N' is greater than 'MAXN'.
-   x = mem_seed_prob(2,1025);
-   unredirect_stderr();
-
-   test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
-
-   redirect_stderr();
-   // The error is that 'k' is greater than specified value above.
-   x = mem_seed_prob(51,2);
-   unredirect_stderr();
-
-   test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
-
-   set_alloc_failure_countdown_to(0);
-   redirect_stderr();
-   // The error is that 'malloc()' will fail.
-   x = mem_seed_prob(10,2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
-
-   set_alloc_failure_countdown_to(1);
-   redirect_stderr();
-   // The error is that 'malloc()' will fail (somewhere else).
-   x = mem_seed_prob(10,2);
-   unredirect_stderr();
-   reset_alloc();
-
-   test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
-   clean_mem_prob();
-
-}
-
-
-void
-test_average_errors
-(void)
-{
-
-   double array[] = { 0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07,
-      0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17,
-      0.163141136132321, 0.156113683625966, 0.148917642480934,
-      0.141553012697225, 0.13401979427484, 0.126317987213777,
-      0.118447591514038, 0.110408607175622, 0.102201034198529,
-      0.0938248725827594, 0.085280122328313, 0.0765667834351898,
-      0.0676848559033898, 0.0586343397329131, 0.0494152349237596,
-      0.0400275414759292, 0.0304712593894221, 0.0278519209369612,
-      0.0253482151367323, 0.0229622736484174, 0.0206962281316983,
-      0.0185522102462568, 0.0165323516517746, 0.0146387840079337,
-      0.0128736389744158, 0.0112390482109028, 0.00973714337707639,
-      0.0083700561326185, 0.0071399181372109, 0.00604886105053543,
-      0.00509901653227388, 0.00429251624210809, 0.00363149183971987,
-      0.00311807498479103, 0.00275439733700339, 0.00242279935474554,
-      0.0021218189616605, 0.00184997012315102, 0.00160574284637961,
-      0.00138760318026852, 0.00119399321549972, 0.00102333108451495,
-      0.00087401096151568, 0.000744403062463109, 0.000632853645078193,
-      0.000537685008841622, 0.000457195494993832, 0.000389659486534996,
-      0.000333327408225031, 0.000286425726583594, 0.000247156949890084,
-      0.000213699628183641, 0.000184208353263147, 0.000158328416353586,
-      0.000135721541310787, 0.000116066137064366, 9.90575500606736e-05,
-      8.44083167057381e-05, 7.18484158082088e-05, 6.11255210223017e-05,
-      5.20052532907434e-05, 4.42714332877157e-05, 3.77263338617996e-05,
-      3.21909324789203e-05, 2.7505163665291e-05, 2.35281714503576e-05,
-      2.01385618097431e-05, 1.7234655108192e-05, 1.47347385425144e-05,
-      1.25773185845308e-05, 1.07213734240163e-05, 9.12958180670945e-06,
-      7.76814988713323e-06, 6.60663552787539e-06, 5.61777004532791e-06,
-      4.77727740188584e-06, 4.06369084460529e-06, 3.45816699032078e-06,
-      2.94429735722175e-06, 2.50791734288845e-06, 2.13691264878695e-06,
-      1.82102315122354e-06, 1.55164421875829e-06 };
-   
-   for (int i = 0 ; i <= 50 ; i++) {
-      test_assert(fabs(average_errors(17, i ,.01)-array[i]) < 1e-9);
-   }
-
-}
-#endif
 
 
 // Test cases for export.

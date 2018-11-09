@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 // SECTION 1. MACROS //
 
@@ -2004,7 +2005,7 @@ prob_typeII_MEM_failure   // VISIBLE //
 
    // Note that the two functions below have many side effects.
    return prob_MEM_failure(k, u, N) -
-          prob_typeII_MEM_failure(k, u, N);
+          prob_typeI_MEM_failure(k, u, N);
 
 }
 

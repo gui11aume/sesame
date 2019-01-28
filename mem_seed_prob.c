@@ -113,7 +113,7 @@ size_t rbinom(size_t, double);
 
 // SECTION 3. GLOBALS //
 
-// Methods options (to compute the probability of on-target MEM seeds).
+// Methods options (to compute the probability of good seeds).
 static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
 
 // Precision options.
@@ -1048,7 +1048,7 @@ new_matrix_M
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix M(z) of reads without on-target MEM seed for the
+//   transfer matrix M(z) of reads without good seed for the
 //   given static and dynamic parameters.
 //
 // RETURN:
@@ -1416,8 +1416,8 @@ compute_mem_prob_wgf
    const size_t N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probabilities that reads do not contain an on-target
-//   MEM seed for specified static and dynamic parameters.
+//   Compute the probabilities that reads do not contain a good
+//   seed for specified static and dynamic parameters.
 //
 // RETURN:
 //   A pointer to a struct of type 'trunc_pol_t' containing the
@@ -1439,7 +1439,7 @@ compute_mem_prob_wgf
    // -- END BLOCK -- //
 
    // The truncated polynomial 'w' stands the weighted generating
-   // function of the reads without on-target MEM seed for set parameters
+   // function of the reads without good seed for set parameters
    // and 'N' duplicates.
    trunc_pol_t *w = new_zero_trunc_pol();
 
@@ -1702,9 +1702,9 @@ one_mcmc
          // the error-free segment to 'sz' and ignore soft masks.
          
          // If the size of the read is shorter than the minimum
-         // seed size 'g', then there is no on-target MEM seed.
+         // seed size 'g', then there is no good seed.
          int long_enough = sz >= G;
-         // Otherwise, there is an on-target MEM seed if there is
+         // Otherwise, there is a good seed if there is
          // no survivng hard mask.
          int unmasked = rbinom(m, XIc[sz]) == 0;
          if (unmasked && long_enough) {
@@ -1728,7 +1728,7 @@ one_mcmc
 
          // If the segment has size greater than the
          // minimum seed length and there are no surviving
-         // threads then there is an on-target MEM seed.
+         // threads then there is a good seed.
          int unmasked = hsurv == 0;
          int long_enough = i >= G;
          if (unmasked && long_enough) {
@@ -1770,8 +1770,8 @@ compute_mem_prob_mcmc
    const size_t N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probabilities that reads do not contain an on-target
-//   MEM seed for specified static and dynamic parameters, using the
+//   Compute the probabilities that reads do not contain a good
+//   seed for specified static and dynamic parameters, using the
 //   Monte Carlo Markov chain approach.
 //
 // RETURN:
@@ -1917,7 +1917,7 @@ prob_typeI_MEM_failure   // VISIBLE //
 )
 // SYNOPSIS:
 //   Compute the probability that there is no on-target or on-duplicate
-//   MEM seed (i.e. there is no seed in the combinatorial problem).
+//   MEM seed (i.e. there is no seed at all).
 //
 // RETURN:
 //   A double-precision number with the probability of interest, or 'nan'
@@ -1951,9 +1951,9 @@ prob_typeI_MEM_failure   // VISIBLE //
       double *prob = malloc((K+1) * sizeof(double));
       handle_memory_error(prob);
 
-      // This is the probability that there is no on-target MEM
-      // seed, minus the probability that there is no positive
-      // at all. The latter is computed as the probability that
+      // This is the probability that there is no good seed,
+      // minus the probability that there is no positive at
+      // all. The latter is computed as the probability that
       // there is no exact seed (on-target or off-target) given
       // that there is no on-target exact seed, multiplied by the
       // probability that there is no on-target exact seed.

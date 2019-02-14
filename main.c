@@ -1,18 +1,19 @@
 #include <stdio.h>
-#include "mem_seed_prob.h"
+#include "memseedp.h"
 
 int main(void) {
 
    // Worst mu: 0.016
-   int success = set_params_mem_prob(17, 100, .01);
+   int success = memseedp_set_static_params(17, 100, .01);
    if (!success) return -1;
 
    // N curves.
    size_t N[] = {0,1,5,20,100,500,10000};
 
-   for (int i = 0 ; i <= 6 ; i++) {
+   for (int i = 2 ; i <= 2 ; i++) {
       for (int k = 17 ; k <= 100 ; k++) {
-         fprintf(stdout, "\t%.12f", prob_MEM_failure(k, .016, N[i]));
+         fprintf(stdout, "\t%.12f",
+               memseedp_auto_false_positive(k, .01, N[i]));
       }
       fprintf(stdout, "\n");
    }
@@ -39,7 +40,7 @@ int main(void) {
       fprintf(stdout, "%.4f %.12f %.12f %.12f %.12f\n",
             mu, p1, p2, p3, p4);
 
-      clean_mem_prob(); 
+      memseedprob_clean(); 
    }
 #endif
 

@@ -1,6 +1,6 @@
 P= main
 
-OBJECTS= mem_seed_prob.o
+OBJECTS= memseedp.o
 
 CC= gcc
 CFLAGS= -std=gnu99 -Wall

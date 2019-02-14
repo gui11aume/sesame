@@ -6,8 +6,8 @@
 
 // SECTION 1. MACROS //
 
-#define LIBNAME "mem_seed_prob"
-#define VERSION "1.0 08-31-2018"
+#define LIBNAME "memseedp"
+#define VERSION "1.0 14-02-2019"
 
 #define SUCCESS 1
 #define FAILURE 0
@@ -84,10 +84,10 @@ typedef struct rec_t        rec_t;         // Hash table records.
 typedef struct trunc_pol_t  trunc_pol_t;   // Truncated polynomials.
 
 struct rec_t {
-	double   u;           // Divergence rate.
-	size_t   N;           // Number of duplicates (log2).
-	double * prob;        // False positive probabilities.
-   rec_t  * next;        // Next record if any.
+	double        u;      // Divergence rate.
+	size_t        N;      // Number of duplicates (log2).
+	trunc_pol_t * prob;   // False positive probabilities.
+   rec_t       * next;   // Next record if any.
 };
 
 struct matrix_t {
@@ -130,7 +130,7 @@ static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
 // user. The other parameters (actual read size, number of duplicates and
 // rate of divergence) can depend on the read under consideration and are
 // called "dynamic". Static parameters are set by initializing the
-// library with 'set_params_mem_prob()'.
+// library with 'memseedp_set_static_params()'.
 
 static size_t  G = 0;       // Minimum size of MEM seeds.
 static size_t  K = 0;       // Max degree of 'trunc_pol_t' (read size).
@@ -138,8 +138,8 @@ static double  P = 0.0;     // Probability of a read error.
 
 static size_t  KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
 
-static rec_t * MEMF[HSIZE] = {0};  // Probabilities of MEM failure.
-static rec_t * TYPI[HSIZE] = {0};  // Probabilities of type I failure.
+static rec_t * HF[HSIZE] = {0};  // Probabilities of MEM failure.
+static rec_t * HFN[HSIZE] = {0};  // Probabilities of type I failure.
 
 static trunc_pol_t * TEMP = NULL;  // For matrix multipliciation.
 
@@ -160,12 +160,14 @@ const char internal_error[] =
 // SECTION 4. FUNCTION DEFINITIONS //
 
 // SECTION 4.1. OPTION SETTING FUNCTIONS //
-void set_mem_prob_method (int m) { METH = m; }               // VISIBLE
-void set_mem_prob_max_prcsn (void) { MAX_PRECISION = 1; }    // VISIBLE
-void unset_mem_prob_max_prcsn (void) { MAX_PRECISION = 0; }  // VISIBLE
+
+void memseedp_set_method (int m) { METH = m; }              // VISIBLE
+void memseedp_set_max_prcsn (void) { MAX_PRECISION = 1; }   // VISIBLE
+void memseedp_unset_max_prcsn (void) { MAX_PRECISION = 0; } // VISIBLE
 
 
 // SECTION 4.2. ERROR HANDLING FUNCTIONS //
+
 void
 warning
 (
@@ -338,9 +340,9 @@ new_zero_trunc_pol
 //   error.
 {
 
-   // Cannot be called before 'set_params_mem_prob()'.
+   // Cannot be called before 'memseedp_set_static_params()'.
    if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `set_params_mem_prob'",
+      warning("parameters unset: call `memseedp_set_static_params'",
             __func__, __LINE__);
       goto in_case_of_failure;
    }
@@ -418,7 +420,7 @@ new_zero_matrix
    matrix_t *new = new_null_matrix(dim);
    handle_memory_error(new);
 
-   // NOTE: cannot be called before 'set_params_mem_prob()'.
+   // NOTE: cannot be called before 'memseedp_set_static_params()'.
    for (int i = 0 ; i < dim*dim ; i++) {
       handle_memory_error(new->term[i] = new_zero_trunc_pol());
    }
@@ -500,10 +502,10 @@ lookup
 rec_t *
 insert
 (
-          rec_t  ** hash,
-    const double    u,
-    const size_t    N,
-          double *  prob
+          rec_t       ** hash,
+    const double         u,
+    const size_t         N,
+          trunc_pol_t *  prob
 )
 // SYNOPSIS:
 //   Create an entry in the hash associated with the key
@@ -565,7 +567,7 @@ dynamic_params_OK
    // Check if sequencing parameters were set. Otherwise
    // warn user and fail gracefully (return nan).
    if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `set_params_mem_prob'",
+      warning("parameters unset: call `memseedp_set_static_params'",
             __func__, __LINE__);
       return FAILURE;
    }
@@ -589,12 +591,17 @@ dynamic_params_OK
 }
 
 void
-clean_mem_prob // VISIBLE //
+memseedp_clean // VISIBLE //
 (void)
 // SYNOPSIS:
 //   Rest global parameters to their uninitialized state and free
 //   allocated memory. The function must be called after using the
 //   library to prevent memory leaks.
+//
+// SIDE-EFFETS:
+//   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
+//   and 'PARAMS_INITIALIZED'. Free global variables 'TEMP', 'XI',
+//   'XIc', 'ETA' and 'ETAc'. Destroy global hashes 'HF' and 'HFN'.
 {
 
    PARAMS_INITIALIZED = 0;
@@ -605,6 +612,8 @@ clean_mem_prob // VISIBLE //
    P = 0.0;
    KSZ = 0;
 
+   PARAMS_INITIALIZED = 0;
+
    // Free everything.
    free(TEMP);  TEMP = NULL;
    free(XI);    XI   = NULL;
@@ -613,8 +622,8 @@ clean_mem_prob // VISIBLE //
    free(ETAc);  ETAc = NULL;
 
    // Clean hash table.
-   destroy_hash(MEMF);
-   destroy_hash(TYPI);
+   destroy_hash(HF);
+   destroy_hash(HFN);
    
    return;
 
@@ -622,7 +631,7 @@ clean_mem_prob // VISIBLE //
 
 
 int
-set_params_mem_prob // VISIBLE //
+memseedp_set_static_params // VISIBLE //
 (
    size_t g,
    size_t k,
@@ -633,6 +642,11 @@ set_params_mem_prob // VISIBLE //
 //
 // RETURN:
 //   SUCCESS (1) upon success or FAILURE (0) upon failure.
+//
+// SIDE-EFFETS:
+//   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
+//   and 'PARAMS_INITIALIZED'. Destroy global hashes 'HF' and 'HFN'.
+//   Reset the global 'TEMP'.
 //
 // FAILURE:
 //   Fails if static parameters do not conform specifications or if
@@ -663,8 +677,8 @@ set_params_mem_prob // VISIBLE //
    PARAMS_INITIALIZED = 1;
 
    // Clean previous values (if any).
-   destroy_hash(MEMF);
-   destroy_hash(TYPI);
+   destroy_hash(HF);
+   destroy_hash(HFN);
 
    free(TEMP); // Nothing happens if 'TEMP' is NULL.
    handle_memory_error(TEMP = new_zero_trunc_pol());
@@ -672,7 +686,7 @@ set_params_mem_prob // VISIBLE //
    return SUCCESS;
 
 in_case_of_failure:
-   clean_mem_prob();
+   memseedp_clean();
    return FAILURE;
 
 }
@@ -997,7 +1011,8 @@ new_trunc_pol_r_plus
 
    // This is a monomial.
    new->monodeg = i+1;
-   new->coeff[i+1] = pow((1-P)*(1-u), i) * (1-P)*u;
+   new->coeff[i+1] = i == 0 ?
+      P * u/3.0 : pow((1-P)*(1-u), i) * P * u/3.0;
 
    return new;
 
@@ -1027,7 +1042,8 @@ new_trunc_pol_r_minus
 
    // This is a monomial.
    new->monodeg = i+1;
-   new->coeff[i+1] = pow((1-P)*(1-u), i) * P * u/3.0;
+   new->coeff[i+1] = i == 0 ?
+      (1-P)*u : pow((1-P)*(1-u), i) * (1-P)*u;
 
    return new;
 
@@ -1062,13 +1078,17 @@ new_matrix_M
 
    // NOTE 4.6.1. Checking dynamic parameters //
    //
-   // In the library, this function is called only by 'mem_false_pos()',
+   // In the library, this function is called only by
+   // 'wgf_mem()', itself called only by
+   // memseedp_false_positive_or_negative(),
    // which already checks that dynamic parameters 'k', 'u' and 'N' are
-   // conform. If thie code, is reused somewhere else, it may be a good
+   // conform. If this code is reused somewhere else, it may be a good
    // thing to check them on every call by uncommenting the following
    // code block.
+   //
    // -- BEGIN BLOCK -- //
-   // Check dynamic parameters (pass 'K', which never triggers an error).
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
    //if (!dynamic_params_OK(K,u,N)) {
    //   goto in_case_of_failure;
    //}
@@ -1138,16 +1158,12 @@ new_matrix_L
 //   memory error.
 {
 
-   // NOTE 4.6.1. Checking dynamic parameters //
-   //
-   // In the library, this function is called only by 'mem_false_pos()',
-   // which already checks that dynamic parameters 'k', 'u' and 'N' are
-   // conform. If thie code, is reused somewhere else, it may be a good
-   // thing to check them on every call by uncommenting the following
-   // code block.
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
    // -- BEGIN BLOCK -- //
-   // Check dynamic parameters (pass 'K', which never triggers an error,
-   // and 0 instead of 'N' for the same reason).
+   // Check dynamic parameters. Only 'u' needs to be checked, so
+   // we pass 'K' as a first parameter and 0 as a third parameter,
+   // which never generate errors.
    //if (!dynamic_params_OK(K,u,0)) {
    //   goto in_case_of_failure;
    //}
@@ -1364,7 +1380,7 @@ in_case_of_failure:
 // SECTION 4.9. HIGH LEVEL WGF COMPUTATION FUNCTIONS //
 
 trunc_pol_t *
-compute_exact_seed_prob
+wgf_seed
 (void)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain an on-target
@@ -1382,22 +1398,22 @@ compute_exact_seed_prob
 //   'new_zero_trunc_pol()'.
 {
 
-   trunc_pol_t *w = new_zero_trunc_pol();
-   handle_memory_error(w);
+   trunc_pol_t *pol = new_zero_trunc_pol();
+   handle_memory_error(pol);
 
    // Not a monomial.
-   w->monodeg = K+1;
+   pol->monodeg = K+1;
 
    const double q_pow_gamma = pow(1-P,G);
    const double pq_pow_gamma = P * q_pow_gamma;
 
-   for (int i = 0 ; i < G ; i++) w->coeff[i] = 1.0;
-   w->coeff[G] = 1.0 - q_pow_gamma;
+   for (int i = 0 ; i < G ; i++) pol->coeff[i] = 1.0;
+   pol->coeff[G] = 1.0 - q_pow_gamma;
    for (int i = G+1 ; i <= K ; i++) {
-      w->coeff[i] = w->coeff[i-1] - pq_pow_gamma * w->coeff[i-G-1];
+      pol->coeff[i] = pol->coeff[i-1] - pq_pow_gamma * pol->coeff[i-G-1];
    }
 
-   return w;
+   return pol;
 
 in_case_of_failure:
    return NULL;
@@ -1410,7 +1426,7 @@ double HH(double x, double y)
          {  return x*log(x/y)+(1-x)*log((1-x)/(1-y));  }
 
 trunc_pol_t *
-compute_mem_prob_wgf
+wgf_mem
 (
    const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
@@ -1432,7 +1448,8 @@ compute_mem_prob_wgf
    // Assume parameters were checked by the caller.  See note 4.6.1.
    // about checking dynamic parameters if this code is reused.
    // -- BEGIN BLOCK -- //
-   // Check dynamic parameters (pass 'K', which never triggers an error).
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
    //if (!dynamic_params_OK(K,u,N)) {
    //   goto in_case_of_failure;
    //}
@@ -1492,7 +1509,7 @@ compute_mem_prob_wgf
    // distribution, where m is the number of segments, i.e. the power of
    // matirx M. For detail see link below.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
-   for (int m = 2 ; m < K ; m += 2) {
+   for (int n = 2 ; n < K ; n += 2) {
       // Increase the number of segments and update
       // the weighted generating function accordingly.
       matrix_mult(powM2, M, powM1);
@@ -1504,7 +1521,7 @@ compute_mem_prob_wgf
       if (MAX_PRECISION)
          continue;
       // Otherwise, stop when reaching 1% precision.
-      double x = floor((m-1)/2) / ((double) K);
+      double x = floor((n-1)/2) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, P)*K);
       if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
    }
@@ -1528,7 +1545,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-compute_dual_prob_wgf
+wgf_dual
 (
    const double u     // Divergence rate.
 )
@@ -1551,13 +1568,14 @@ compute_dual_prob_wgf
    // Assume parameters were checked by the caller.  See note 4.6.1.
    // about checking dynamic parameters if this code is reused.
    // -- BEGIN BLOCK -- //
-   // Check dynamic parameters (pass 'K', which never triggers an error).
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
    //if (!dynamic_params_OK(K,u,N)) {
    //   goto in_case_of_failure;
    //}
    // -- END BLOCK -- //
 
-   // The logic of this function is the same as 'compute_mem_prob_wgf()'.
+   // The logic of this function is the same as 'wgf_mem()'.
    // See the comments there for more detail on what is going on.
    trunc_pol_t *w = new_zero_trunc_pol();
    matrix_t *L = new_matrix_L(u);
@@ -1584,14 +1602,14 @@ compute_dual_prob_wgf
    // of these symbols are 'b', 'c' and 'd' (below), so the probability
    // of occurrence of a terminator is bounded by 'prob' = max(b,c,d).
    // With an argument similar to that expalained in the function
-   // 'compute_mem_prob_wgf()', we can bound the probabibility that a
+   // 'wgf_mem()', we can bound the probabibility that a
    // read contains more than m segments with the Binomial distribution.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
    const double b = P * u/3.0;
    const double c = (1-P) * u;
    const double d = P * (1-u/3.0);
    const double prob = b > c ? (b > d ? b : d) : (c > d ? c : d);
-   for (int m = 2 ; m < K ; m += 2) {
+   for (int n = 2 ; n < K ; n += 2) {
       // Increase the number of segments and update
       // the weighted generating function accordingly.
       matrix_mult(powL2, L, powL1);
@@ -1602,7 +1620,7 @@ compute_dual_prob_wgf
       if (MAX_PRECISION)
          continue;
       // Otherwise, stop when reaching 1% precision.
-      double x = floor(m-1) / ((double) K);
+      double x = floor(n-1) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, prob)*K);
       if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
    }
@@ -1764,7 +1782,7 @@ one_mcmc
 // SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
 trunc_pol_t *
-compute_mem_prob_mcmc
+compute_memseedp_mcmc
 (
    const double u,   // Divergence rate.
    const size_t N    // Number of duplicates.
@@ -1787,7 +1805,8 @@ compute_mem_prob_mcmc
    // Assume parameters were checked by the caller.  See note 4.6.1.
    // about checking dynamic parameters if this code is reused.
    // -- BEGIN BLOCK -- //
-   // Check dynamic parameters (pass 'K', which never triggers an error).
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
    //if (!dynamic_params_OK(K,u,N)) {
    //   goto in_case_of_failure;
    //}
@@ -1839,15 +1858,15 @@ in_case_of_failure:
 
 // SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
 
-double
-prob_MEM_failure         // VISIBLE //
+trunc_pol_t *
+memseedp_false_positive_or_negative         // VISIBLE //
 (
    const size_t k,       // Segment or read size.
    const double u,       // Divergence rate.
    const size_t N        // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that there is no on target MEM seed.
+//   Compute the probability that there is no on-target MEM seed.
 //
 // RETURN:
 //   A double-precision number with the probability of interest, or 'nan'
@@ -1855,68 +1874,41 @@ prob_MEM_failure         // VISIBLE //
 //
 // FAILURE:
 //   Fails if static parameters are unininitialized, if dynamic
-//   parameters are not conform, if insertion in 'MEMF' fails or if
-//   'malloc()' fails.
+//   parameters are not conform or if 'malloc()' fails.
 {
 
-   trunc_pol_t *pol = NULL;
-   
    // Check dynamic parameters.
    if (!dynamic_params_OK(k,u,N)) {
       goto in_case_of_failure;
    }
 
-   size_t sqN = squish(N);
-   rec_t *rec = lookup(MEMF, u, sqN);
+   // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
+   int use_method_wgf = METH == METHOD_WGF ||
+               (METH == METHOD_AUTO && N < 21 && P < .05);
+   
+   trunc_pol_t *pol = use_method_wgf ?
+          wgf_mem(u, N):compute_memseedp_mcmc(u, N);
 
-   // Need to compute the probability?
-   if (rec == NULL) {
+   if (pol == NULL)
+      goto in_case_of_failure;
 
-      // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
-      int use_method_wgf = METH == METHOD_WGF ||
-                  (METH == METHOD_AUTO && sqN < 21 && P < .05);
-      
-      pol = use_method_wgf ?           // Prob no on target MEM seed.
-               compute_mem_prob_wgf(u, sqN):
-               compute_mem_prob_mcmc(u, sqN);
-
-      if (pol == NULL)
-         goto in_case_of_failure;
-
-      double *prob = malloc((K+1) * sizeof(double));
-      handle_memory_error(prob);
-
-      memcpy(prob, pol->coeff, (K+1) * sizeof(double));
-
-      free(pol);
-
-      // Insert in the global hash 'MEMF'.
-      rec = insert(MEMF, u, sqN, prob);
-      if (rec == NULL) {
-         free(prob);
-         goto in_case_of_failure;
-      }
-
-   }
-
-   return rec->prob[k];
+   return pol;
 
 in_case_of_failure:
-   free(pol);
-   return 0.0/0.0;  //  nan
+   return NULL;
 
 }
 
 
-double
-prob_typeI_MEM_failure   // VISIBLE //
+trunc_pol_t *
+memseedp_false_negative   // VISIBLE //
 (
    const size_t k,       // Segment or read size.
    const double u,       // Divergence rate.
    const size_t N        // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that there is no on-target or on-duplicate
+//   Compute the probability that there is no on-target or off-target
 //   MEM seed (i.e. there is no seed at all).
 //
 // RETURN:
@@ -1925,8 +1917,7 @@ prob_typeI_MEM_failure   // VISIBLE //
 //
 // FAILURE:
 //   Fails if static parameters are unininitialized, if dynamic
-//   parameters are not conform, if insertion in 'TYPI' fails or if
-//   'malloc()' fails.
+//   parameters are not conform of if 'malloc()' fails.
 {
 
    trunc_pol_t *pol1 = NULL;
@@ -1937,77 +1928,84 @@ prob_typeI_MEM_failure   // VISIBLE //
       goto in_case_of_failure;
    }
 
-   size_t sqN = squish(N);
-   rec_t *rec = lookup(TYPI, u, sqN);
+   pol1 = wgf_seed();   // Prob no exact gamma-seed.
+   pol2 = wgf_dual(u);  // Prob no hit (two seq model).
+   if (pol1 == NULL || pol2 == NULL)
+      goto in_case_of_failure;
 
-   // Need to compute the probability.
-   if (rec == NULL) {
-
-      pol1 = compute_exact_seed_prob();  // Prob no exact gamma-seed.
-      pol2 = compute_dual_prob_wgf(u);   // Prob no hit (two seq model).
-      if (pol1 == NULL || pol2 == NULL)
-         goto in_case_of_failure;
-
-      double *prob = malloc((K+1) * sizeof(double));
-      handle_memory_error(prob);
-
-      // This is the probability that there is no good seed,
-      // minus the probability that there is no positive at
-      // all. The latter is computed as the probability that
-      // there is no exact seed (on-target or off-target) given
-      // that there is no on-target exact seed, multiplied by the
-      // probability that there is no on-target exact seed.
-      for (int i = 0 ; i <= K ; i++) {
-         prob[i] = pol1->coeff[i] *
-            pow(pol2->coeff[i] / pol1->coeff[i], sqN);
-      }
-
-      free(pol1);
-      free(pol2);
-
-      // Insert in the global hash 'TYPI'.
-      rec = insert(TYPI, u, sqN, prob);
-      if (rec == NULL) {
-         free(prob);
-         goto in_case_of_failure;
-      }
-
+   // This is the probability that there is no good seed,
+   // minus the probability that there is no positive at
+   // all. The latter is computed as the probability that
+   // there is no exact seed (on-target or off-target) given
+   // that there is no on-target exact seed, multiplied by the
+   // probability that there is no on-target exact seed.
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'pol1', ('pol2' will be discarded).
+      pol1->coeff[i] = pol1->coeff[i] *
+         pow(pol2->coeff[i] / pol1->coeff[i], N);
    }
 
-   return rec->prob[k];
+   free(pol2);
+
+   return pol1;
 
 in_case_of_failure:
    free(pol1);
    free(pol2);
-   return 0.0/0.0;  //  nan
+   return NULL;
 
 }
 
 
 double
-prob_typeII_MEM_failure   // VISIBLE //
+memseedp_auto_false_positive    // VISIBLE //
 (
-   const size_t k,       // Segment or read size.
-   const double u,       // Divergence rate.
-   const size_t N        // Number of duplicates.
+   const size_t k,        // Segment or read size.
+   const double u,        // Divergence rate.
+   const size_t N         // Number of duplicates.
 )
-// SYNOPSIS:
-//   Compute the probability that there is an on-duplicate MEM seed.
-//
-// RETURN:
-//   A double-precision number with the probability of interest, or 'nan'
-//   in case of failure.
-//
-// FAILURE:
-//   Fails if 'prob_MEM_failure()' fails or if
-//   'prob_typeII_MEM_failure()' fails.
 {
 
-   // Note that the two functions below have many side effects.
-   return prob_MEM_failure(k, u, N) -
-          prob_typeI_MEM_failure(k, u, N);
+   // Set 'N' to closest grid value.
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities if already computed.
+   rec_t *rec1 = lookup(HF, u, sqN);
+   rec_t *rec2 = lookup(HFN, u, sqN);
+
+   // Compute the probabilities if needed.
+   if (rec1 == NULL) {
+      trunc_pol_t *pol =
+         memseedp_false_positive_or_negative(k, u, sqN);
+      // Insert in the global hash 'HF'.
+      rec1 = insert(HF, u, sqN, pol);
+      if (rec1 == NULL) {
+         free(pol);
+         goto in_case_of_failure;
+      }
+   }
+
+   if (rec2 == NULL) {
+      trunc_pol_t *pol = 
+         memseedp_false_negative(k, u, sqN);
+      // Insert in the global hash 'HFN'.
+      rec2 = insert(HFN, u, sqN, pol);
+      if (rec2 == NULL) {
+         free(pol);
+         goto in_case_of_failure;
+      }
+   }
+
+   double false_pos_or_neg = rec1->prob->coeff[k];
+   double false_neg = rec2->prob->coeff[k]; 
+
+   return false_pos_or_neg - false_neg;
+
+in_case_of_failure:
+   return 0.0/0.0; // nan
 
 }
+
 
 #if 0
 double

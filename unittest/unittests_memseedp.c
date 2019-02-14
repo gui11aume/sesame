@@ -1,10 +1,10 @@
 #include "unittest.h"
-#include "mem_seed_prob.c"
+#include "memseedp.c"
 
 #if 0
 
 void
-test_error_mem_seed_prob
+test_error_memseedp
 (void)
 {
 
@@ -12,51 +12,51 @@ test_error_mem_seed_prob
 
    redirect_stderr();
    // The error is that the parameters are not initialized.
-   x = mem_seed_prob(2,2);
+   x = memseedp(2,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+   test_assert_stderr("[memseedp] error in function `fault_");
 
-   int success = set_params_mem_prob(17, 50, 0.01, 0.05);
+   int success = memseedp_set_static_params(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
    redirect_stderr();
    // The error is that 'N' is greater than 'MAXN'.
-   x = mem_seed_prob(2,1025);
+   x = memseedp(2,1025);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+   test_assert_stderr("[memseedp] error in function `fault_");
 
    redirect_stderr();
    // The error is that 'k' is greater than specified value above.
-   x = mem_seed_prob(51,2);
+   x = memseedp(51,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `fault_");
+   test_assert_stderr("[memseedp] error in function `fault_");
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   x = mem_seed_prob(10,2);
+   x = memseedp(10,2);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (somewhere else).
-   x = mem_seed_prob(10,2);
+   x = memseedp(10,2);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
-   clean_mem_prob();
+   test_assert_stderr("[memseedp] error in function `new_n");
+   memseedp_clean();
 
 }
 
@@ -181,7 +181,7 @@ test_zeta
 }
 
 void
-test_set_params_mem_prob
+test_memseedp_set_static_params
 (void)
 {
 
@@ -191,7 +191,7 @@ test_set_params_mem_prob
    // 'K' the maximum size of the reads, 'P' the probability of
    // read error and 'U' (mu) the divergence rate between
    // the duplicates and the target.
-   success = set_params_mem_prob(17, 50, 0.01);
+   success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    test_assert(G == 17);
@@ -201,8 +201,8 @@ test_set_params_mem_prob
    test_assert(KSZ == sizeof(trunc_pol_t) + 51*sizeof(double));
 
    for (int i = 0 ; i < HSIZE ; i++) {
-      test_assert(MEMF[i] == NULL);
-      test_assert(TYPI[i] == NULL);
+      test_assert(HF[i] == NULL);
+      test_assert(HFN[i] == NULL);
    }
 
    test_assert_critical(TEMP != NULL);
@@ -213,7 +213,7 @@ test_set_params_mem_prob
 
    test_assert(PARAMS_INITIALIZED);
 
-   clean_mem_prob();
+   memseedp_clean();
 
    return;
 
@@ -221,7 +221,7 @@ test_set_params_mem_prob
 
 
 void
-test_error_set_params_mem_prob
+test_error_memseedp_set_static_params
 (void)
 {
 
@@ -230,43 +230,43 @@ test_error_set_params_mem_prob
    // Case 1.
    redirect_stderr();
    // The error is that 'p' is 0.0.
-   success = set_params_mem_prob(17, 50, 0.00);
+   success = memseedp_set_static_params(17, 50, 0.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[mem_seed_prob] error in function `set_");
+   test_assert_stderr("[memseedp] error in function `memseedp_s");
 
    // Case 2.
    redirect_stderr();
    // The error is that 'p' is 1.0.
-   success = set_params_mem_prob(17, 50, 1.00);
+   success = memseedp_set_static_params(17, 50, 1.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[mem_seed_prob] error in function `set_");
+   test_assert_stderr("[memseedp] error in function `memseedp_s");
 
    // Case 3.
    redirect_stderr();
    // The error is that 'G' (gamma) is 0.
-   success = set_params_mem_prob(0, 50, 0.01);
+   success = memseedp_set_static_params(0, 50, 0.01);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[mem_seed_prob] error in function `set_");
+   test_assert_stderr("[memseedp] error in function `memseedp_s");
 
    // Case 4.
    redirect_stderr();
    // The error is that 'K' is 0.
-   success = set_params_mem_prob(17, 0, 0.01);
+   success = memseedp_set_static_params(17, 0, 0.01);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[mem_seed_prob] error in function `set_");
+   test_assert_stderr("[memseedp] error in function `memseedp_s");
 
    // Casae 5. Test memory error.
    set_alloc_failure_rate_to(1.0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   success = set_params_mem_prob(17, 50, 0.01);
+   success = memseedp_set_static_params(17, 50, 0.01);
    unredirect_stderr();
    reset_alloc();
-   test_assert_stderr("[mem_seed_prob] error in function `new_zero");
+   test_assert_stderr("[memseedp] error in function `new_zero");
 
    return;
 
@@ -278,12 +278,12 @@ test_uninitialized_error
 (void)
 {
 
-   // Do not call 'set_params_mem_prob()'.
+   // Do not call 'memseedp_set_static_params()'.
    redirect_stderr();
-   double x = prob_MEM_failure(5, .05, 20);
+   trunc_pol_t *x = memseedp_false_positive_or_negative(5, .05, 20);
    unredirect_stderr();
-   test_assert_stderr("[mem_seed_prob] error in function `dynamic_p");
-   test_assert(x != x);
+   test_assert_stderr("[memseedp] error in function `dynamic_p");
+   test_assert(x == NULL);
 
    return;
 
@@ -296,7 +296,7 @@ test_new_zero_trunc_pol
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *a = new_zero_trunc_pol();
@@ -308,7 +308,7 @@ test_new_zero_trunc_pol
    }
 
    free(a);
-   clean_mem_prob();
+   memseedp_clean();
 
    return;
 
@@ -326,7 +326,7 @@ test_error_new_zero_trunc_pol
    unredirect_stderr();
 
    test_assert(w == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -335,7 +335,7 @@ test_error_new_zero_trunc_pol
    reset_alloc();
 
    test_assert(w == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
 }
 
@@ -345,7 +345,7 @@ test_trunc_pol_update_add
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *w1 = new_zero_trunc_pol();
@@ -401,7 +401,7 @@ test_trunc_pol_update_add
 
    free(w1);
    free(w2);
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -414,7 +414,7 @@ test_trunc_pol_mult
 
    size_t k = 50;
 
-   set_params_mem_prob(17, k, 0.01);
+   memseedp_set_static_params(17, k, 0.01);
    trunc_pol_t *a = new_zero_trunc_pol();
 
    test_assert_critical(a != NULL);
@@ -577,7 +577,7 @@ test_trunc_pol_mult
    free(b);
    free(c);
 
-   clean_mem_prob();
+   memseedp_clean();
 
    return;
 
@@ -590,7 +590,7 @@ test_new_trunc_pol_A
 {
 
    size_t k = 50;
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *A;
@@ -722,7 +722,7 @@ test_new_trunc_pol_A
 
    free(A);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -732,7 +732,7 @@ test_error_new_trunc_pol_A
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *A;
@@ -748,9 +748,9 @@ test_error_new_trunc_pol_A
    reset_alloc();
 
    test_assert(A == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -762,7 +762,7 @@ test_new_trunc_pol_B
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *B = NULL;
@@ -817,7 +817,7 @@ test_new_trunc_pol_B
 
    free(B);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -827,7 +827,7 @@ test_error_new_trunc_pol_B
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *B;
@@ -840,7 +840,7 @@ test_error_new_trunc_pol_B
    reset_alloc();
 
    test_assert(B == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i = 0'.
@@ -848,9 +848,9 @@ test_error_new_trunc_pol_B
    unredirect_stderr();
 
    test_assert(B == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_trunc");
+   test_assert_stderr("[memseedp] error in function `new_trunc");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -866,7 +866,7 @@ test_new_trunc_pol_C
    
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *C;
@@ -924,7 +924,7 @@ test_new_trunc_pol_C
 
    free(C);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -934,7 +934,7 @@ test_error_new_trunc_pol_C
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *C;
@@ -947,9 +947,9 @@ test_error_new_trunc_pol_C
    reset_alloc();
 
    test_assert(C == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -960,7 +960,7 @@ test_new_trunc_pol_D
 {
 
    size_t k = 50;
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *D;
@@ -1065,7 +1065,7 @@ test_new_trunc_pol_D
    
    free(D);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1075,7 +1075,7 @@ test_error_new_trunc_pol_D
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *D;
@@ -1088,7 +1088,7 @@ test_error_new_trunc_pol_D
    reset_alloc();
 
    test_assert(D == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1097,9 +1097,9 @@ test_error_new_trunc_pol_D
    reset_alloc();
 
    test_assert(D == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1111,7 +1111,7 @@ test_new_trunc_pol_E
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *E;
@@ -1143,7 +1143,7 @@ test_new_trunc_pol_E
 
    free(E);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1153,7 +1153,7 @@ test_error_new_trunc_pol_E
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *E;
@@ -1166,7 +1166,7 @@ test_error_new_trunc_pol_E
    reset_alloc();
 
    test_assert(E == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1174,9 +1174,9 @@ test_error_new_trunc_pol_E
    unredirect_stderr();
 
    test_assert(E == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1188,7 +1188,7 @@ test_new_trunc_pol_F
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *F;
@@ -1220,7 +1220,7 @@ test_new_trunc_pol_F
 
    free(F);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1230,7 +1230,7 @@ test_error_new_trunc_pol_F
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *F;
@@ -1243,7 +1243,7 @@ test_error_new_trunc_pol_F
    reset_alloc();
 
    test_assert(F == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1251,9 +1251,9 @@ test_error_new_trunc_pol_F
    unredirect_stderr();
 
    test_assert(F == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1265,7 +1265,7 @@ test_new_trunc_pol_R
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *R;
@@ -1299,7 +1299,7 @@ test_new_trunc_pol_R
 
    free(R);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1309,7 +1309,7 @@ test_error_new_trunc_pol_R
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *R;
@@ -1322,7 +1322,7 @@ test_error_new_trunc_pol_R
    reset_alloc();
 
    test_assert(R == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1330,9 +1330,9 @@ test_error_new_trunc_pol_R
    unredirect_stderr();
 
    test_assert(R == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1342,23 +1342,20 @@ test_new_trunc_pol_r
 (void)
 {
 
-   size_t k = 50;
-
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, 50, .01);
    test_assert_critical(success);
 
    trunc_pol_t *r;
 
    // Test r+ polynomials.
    for (int i = 0 ; i <= 15 ; i++) {
-      r = new_trunc_pol_r_plus(i,.05);
+      r = new_trunc_pol_r_plus(i, .05);
       test_assert_critical(r != NULL);
 
       test_assert(r->monodeg == i+1);
-      for (int j = 0 ; j <= k ; j++) {
-         double target = 0;
-         if (j == i+1) target = pow(.99*.95, i-1) * .99*.05;
-         test_assert((r->coeff[j]-target) < 1e-9);
+      for (int j = 0 ; j <= 50 ; j++) {
+         double target = j == i+1 ? pow(.99*.95, i) * .01*.05/3 : 0;
+         test_assert(fabs(r->coeff[j]-target) < 1e-9);
       }
 
       free(r);
@@ -1367,21 +1364,20 @@ test_new_trunc_pol_r
 
    // Test r- polynomials.
    for (int i = 0 ; i <= 15 ; i++) {
-      r = new_trunc_pol_r_minus(i,.05);
+      r = new_trunc_pol_r_minus(i, .05);
       test_assert_critical(r != NULL);
 
       test_assert(r->monodeg == i+1);
-      for (int j = 0 ; j <= k ; j++) {
-         double target = 0;
-         if (j == i+1) target = pow(.99*.95, i-1) * .01*.05/3;
-         test_assert((r->coeff[j]-target) < 1e-9);
+      for (int j = 0 ; j <= 50 ; j++) {
+         double target = j == i+1 ? pow(.99*.95, i) * .99*.05 : 0;
+         test_assert(fabs(r->coeff[j]-target) < 1e-9);
       }
 
       free(r);
       r = NULL;
    }
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1391,7 +1387,7 @@ test_error_new_trunc_pol_r
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *r;
@@ -1404,7 +1400,7 @@ test_error_new_trunc_pol_r
    reset_alloc();
 
    test_assert(r == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -1414,7 +1410,7 @@ test_error_new_trunc_pol_r
    reset_alloc();
 
    test_assert(r == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1422,7 +1418,7 @@ test_error_new_trunc_pol_r
    unredirect_stderr();
 
    test_assert(r == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1430,9 +1426,9 @@ test_error_new_trunc_pol_r
    unredirect_stderr();
 
    test_assert(r == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_tr");
+   test_assert_stderr("[memseedp] error in function `new_tr");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1467,7 +1463,7 @@ test_error_new_null_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
+   test_assert_stderr("[memseedp] error in function `new_n");
 
 }
 
@@ -1477,7 +1473,7 @@ test_new_zero_matrix
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    // Test a matrix of dimension 10.
@@ -1495,7 +1491,7 @@ test_new_zero_matrix
 
    destroy_mat(matrix);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1507,7 +1503,7 @@ test_error_new_zero_matrix
 
    matrix_t *matrix;
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    set_alloc_failure_countdown_to(0);
@@ -1517,7 +1513,7 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
+   test_assert_stderr("[memseedp] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -1526,9 +1522,9 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1548,7 +1544,7 @@ test_new_matrix_M
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    // Test martrix M with 0 duplicate because it is a special case.
@@ -1798,7 +1794,7 @@ test_new_matrix_M
    }
 
    destroy_mat(M);
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1808,7 +1804,7 @@ test_error_new_matrix_M
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *M;
@@ -1821,7 +1817,7 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
+   test_assert_stderr("[memseedp] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -1831,9 +1827,9 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -1845,7 +1841,7 @@ test_new_matrix_L
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    matrix_t *L;
@@ -1862,8 +1858,8 @@ test_new_matrix_L
    test_assert(L->dim == dim0);
    
    const double a = .99 * .95;            // (1-p) * (1-u)
-   const double b = .01 * .05/3;          // p * u/3;
-   const double c = .99 * .05;            // (1-p) * u;
+   const double b = .99 * .05;            // (1-p) * u;
+   const double c = .01 * .05/3;          // p * u/3;
    const double d = .01 * (1-.05/3);      // p * (1-u/3);
 
    // -- First row -- //
@@ -2026,7 +2022,7 @@ test_new_matrix_L
    }
    
    destroy_mat(L);
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -2036,7 +2032,7 @@ test_error_new_matrix_L
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *L;
@@ -2049,7 +2045,7 @@ test_error_new_matrix_L
    reset_alloc();
 
    test_assert(L == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_n");
+   test_assert_stderr("[memseedp] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -2059,9 +2055,9 @@ test_error_new_matrix_L
    reset_alloc();
 
    test_assert(L == NULL);
-   test_assert_stderr("[mem_seed_prob] error in function `new_z");
+   test_assert_stderr("[memseedp] error in function `new_z");
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -2073,7 +2069,7 @@ test_matrix_mult
 
    size_t k = 50;
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    matrix_t *mat1 = new_zero_matrix(2);
@@ -2139,7 +2135,7 @@ test_matrix_mult
    destroy_mat(mat2);
    destroy_mat(tmp1);
    destroy_mat(tmp2);
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -2149,7 +2145,7 @@ test_error_matrix_mult
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *mat1 = new_zero_matrix(2);
@@ -2164,27 +2160,28 @@ test_error_matrix_mult
    test_assert(matrix_mult(tmp, mat1, mat2) == NULL);
    unredirect_stderr();
 
-   test_assert_stderr("[mem_seed_prob] error in function `matrix_");
+   test_assert_stderr("[memseedp] error in function `matrix_");
 
    destroy_mat(mat1);
    destroy_mat(mat2);
    destroy_mat(tmp);
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
 
 void
-test_compute_exact_seed_prob
+test_wgf_seed
 (void)
 {
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   trunc_pol_t *w = compute_exact_seed_prob();
+   trunc_pol_t *w = wgf_seed();
    test_assert_critical(w != NULL);
 
+   // Computed with R from the recurrence formula.
    double array[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
       0.157056806616073, 0.148627374682234, 0.140197942748395,
       0.131768510814555, 0.123339078880716, 0.114909646946877,
@@ -2222,13 +2219,55 @@ test_compute_exact_seed_prob
 
    free(w);
 
-   clean_mem_prob();
+   memseedp_clean();
+
+}
+
+void
+test_wgf_dual
+(void)
+{
+
+   int success = memseedp_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   trunc_pol_t *w = wgf_dual(.05);
+   test_assert_critical(w != NULL);
+
+   // The first terms are computed manually. They are not trivial,
+   // they are computed with R.
+   test_assert(w->monodeg > 50);
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(w->coeff[i]-1.0) < 1e-9);
+   }
+
+   double target_17 = 0.15599351039;
+   test_assert(fabs(w->coeff[17]-target_17) < 1e-9);
+
+   double target_18 = 0.14756591486;
+   test_assert(fabs(w->coeff[18]-target_18) < 1e-9);
+
+   w = wgf_dual(0.0);
+   test_assert_critical(w != NULL);
+
+   test_assert(w->monodeg > 50);
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(w->coeff[i]-1.0) < 1e-9);
+   }
+
+   target_17 = 0.157056806616;
+   test_assert(fabs(w->coeff[17]-target_17) < 1e-9);
+
+   target_18 = 0.148627374682;
+   test_assert(fabs(w->coeff[18]-target_18) < 1e-9);
+
+   memseedp_clean();
 
 }
 
 
 void
-test_compute_mem_prob_wgf
+test_wgf_mem
 (void)
 {
 
@@ -2239,15 +2278,15 @@ test_compute_mem_prob_wgf
    trunc_pol_t *w4  = NULL;
    trunc_pol_t *w20 = NULL;
 
-   int success = set_params_mem_prob(17, 19, 0.01);
+   int success = memseedp_set_static_params(17, 19, 0.01);
    test_assert_critical(success);
 
-   w0 = compute_mem_prob_wgf(.05,0);
-   w1 = compute_mem_prob_wgf(.05,1);
-   w2 = compute_mem_prob_wgf(.05,2);
-   w3 = compute_mem_prob_wgf(.05,3);
-   w4 = compute_mem_prob_wgf(.05,4);
-   w20 = compute_mem_prob_wgf(.05,20);
+   w0  = wgf_mem(.05,0);
+   w1  = wgf_mem(.05,1);
+   w2  = wgf_mem(.05,2);
+   w3  = wgf_mem(.05,3);
+   w4  = wgf_mem(.05,4);
+   w20 = wgf_mem(.05,20);
 
    test_assert_critical(w0 != NULL);
    test_assert_critical(w1 != NULL);
@@ -2350,17 +2389,17 @@ test_compute_mem_prob_wgf
 
    // Other test case with longer seeds.
    
-   success = set_params_mem_prob(20, 21, 0.02);
+   success = memseedp_set_static_params(20, 21, 0.02);
    test_assert_critical(success);
 
    // Compute with maximum precision.
-   set_mem_prob_max_prcsn();
+   memseedp_set_max_prcsn();
 
-   w0 = compute_mem_prob_wgf(.05,0);
-   w1 = compute_mem_prob_wgf(.05,1);
-   w2 = compute_mem_prob_wgf(.05,2);
-   w3 = compute_mem_prob_wgf(.05,3);
-   w4 = compute_mem_prob_wgf(.05,4);
+   w0 = wgf_mem(.05,0);
+   w1 = wgf_mem(.05,1);
+   w2 = wgf_mem(.05,2);
+   w3 = wgf_mem(.05,3);
+   w4 = wgf_mem(.05,4);
 
    test_assert_critical(w0 != NULL);
    test_assert_critical(w1 != NULL);
@@ -2410,16 +2449,16 @@ test_compute_mem_prob_wgf
    free(w3);
    free(w4);
 
-   unset_mem_prob_max_prcsn();
+   memseedp_unset_max_prcsn();
 
    // Recompute without maximum precision. Test relative
    // error (results must be within 1% of the target).
 
-   w0 = compute_mem_prob_wgf(.05,0);
-   w1 = compute_mem_prob_wgf(.05,1);
-   w2 = compute_mem_prob_wgf(.05,2);
-   w3 = compute_mem_prob_wgf(.05,3);
-   w4 = compute_mem_prob_wgf(.05,4);
+   w0 = wgf_mem(.05,0);
+   w1 = wgf_mem(.05,1);
+   w2 = wgf_mem(.05,2);
+   w3 = wgf_mem(.05,3);
+   w4 = wgf_mem(.05,4);
 
    test_assert_critical(w0 != NULL);
    test_assert_critical(w1 != NULL);
@@ -2470,7 +2509,7 @@ test_compute_mem_prob_wgf
    free(w3);
    free(w4);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -2523,7 +2562,7 @@ test_misc_correctness
    size_t k = 35;
    const double u = 0.05; // Needed to compute 'xi' and 'eta'.
 
-   int success = set_params_mem_prob(17, k, 0.01);
+   int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    matrix_t *M  = NULL;
@@ -2613,7 +2652,7 @@ test_misc_correctness
 
    free(tmp);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
@@ -2626,13 +2665,13 @@ test_mcmc_method
    trunc_pol_t *w  = NULL;
    trunc_pol_t *mc = NULL;
 
-   int success = set_params_mem_prob(17, 50, 0.01);
+   int success = memseedp_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   w = compute_mem_prob_wgf(.05,5);
+   w = wgf_mem(.05,5);
    test_assert_critical(w != NULL);
 
-   mc = compute_mem_prob_mcmc(.05,5);
+   mc = compute_memseedp_mcmc(.05,5);
    test_assert_critical(mc != NULL);
 
    test_assert(mc->monodeg > 50);
@@ -2653,65 +2692,67 @@ test_mcmc_method
    free(w);
    free(mc);
 
-   clean_mem_prob();
+   memseedp_clean();
 
 }
 
 
 // Test cases for export.
-const test_case_t test_cases_mem_seed_prob[] = {
+const test_case_t test_cases_memseedp[] = {
    // Math functions
-   {"omega",                       test_omega},
-   {"psi",                         test_psi},
-   {"zeta",                        test_zeta},
+   {"omega",                      test_omega},
+   {"psi",                        test_psi},
+   {"zeta",                       test_zeta},
    // Initialization functions
-   {"set_params_mem_prob",         test_set_params_mem_prob},
-   {"error_set_params_mem_prob",   test_error_set_params_mem_prob},
-   {"uninitialized_error",         test_uninitialized_error},
+   {"memseedp_set_static_params", test_memseedp_set_static_params},
+   {"error_memseedp_set_static_params",
+                                  test_error_memseedp_set_static_params},
+   {"uninitialized_error",        test_uninitialized_error},
    // Basic truncated polynomial constructors
-   {"new_zero_trunc_pol",          test_new_zero_trunc_pol},
-   {"error_new_zero_trunc_pol",    test_error_new_zero_trunc_pol},
+   {"new_zero_trunc_pol",         test_new_zero_trunc_pol},
+   {"error_new_zero_trunc_pol",   test_error_new_zero_trunc_pol},
    // Truncated polynomials manipulation
-   {"trunc_pol_updated_add",       test_trunc_pol_update_add},
-   {"trunc_pol_mult",              test_trunc_pol_mult},
+   {"trunc_pol_updated_add",      test_trunc_pol_update_add},
+   {"trunc_pol_mult",             test_trunc_pol_mult},
    // Specific polynomials.
-   {"new_trunc_pol_A",             test_new_trunc_pol_A},
-   {"error_new_trunc_pol_A",       test_error_new_trunc_pol_A},
-   {"new_trunc_pol_B",             test_new_trunc_pol_B},
-   {"error_new_trunc_pol_B",       test_error_new_trunc_pol_B},
-   {"new_trunc_pol_C",             test_new_trunc_pol_C},
-   {"error_new_trunc_pol_C",       test_error_new_trunc_pol_C},
-   {"new_trunc_pol_D",             test_new_trunc_pol_D},
-   {"error_new_trunc_pol_D",       test_error_new_trunc_pol_D},
-   {"new_trunc_pol_E",             test_new_trunc_pol_E},
-   {"error_new_trunc_pol_E",       test_error_new_trunc_pol_E},
-   {"new_trunc_pol_F",             test_new_trunc_pol_F},
-   {"error_new_trunc_pol_F",       test_error_new_trunc_pol_F},
-   {"new_trunc_pol_R",             test_new_trunc_pol_R},
-   {"error_new_trunc_pol_R",       test_error_new_trunc_pol_R},
-   {"new_trunc_pol_r",             test_new_trunc_pol_r},
-   {"error_new_trunc_pol_r",       test_error_new_trunc_pol_r},
+   {"new_trunc_pol_A",            test_new_trunc_pol_A},
+   {"error_new_trunc_pol_A",      test_error_new_trunc_pol_A},
+   {"new_trunc_pol_B",            test_new_trunc_pol_B},
+   {"error_new_trunc_pol_B",      test_error_new_trunc_pol_B},
+   {"new_trunc_pol_C",            test_new_trunc_pol_C},
+   {"error_new_trunc_pol_C",      test_error_new_trunc_pol_C},
+   {"new_trunc_pol_D",            test_new_trunc_pol_D},
+   {"error_new_trunc_pol_D",      test_error_new_trunc_pol_D},
+   {"new_trunc_pol_E",            test_new_trunc_pol_E},
+   {"error_new_trunc_pol_E",      test_error_new_trunc_pol_E},
+   {"new_trunc_pol_F",            test_new_trunc_pol_F},
+   {"error_new_trunc_pol_F",      test_error_new_trunc_pol_F},
+   {"new_trunc_pol_R",            test_new_trunc_pol_R},
+   {"error_new_trunc_pol_R",      test_error_new_trunc_pol_R},
+   {"new_trunc_pol_r",            test_new_trunc_pol_r},
+   {"error_new_trunc_pol_r",      test_error_new_trunc_pol_r},
    // Matrix constructors.
-   {"new_null_matrix",             test_new_null_matrix},
-   {"error_new_null_matrix",       test_error_new_null_matrix},
-   {"new_zero_matrix",             test_new_zero_matrix},
-   {"error_new_zero_matrix",       test_error_new_zero_matrix},
+   {"new_null_matrix",            test_new_null_matrix},
+   {"error_new_null_matrix",      test_error_new_null_matrix},
+   {"new_zero_matrix",            test_new_zero_matrix},
+   {"error_new_zero_matrix",      test_error_new_zero_matrix},
    // Specific matrices
-   {"new_matrix_M",                test_new_matrix_M},
-   {"error_new_matrix_M",          test_error_new_matrix_M},
-   {"new_matrix_L",                test_new_matrix_L},
-   {"error_new_matrix_L",          test_error_new_matrix_L},
+   {"new_matrix_M",               test_new_matrix_M},
+   {"error_new_matrix_M",         test_error_new_matrix_M},
+   {"new_matrix_L",               test_new_matrix_L},
+   {"error_new_matrix_L",         test_error_new_matrix_L},
    // Matrix manipulation functions.
-   {"matrix_mult",                 test_matrix_mult},
-   {"error_matrix_mult",           test_error_matrix_mult},
+   {"matrix_mult",                test_matrix_mult},
+   {"error_matrix_mult",          test_error_matrix_mult},
    // Probabilities.
-   {"compute_exact_seed_prob",     test_compute_exact_seed_prob},
-   {"compute_mem_prob_wgf",        test_compute_mem_prob_wgf},
-   {"misc_correctness",            test_misc_correctness},
-   {"mcmc_method",                 test_mcmc_method},
+   {"wgf_seed",                   test_wgf_seed},
+   {"wgf_dual",                   test_wgf_dual},
+   {"wgf_mem",                    test_wgf_mem},
+   {"misc_correctness",           test_misc_correctness},
+   {"mcmc_method",                test_mcmc_method},
 #if 0
    {"average_errors",              test_average_errors},
-   {"error_mem_seed_prob",         test_error_mem_seed_prob},
+   {"error_memseedp",         test_error_memseedp},
 #endif
    {NULL, NULL},
 };

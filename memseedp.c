@@ -7,13 +7,16 @@
 // SECTION 1. MACROS //
 
 #define LIBNAME "memseedp"
-#define VERSION "1.0 14-02-2019"
+#define VERSION "0.9 02-03-2019"
 
 #define SUCCESS 1
 #define FAILURE 0
 
 // Number of entries in the global hashes.
 #define HSIZE 4096
+
+// Modulo operation that returns a positive number.
+#define modulo(x,y) ((((int)x) % ((int)y) + ((int)y)) % ((int)y))
 
 // Check if a polynomial is null.
 #define iszero(poly) \
@@ -66,9 +69,10 @@
 // should not happen for the sake of consistency), the terms of degree
 // different from 'monodeg' are ignored.
 //
-// It is not a problem to have a polynomial with only one non-zero
-// coefficient. The multiplications are somewhat slower, but the results
-// are consistent.
+// It will not cause problems to have a truncated polynomial with only
+// one non-zero coefficient and where 'monodeg' is set to a value higher
+// than 'K'. The multiplications are somewhat slower, but the results
+// will be consistent.
 //
 // The product of two monomials is a monomial. The addition of two
 // monomials is a monomial only if the monomials have the same degree.
@@ -944,6 +948,75 @@ new_trunc_pol_F
    for (int i = 0 ; i <= j ; i++) {
       new->coeff[i] = pow_of_a;
       pow_of_a *= a;
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_H
+(
+   const size_t r,   // Source phase.
+   const size_t s,   // Target phase.
+   const size_t n    // Skipping. XXX Make a global constant???
+)
+{
+
+   if (s > n || r > n) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo((int)s-(int)r-1, (int)n+1);
+   const size_t m = (G-1+r-x) / (n+1);
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = m == 0 ? x+1 : K+1;
+
+   double pqx_times_the_rest = P*pow(1-P,x);
+   for (int i = 0 ; i <= m ; i++) {
+      new->coeff[x+1+i*(n+1)] = pqx_times_the_rest;
+      pqx_times_the_rest *= pow(1-P,n+1);
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_J
+(
+   const size_t r,  // Source phase.
+   const size_t n   // Skipping. XXX Make a global constant???
+)
+{
+
+   if (r > n) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   new->monodeg = K+1;
+
+   double pow_of_q = 1.0;
+   for (int i = 0 ; i <= G-1+r ; i++) {
+      new->coeff[i] = pow_of_q;
+      pow_of_q *= 1-P;
    }
 
    return new;

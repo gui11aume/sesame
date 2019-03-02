@@ -1271,7 +1271,7 @@ test_new_trunc_pol_H
    trunc_pol_t *H;
 
    // First an anecdotal but realistic case.
-   H = new_trunc_pol_H(0, 1, 9);
+   H = new_trunc_pol_H(0, 9, 9);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1378,7 +1378,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 17 ; i++) {
-      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= k ; i++) {
@@ -1394,7 +1394,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 17 ; i++) {
-      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= k ; i++) {
@@ -1427,7 +1427,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 18 ; i++) {
-      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 19 ; i <= k ; i++) {
@@ -1443,7 +1443,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 18 ; i++) {
-      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 19 ; i <= k ; i++) {
@@ -1476,7 +1476,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 19 ; i++) {
-      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 20 ; i <= k ; i++) {
@@ -1492,7 +1492,7 @@ test_new_trunc_pol_H
 
    test_assert(H->monodeg > k);
    for (int i = 0 ; i <= 19 ; i++) {
-      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
+      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 20 ; i <= k ; i++) {
@@ -2239,7 +2239,6 @@ test_new_matrix_L
    trunc_pol_t *R;
    trunc_pol_t *r;
 
-   // Test martrix M with 0 duplicate because it is a special case.
    L = new_matrix_L(.05);
    test_assert_critical(L != NULL);
 
@@ -2409,6 +2408,11 @@ test_new_matrix_L
          }
       }
    }
+
+   // Last row.
+   for (int j = 0 ; j < 34 ; j++) {
+      test_assert(L->term[(dim0-1)*dim0+j] == 0);
+   }
    
    destroy_mat(L);
    memseedp_clean();
@@ -2446,6 +2450,89 @@ test_error_new_matrix_L
    test_assert(L == NULL);
    test_assert_stderr("[memseedp] error in function `new_z");
 
+   memseedp_clean();
+
+}
+
+
+void
+test_new_matrix_S
+(void)
+{
+
+   size_t k = 50;
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   const double p = 0.01;
+   const double q = 0.99;
+
+   matrix_t *S;
+
+   trunc_pol_t *J;
+   trunc_pol_t *H;
+
+   S = new_matrix_S(9);
+   test_assert_critical(S != NULL);
+
+   const int dim0 = 11; // 9+2
+   test_assert(S->dim == dim0);
+   
+   // First 10 rows.
+   for (int j = 0 ; j < 10 ; j++) {
+
+      // First 10 terms (H polynomials).
+      for (int i = 0 ; i < 10 ; i++) {
+         H = S->term[j*dim0+i];
+         test_assert_critical(H != 0);
+
+         size_t target_mono = k+1;
+         if (j == 0 && i == 0) target_mono = 10;
+         if (j == 0 && i == 1) target_mono = 9;
+         if (j == 0 && i == 2) target_mono = 8;
+         if (j == 1 && i == 1) target_mono = 10;
+         if (j == 1 && i == 2) target_mono = 9;
+         if (j == 2 && i == 2) target_mono = 10;
+         test_assert(H->monodeg == target_mono);
+
+         int x = ((j-i-1) % 10 + 10) % 10;
+         int m = (16+j-x) / 10;
+         for (int c = 0 ; c <= m ; c++) {
+            double target = p*pow(q,x+c*10);
+            test_assert((H->coeff[x+1+c*10]-target) < 1e-9);
+            // Beware that the coefficient is set to zero
+            // after testing so that we can easily check
+            // that all the other coefficients are equal to
+            // zero in the next 'for' loop. But this means
+            // that J is no longer as initialized.
+            H->coeff[x+1+c*10] = 0.0;
+         }
+         // Test that all remaining terms are 0 (see above).
+         for (int l = 0 ; l <= k ; l++) {
+            test_assert(H->coeff[l] == 0);
+         }
+      }
+
+      // Last terms (J polynomial).
+      J = S->term[j*dim0+dim0-1];
+      test_assert(J != NULL);
+      test_assert(J->monodeg > k);
+      for (int l = 0 ; l <= G-1+j ; l++) {
+         double target = pow(q,l);
+         test_assert(fabs(J->coeff[l]-target) < 1e-9);
+      }
+      for (int l = G+j ; l <= K ; l++) {
+         test_assert(J->coeff[l] == 0);
+      }
+   }
+
+   // Last row.
+   for (int j = 0 ; j < 11 ; j++) {
+      test_assert(S->term[(dim0-1)*dim0 + j] == 0);
+   }
+   
+   destroy_mat(S);
    memseedp_clean();
 
 }
@@ -3134,6 +3221,7 @@ const test_case_t test_cases_memseedp[] = {
    {"error_new_matrix_M",         test_error_new_matrix_M},
    {"new_matrix_L",               test_new_matrix_L},
    {"error_new_matrix_L",         test_error_new_matrix_L},
+   {"new_matrix_S",               test_new_matrix_S},
    // Matrix manipulation functions.
    {"matrix_mult",                test_matrix_mult},
    {"error_matrix_mult",          test_error_matrix_mult},

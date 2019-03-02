@@ -1,3 +1,2 @@
-b unittests_compute_mem_prob.c:237
-b run_unittest
+b unittests_memseedp.c:1359
 run

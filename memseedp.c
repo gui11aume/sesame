@@ -975,8 +975,8 @@ new_trunc_pol_H
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   const int x = modulo((int)s-(int)r-1, (int)n+1);
-   const size_t m = (G-1+r-x) / (n+1);
+   const int x = modulo((int)r-(int)s-1, (int)n+1);
+   const int m = (G-1+r-x) / (n+1);
 
    // This is a monomial when 'm' is zero.
    new->monodeg = m == 0 ? x+1 : K+1;
@@ -1145,8 +1145,7 @@ new_matrix_M
 //   of failure.
 //
 // FAILURE:
-//   Fails if static parameters are not initialized, or if there is a
-//   memory error.
+//   Fails if there is a memory error.
 {
 
    // NOTE 4.6.1. Checking dynamic parameters //
@@ -1227,8 +1226,7 @@ new_matrix_L
 //   of failure.
 //
 // FAILURE:
-//   Fails if static parameters are not initialized or if there is a
-//   memory error.
+//   Fails if there is a memory error.
 {
 
    // Assume parameters were checked by the caller.  See note 4.6.1.
@@ -1310,6 +1308,52 @@ new_matrix_L
 
 in_case_of_failure:
    destroy_mat(L);
+   return NULL;
+
+}
+
+
+matrix_t *
+new_matrix_S
+(
+   const size_t n       // Skipping.
+)
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t' and initialize
+//   the entries (with a mix of NULL and non NULL pointers) to obtain the
+//   transfer matrix S(z) of reads without on-target skip-n seed.
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are not initialized or if there is a
+//   memory error.
+{
+
+   const size_t dim = n+2;
+   matrix_t *S = new_null_matrix(dim);
+   handle_memory_error(S);
+
+   // First n+1 rows.
+   for (int i = 0 ; i <= n ; i++) {
+      for (int j = 0 ; j <= n ; j++) {
+         handle_memory_error(
+            S->term[i*dim+j] = new_trunc_pol_H(i,j,n)
+         );
+      }
+      handle_memory_error(
+         S->term[i*dim+dim-1] = new_trunc_pol_J(i,n)
+      );
+   }
+
+   // Last row is null (nothing to do).
+
+   return S;
+
+in_case_of_failure:
+   destroy_mat(S);
    return NULL;
 
 }

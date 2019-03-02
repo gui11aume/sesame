@@ -1263,30 +1263,51 @@ test_new_trunc_pol_H
 (void)
 {
 
-   size_t k = 50;
-
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = memseedp_set_static_params(17, 17, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *H;
 
-   // First an anecdotal but realistic case.
-   H = new_trunc_pol_H(0, 9, 9);
+
+   // Make sure degree is always less than 'K'.
+   // Would have a term of degree 18 if 'K' were higher.
+   // This needs to be checked properly by valgrind.
+   H = new_trunc_pol_H(1, 1, 1);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > 17);
+   test_assert(H->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = (i % 2) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   size_t k = 50;
+
+   success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   // Test the validity of skip-0.
+   H = new_trunc_pol_H(0, 0, 0);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
-   test_assert(fabs(H->coeff[1]-0.01) < 1e-9);
-   test_assert(fabs(H->coeff[11]-0.01*pow(.99,10)) < 1e-9);
-
-   // Erase the coefficients that were checked
-   // and test that everything is now equal to 0.
-   H->coeff[1] = H->coeff[11] = 0;
-   for (int i = 0 ; i <= k ; i++) {
+   test_assert(H->coeff[0] == 0);
+   for (int i = 1 ; i <= 17 ; i++) {
+      double target = 0.01 * pow(.99, i-1);
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 18 ; i <= k ; i++) {
       test_assert(H->coeff[i] == 0);
    }
 
    free(H);
    H = NULL;
+
 
    // Test all the possibilities with skip-1 seeds.
    H = new_trunc_pol_H(0, 0, 1);
@@ -1559,6 +1580,24 @@ test_new_trunc_pol_J
    test_assert_critical(success);
 
    trunc_pol_t *J;
+
+
+   // Test the validity of skip-0 seeds.
+   J = new_trunc_pol_J(0, 0);
+   test_assert_critical(J != NULL);
+
+   test_assert(J->monodeg > k);
+   for (int i = 0 ; i <= 16 ; i++) {
+      double target = pow(0.99, i);
+      test_assert(fabs(J->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= k ; i++) {
+      test_assert(J->coeff[i] == 0);
+   }
+
+   free(J);
+   J = NULL;
+
 
    // Test all the possibilites with skip-2 seeds.
    J = new_trunc_pol_J(0, 2);
@@ -2991,6 +3030,74 @@ test_wgf_mem
 
 
 void
+test_wgf_skip
+(void)
+{
+
+   trunc_pol_t *w0  = NULL;
+   trunc_pol_t *w1  = NULL;
+   trunc_pol_t *w2  = NULL;
+   trunc_pol_t *w3  = NULL;
+
+   int success = memseedp_set_static_params(17, 19, 0.01);
+   test_assert_critical(success);
+
+   w0 = wgf_skip(0);
+   w1 = wgf_skip(1);
+   w2 = wgf_skip(2);
+   w3 = wgf_skip(3);
+
+   test_assert_critical(w0 != NULL);
+   test_assert_critical(w1 != NULL);
+   test_assert_critical(w2 != NULL);
+   test_assert_critical(w3 != NULL);
+
+   // The first terms can be computed directly.
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(w0->coeff[i]-1) < 1e-9);
+      test_assert(fabs(w1->coeff[i]-1) < 1e-9);
+      test_assert(fabs(w2->coeff[i]-1) < 1e-9);
+      test_assert(fabs(w3->coeff[i]-1) < 1e-9);
+   }
+
+   double target;
+   double target_one = 1-pow(.99,17);
+
+   // k = 17.
+   test_assert(fabs(w0->coeff[17]-target_one) < 1e-9);
+   test_assert(fabs(w1->coeff[17]-target_one) < 1e-9);
+   test_assert(fabs(w2->coeff[17]-target_one) < 1e-9);
+   test_assert(fabs(w3->coeff[17]-target_one) < 1e-9);
+
+   // k = 18.
+   target = 1-pow(.99,18)-2*.01*pow(.99,17);
+   test_assert(fabs(w0->coeff[18]-target) < 1e-9);
+
+   test_assert(fabs(w1->coeff[18]-target_one) < 1e-9);
+   test_assert(fabs(w2->coeff[18]-target_one) < 1e-9);
+   test_assert(fabs(w3->coeff[18]-target_one) < 1e-9);
+
+   // k = 19.
+   target = 1-pow(.99,19)-4*.01*pow(.99,18)-3*.0001*pow(.99,17);
+   test_assert(fabs(w0->coeff[19]-target) < 1e-9);
+
+   target = 1-pow(.99,19)-4*.01*pow(.99,18)-2*.0001*pow(.99,17);
+   test_assert(fabs(w1->coeff[19]-target) < 1e-9);
+
+   test_assert(fabs(w2->coeff[19]-target_one) < 1e-9);
+   test_assert(fabs(w3->coeff[19]-target_one) < 1e-9);
+
+   free(w0);
+   free(w1);
+   free(w2);
+   free(w3);
+
+   memseedp_clean();
+
+}
+
+
+void
 test_misc_correctness
 (void)
 // The aim of this test is to compute the probability that a large
@@ -3229,6 +3336,7 @@ const test_case_t test_cases_memseedp[] = {
    {"wgf_seed",                   test_wgf_seed},
    {"wgf_dual",                   test_wgf_dual},
    {"wgf_mem",                    test_wgf_mem},
+   {"wgf_skip",                   test_wgf_skip},
    {"misc_correctness",           test_misc_correctness},
    {"mcmc_method",                test_mcmc_method},
 #if 0

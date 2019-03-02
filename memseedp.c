@@ -983,6 +983,7 @@ new_trunc_pol_H
 
    double pqx_times_the_rest = P*pow(1-P,x);
    for (int i = 0 ; i <= m ; i++) {
+      if (x+1+i*(n+1) > K) break;
       new->coeff[x+1+i*(n+1)] = pqx_times_the_rest;
       pqx_times_the_rest *= pow(1-P,n+1);
    }
@@ -1014,7 +1015,8 @@ new_trunc_pol_J
    new->monodeg = K+1;
 
    double pow_of_q = 1.0;
-   for (int i = 0 ; i <= G-1+r ; i++) {
+   const int imax = K > G-1+r ? G-1+r : K;
+   for (int i = 0 ; i <= imax ; i++) {
       new->coeff[i] = pow_of_q;
       pow_of_q *= 1-P;
    }
@@ -1733,7 +1735,7 @@ wgf_dual
       trunc_pol_update_add(w, powL2->term[2*G-1]);
       matrix_mult(powL1, L, powL2);
       trunc_pol_update_add(w, powL1->term[2*G-1]);
-      // In max precision debug mode, get all possible digits.
+      // In max precision mode, get all possible digits.
       if (MAX_PRECISION)
          continue;
       // Otherwise, stop when reaching 1% precision.
@@ -1755,6 +1757,86 @@ in_case_of_failure:
    destroy_mat(powL2);
    destroy_mat(L);
    free(w);
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+wgf_skip
+(
+   const size_t n     // Skipping.
+)
+// SYNOPSIS:
+//   Compute the probabilities that reads do not contain an on-target
+//   skip-n seed of size gamma for the specified static and dynamic
+//   parameters.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fails. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
+{
+
+   // The logic of this function is the same as 'wgf_mem()'.
+   // See the comments there for more detail on what is going on.
+   trunc_pol_t *w = new_zero_trunc_pol();
+   matrix_t *S = new_matrix_S(n);
+
+   matrix_t *powS1 = new_zero_matrix(n+2);
+   matrix_t *powS2 = new_zero_matrix(n+2);
+
+   handle_memory_error(w);
+   handle_memory_error(S);
+   handle_memory_error(powS1);
+   handle_memory_error(powS2);
+
+   // Update weighted generating function with
+   // one-segment reads (i.e. tail only).
+   trunc_pol_update_add(w, S->term[n+1]);
+
+   matrix_mult(powS1, S, S);
+
+   // Update weighted generating function with two-segment reads.
+   trunc_pol_update_add(w, powS1->term[n+1]);
+
+   // Every non-tail segment contains an error. We can bound the
+   // probabibility that a read contains more than m segments with
+   // the Binomial distribution.
+   // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
+   for (int s = 2 ; s < K ; s += 2) {
+      // Increase the number of segments and update
+      // the weighted generating function accordingly.
+      matrix_mult(powS2, S, powS1);
+      trunc_pol_update_add(w, powS2->term[n+1]);
+      matrix_mult(powS1, S, powS2);
+      trunc_pol_update_add(w, powS1->term[n+1]);
+      // In max precision mode, get all possible digits.
+      if (MAX_PRECISION)
+         continue;
+      // Otherwise, stop when reaching 1% precision.
+      double x = floor(s-1) / ((double) K);
+      double bound_on_imprecision = exp(-HH(x, P)*K);
+      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+   }
+
+   // Clean temporary variables.
+   destroy_mat(powS1);
+   destroy_mat(powS2);
+   destroy_mat(S);
+
+   return w;
+
+in_case_of_failure:
+   // Clean everything.
+   destroy_mat(powS1);
+   destroy_mat(powS2);
+   destroy_mat(S);
+   free(S);
    return NULL;
 
 }

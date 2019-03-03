@@ -1846,9 +1846,11 @@ in_case_of_failure:
 
 size_t
 rgeom
-(void)
+(
+   const double prob
+)
 {
-   return ceil( log(runifMT()) / log(1-P) );
+   return ceil( log(runifMT()) / log(1-prob) );
 }
 
 
@@ -1893,16 +1895,17 @@ rpos
 
 
 void
-one_mcmc
+one_mcmc_mem
 (
    const size_t   N,
          double * pos
 )
 // SYNOPSIS:
-//   Simulate one read using Monte Carlo Markov chains with the specified
-//   static parameters. Update the vector 'pos' with the positions of the
-//   read where a MEM seed is present, i.e., the positions such that a
-//   MEM seed would be present if the read terminated at this position.
+//   Simulate one read with MEM seeds using Monte Carlo Markov chains
+//   with the specified static parameters. Update the vector 'pos' with
+//   the positions of the read where a MEM seed is present, i.e., the
+//   positions such that a MEM seed would be present if the read
+//   terminated at this position.
 {
 
    size_t i;     // Size of the error-free segment.
@@ -1912,7 +1915,7 @@ one_mcmc
    for (int sz = K ; sz > 0 ; sz -= (i+1)) {
 
       // Get size of the error-free segment.
-      i = rgeom() - 1;
+      i = rgeom(P) - 1;
 
       if (i >= sz) {
          // If the error-free segment is longer than the read, resize
@@ -1978,6 +1981,63 @@ one_mcmc
 }
 
 
+void
+one_mcmc_skip
+(
+   const size_t   n,    // Skipping.
+   const double   u,    // Divergence.
+         double * pos
+)
+// FIXME //
+// SYNOPSIS:
+//   Simulate one read with skip seeds using Monte Carlo Markov chains
+//   with the specified static parameters. Update the vector 'pos' with
+//   the positions of the read where a skip seed is present, i.e., the
+//   positions such that a skip seed would be present if the read
+//   terminated at this position.
+{
+
+   const double a = (1-P)*(1-u);
+   const double b = (1-P)*u;
+   const double c = P*u/3;
+
+   int spls = 0;
+   int smin = 0;
+
+   size_t i;     // Size of the double-match segment.
+
+   // Note: stop if last nucleotide is an error.
+   for (int sz = 0 ; sz < K ; ) {
+      // Get size of the error-free segment.
+      i = rgeom(a) - 1;
+      if (i > K-sz) i = K-sz;
+      spls += i;
+      smin += i;
+      if (spls >= G || smin >= G) {
+         // FIXME: Find the position of the seed.
+         return;
+      }
+      sz += i+1;
+      double r = runifMT() * (1-a);
+      if (r < b) {
+         spls++;
+         smin = -modulo(-sz,n+1);
+      }
+      else if (r < b+c) {
+         spls = -modulo(-sz,n+1);
+         smin++;
+      }
+      else {
+         spls = smin = -modulo(-sz,n+1);
+      }
+   }
+   // FIXME: Final check: the line below is not correct.
+   if (spls >= G || smin >= G) {
+      pos[K-1]++;
+   }
+}
+
+
 // SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
 trunc_pol_t *
@@ -2030,7 +2090,7 @@ compute_memseedp_mcmc
 
    w->monodeg = K+1;
    for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
-      one_mcmc(N, w->coeff);
+      one_mcmc_mem(N, w->coeff);
    }
 
    for (int i = 0 ; i <= K ; i++) {

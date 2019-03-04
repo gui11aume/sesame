@@ -136,8 +136,8 @@ static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
 // called "dynamic". Static parameters are set by initializing the
 // library with 'memseedp_set_static_params()'.
 
-static size_t  G = 0;       // Minimum size of MEM seeds.
-static size_t  K = 0;       // Max degree of 'trunc_pol_t' (read size).
+static int  G = 0;       // Minimum size of MEM seeds.
+static int  K = 0;       // Max degree of 'trunc_pol_t' (read size).
 static double  P = 0.0;     // Probability of a read error.
 
 static size_t  KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
@@ -209,7 +209,7 @@ omega
 (
    const size_t m,
    const double u,
-   const size_t N
+   const int N
 )
 {
 
@@ -231,7 +231,7 @@ psi
    const size_t n,
    const size_t r,
    const double u,
-   const size_t N
+   const int N
 )
 {
 
@@ -259,7 +259,7 @@ zeta
    const size_t m,
    const size_t n,
    const double u,
-   const size_t N
+   const int N
 )
 {
 
@@ -443,7 +443,7 @@ in_case_of_failure:
 size_t
 squish
 (
-   size_t N
+   int N
 )
 // SYNOPSIS:
 //   Assign 'N' to predefined buckets.
@@ -552,9 +552,9 @@ in_case_of_failure:
 int
 dynamic_params_OK
 (
-   const size_t k,    // Segment or read size.
+   const int k,    // Segment or read size.
    const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+   const int N     // Number of duplicates.
 )
 // SYNOPSIS:
 //   Check if dynamic parameters (see note 3.1) are conform to
@@ -579,7 +579,7 @@ dynamic_params_OK
    if (k > K) {
       char msg[128];
       snprintf(msg, 128,
-            "argument k (%lu) greater than set value (%ld)", k, K);
+            "argument k (%d) greater than set value (%d)", k, K);
       warning(msg, __func__, __LINE__);
       return FAILURE;
    }
@@ -637,8 +637,8 @@ memseedp_clean // VISIBLE //
 int
 memseedp_set_static_params // VISIBLE //
 (
-   size_t g,
-   size_t k,
+   int g,
+   int k,
    double p
 )
 // SYNOPSIS:
@@ -720,7 +720,7 @@ new_trunc_pol_A
    const size_t m,    // Initial state (down).
    const size_t n,    // Final state (down).
    const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+   const int N     // Number of duplicates.
 )
 {
 
@@ -765,7 +765,7 @@ new_trunc_pol_B
 (
    const size_t i,    // Final state (up).
    const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+   const int N     // Number of duplicates.
 )
 {
 
@@ -804,7 +804,7 @@ new_trunc_pol_C
 (
    const size_t m,    // Initial state (down).
    const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+   const int N     // Number of duplicates.
 )
 // Note: the polynomials are defined in the case m > N, but
 // they have no meaning in the present context. Here they are
@@ -852,7 +852,7 @@ new_trunc_pol_D
    const size_t j,    // Initial state (up).
    const size_t m,    // Final state (down).
    const double u,    // Divergence rate.
-   const size_t N     // Number of duplicates.
+   const int N     // Number of duplicates.
 )
 {
 
@@ -1134,7 +1134,7 @@ matrix_t *
 new_matrix_M
 (
    const double u,   // Divergence rate.
-   const size_t N    // Number of duplicates.
+   const int N    // Number of duplicates.
 )
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
@@ -1548,7 +1548,7 @@ trunc_pol_t *
 wgf_mem
 (
    const double u,   // Divergence rate.
-   const size_t N    // Number of duplicates.
+   const int N    // Number of duplicates.
 )
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain a good
@@ -1988,7 +1988,6 @@ one_mcmc_skip
    const double   u,    // Divergence.
          double * pos
 )
-// FIXME //
 // SYNOPSIS:
 //   Simulate one read with skip seeds using Monte Carlo Markov chains
 //   with the specified static parameters. Update the vector 'pos' with
@@ -2009,12 +2008,19 @@ one_mcmc_skip
    // Note: stop if last nucleotide is an error.
    for (int sz = 0 ; sz < K ; ) {
       // Get size of the error-free segment.
-      i = rgeom(a) - 1;
-      if (i > K-sz) i = K-sz;
+      i = rgeom(1-a) - 1;
+      if (i >= K-sz) {
+         spls += K-sz;
+         smin += K-sz;
+         break;
+      }
       spls += i;
       smin += i;
       if (spls >= G || smin >= G) {
-         // FIXME: Find the position of the seed.
+         int pospls = spls >= G ? sz+i - (spls-G) : K+1;
+         int posmin = smin >= G ? sz+i - (smin-G) : K+1;
+         int from = pospls < posmin ? pospls : posmin;
+         for (int j = from ; j <= K ; j++) pos[j]++;
          return;
       }
       sz += i+1;
@@ -2031,10 +2037,13 @@ one_mcmc_skip
          spls = smin = -modulo(-sz,n+1);
       }
    }
-   // FIXME: Final check: the line below is not correct.
    if (spls >= G || smin >= G) {
-      pos[K-1]++;
+      int pospls = spls >= G ? K - (spls-G) : K+1;
+      int posmin = smin >= G ? K - (smin-G) : K+1;
+      int from = pospls < posmin ? pospls : posmin;
+      for (int j = from ; j <= K ; j++) pos[j]++;
    }
+   return;
 }
 
 
@@ -2044,7 +2053,7 @@ trunc_pol_t *
 compute_memseedp_mcmc
 (
    const double u,   // Divergence rate.
-   const size_t N    // Number of duplicates.
+   const int N    // Number of duplicates.
 )
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain a good
@@ -2071,7 +2080,9 @@ compute_memseedp_mcmc
    //}
    // -- END BLOCK -- //
 
-   trunc_pol_t *w = NULL;
+   
+   trunc_pol_t *w = new_zero_trunc_pol();
+   handle_memory_error(w);
 
    // Precompute intermediate quantities.
    handle_memory_error(XI = malloc((K+1) * sizeof(double)));
@@ -2085,8 +2096,6 @@ compute_memseedp_mcmc
       ETA[i]  = 1 - pow(1-u,i) * u/3.0;
       ETAc[i] = 1 - ETA[i];
    }
-   
-   handle_memory_error(w = new_zero_trunc_pol());
 
    w->monodeg = K+1;
    for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
@@ -2113,6 +2122,59 @@ in_case_of_failure:
    return NULL;
 
 }
+
+
+trunc_pol_t *
+compute_skipseedp_mcmc
+(
+   const double u,   // Divergence rate.
+   const size_t n    // Skipping.
+)
+// SYNOPSIS:
+//   Compute the probabilities that reads do not contain a skip-n
+//   seed for the target and a single given off-target sequence, for
+//   specified static and dynamic parameters, using the Monte Carlo
+//   Markov chain approach.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if parameters are unininitialized or if 'malloc()'
+//   fains. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
+{
+
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
+
+   trunc_pol_t *w = new_zero_trunc_pol();
+   handle_memory_error(w);
+
+   w->monodeg = K+1;
+   for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
+      one_mcmc_skip(n, u, w->coeff);
+   }
+
+   for (int i = 0 ; i <= K ; i++) {
+      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_RESAMPLINGS;
+   }
+
+   return w;
+
+in_case_of_failure:
+   free(w);
+   return NULL;
+
+}
    
 
 // SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
@@ -2120,9 +2182,9 @@ in_case_of_failure:
 trunc_pol_t *
 memseedp_false_positive_or_negative         // VISIBLE //
 (
-   const size_t k,       // Segment or read size.
+   const int k,       // Segment or read size.
    const double u,       // Divergence rate.
-   const size_t N        // Number of duplicates.
+   const int N        // Number of duplicates.
 )
 // SYNOPSIS:
 //   Compute the probability that there is no on-target MEM seed.
@@ -2162,9 +2224,9 @@ in_case_of_failure:
 trunc_pol_t *
 memseedp_false_negative   // VISIBLE //
 (
-   const size_t k,       // Segment or read size.
+   const int k,       // Segment or read size.
    const double u,       // Divergence rate.
-   const size_t N        // Number of duplicates.
+   const int N        // Number of duplicates.
 )
 // SYNOPSIS:
 //   Compute the probability that there is no on-target or off-target
@@ -2219,9 +2281,9 @@ in_case_of_failure:
 double
 memseedp_auto_false_positive    // VISIBLE //
 (
-   const size_t k,        // Segment or read size.
+   const int k,        // Segment or read size.
    const double u,        // Divergence rate.
-   const size_t N         // Number of duplicates.
+   const int N         // Number of duplicates.
 )
 {
 
@@ -2270,8 +2332,8 @@ in_case_of_failure:
 double
 average_errors
 (
-   const size_t g,
-   const size_t k,
+   const int g,
+   const int k,
    const double p
 )
 // Use recurrence.
@@ -2318,8 +2380,8 @@ in_case_of_failure:
 double
 special_average
 (
-   const size_t g,
-   const size_t k,
+   const int g,
+   const int k,
    const double p
 )
 // TODO: explain the logic of this in the LaTex document.

@@ -10,5 +10,5 @@ void memseedp_set_max_prcsn (void);
 void memseedp_unset_max_prcsn (void);
 
 // MEM seeding probabilities.
-double memseedp_auto_false_positive(size_t, double, size_t);
+double memseedp_auto_false_positive(int, double, int);
 #endif

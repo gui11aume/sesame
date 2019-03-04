@@ -3241,7 +3241,7 @@ test_misc_correctness
 
 
 void
-test_mcmc_method
+test_memseedp_mcmc
 (void)
 {
 
@@ -3274,6 +3274,57 @@ test_mcmc_method
 
    free(w);
    free(mc);
+
+   memseedp_clean();
+
+}
+
+
+void
+test_skipseedp_mcmc
+(void)
+{
+
+   const size_t k = 18;
+
+   trunc_pol_t *mc = NULL;
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   mc = compute_skipseedp_mcmc(.05,0);
+   test_assert_critical(mc != NULL);
+
+   test_assert(mc->monodeg > k);
+   // First values are equal to 1 (the precision
+   // is not very high for these first values).
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(mc->coeff[i]-1) < 1e-7);
+   }
+
+   // Target computed with R. Error has 99% chance of being
+   // less than 0.0003, i.e. in (0.1556980, 0.1562891). In
+   // comparison, the probability of no (single) exact seed
+   // of size 17 is 0.1570568, which is outside the range.
+   double target = 0.1559935;
+   test_assert(fabs(mc->coeff[17]-target) < .0003);
+
+   free(mc);
+   mc = NULL;
+
+   // Same thing, with skip-1.
+   mc = compute_skipseedp_mcmc(.05,1);
+   test_assert_critical(mc != NULL);
+
+   test_assert(mc->monodeg > k);
+   // First values are equal to 1.
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(mc->coeff[i]-1) < 1e-7);
+   }
+   test_assert(fabs(mc->coeff[17]-target) < .0003);
+
+   free(mc);
+   mc = NULL;
 
    memseedp_clean();
 
@@ -3338,7 +3389,8 @@ const test_case_t test_cases_memseedp[] = {
    {"wgf_mem",                    test_wgf_mem},
    {"wgf_skip",                   test_wgf_skip},
    {"misc_correctness",           test_misc_correctness},
-   {"mcmc_method",                test_mcmc_method},
+   {"memseedp_mcmc",              test_memseedp_mcmc},
+   {"skipseedp_mcmc",             test_skipseedp_mcmc},
 #if 0
    {"average_errors",              test_average_errors},
    {"error_memseedp",         test_error_memseedp},

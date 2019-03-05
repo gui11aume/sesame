@@ -1,2 +1,2 @@
-b unittests_memseedp.c:1359
+b memseedp.c:2026
 run

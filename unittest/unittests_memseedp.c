@@ -3302,15 +3302,21 @@ test_skipseedp_mcmc
       test_assert(fabs(mc->coeff[i]-1) < 1e-7);
    }
 
-   // Target computed with R. Error has 99% chance of being
-   // less than 0.0003, i.e. in (0.1556980, 0.1562891). In
+   // Target computed with R. Error has 99.9% chance of being
+   // less than 0.00038, i.e. in (0.15562, 0.15637). In
    // comparison, the probability of no (single) exact seed
    // of size 17 is 0.1570568, which is outside the range.
-   double target = 0.1559935;
-   test_assert(fabs(mc->coeff[17]-target) < .0003);
+   double target_17 = 0.1559935;
+   test_assert(fabs(mc->coeff[17]-target_17) < .00038);
+
+   // Same thing as above, now the error has 99.9% chance of
+   // begin less than 0.00037, i.e. in (0.14731, 0.14805).
+   double target_18 = 0.1476859;
+   test_assert(fabs(mc->coeff[18]-target_18) < .00037);
 
    free(mc);
    mc = NULL;
+
 
    // Same thing, with skip-1.
    mc = compute_skipseedp_mcmc(.05,1);
@@ -3321,7 +3327,11 @@ test_skipseedp_mcmc
    for (int i = 0 ; i < 17 ; i++) {
       test_assert(fabs(mc->coeff[i]-1) < 1e-7);
    }
-   test_assert(fabs(mc->coeff[17]-target) < .0003);
+   test_assert(fabs(mc->coeff[17]-target_17) < .0003);
+   // Term 18 is the same as term 17 (because all seeds must
+   // start at the first nucleotides, and if there is a seed
+   // of size 18, it is also a seed of size 17).
+   test_assert(fabs(mc->coeff[18]-target_17) < .0003);
 
    free(mc);
    mc = NULL;

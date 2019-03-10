@@ -21,7 +21,7 @@ else
 	libflag= -shared
 endif
 
-$(P): $(OBJECTS) $(SOURCES) runtests.c
+$(P): $(OBJECTS) $(SOURCES)
 	$(CC) $(CFLAGS) runtests.c $(OBJECTS) $(LDLIBS) -o $@
 
 clean:

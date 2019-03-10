@@ -1,2 +1,2 @@
-b memseedp.c:2026
+b test_breakpoint
 run

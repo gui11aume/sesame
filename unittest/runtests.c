@@ -3,6 +3,10 @@
 char open_banner[] = "";
 char close_banner[] = "---\n";
 
+// Symbol for the debugger.
+void test_breakpoint (void) { return; }
+
+
 int
 main(
    int     argc,

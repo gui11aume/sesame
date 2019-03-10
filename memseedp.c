@@ -1000,7 +1000,7 @@ trunc_pol_t *
 new_trunc_pol_J
 (
    const size_t r,  // Source phase.
-   const size_t n   // Skipping. XXX Make a global constant???
+   const size_t n   // Skipping.
 )
 {
 
@@ -1126,6 +1126,135 @@ in_case_of_failure:
    return NULL;
 
 }
+
+
+trunc_pol_t *
+new_trunc_pol_U
+(
+   const size_t r,  // Match length.
+   const size_t s,  // Destination phase.
+   const size_t n,  // Skipping.
+   const double u   // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (s > n || r > G-1 || r == 0) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo(-(int)(r+s+1), (int)n+1);
+   const int m = (G-1-r-x) / (n+1);
+
+   const double apos = r % (n+1) == 0 ? (1-P) * (1-u) : 1-P;
+   const double dpos = r % (n+1) == 0 ? P * (1-u/3) : P;
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = m == 0 ? x+1 : K+1;
+
+   double dax_times_the_rest = dpos*pow(apos,x);
+   for (int i = 0 ; i <= m ; i++) {
+      new->coeff[x+1+i*(n+1)] = dax_times_the_rest;
+      dax_times_the_rest *= pow(apos,n+1);
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_V
+(
+   const size_t r,  // Source phase.
+   const size_t s,  // Destination phase.
+   const size_t n,  // Skipping.
+   const double u   // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (s > n || r > G-1 || r == 0) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo(-(int)(r+s+1), (int)n+1);
+   const int m = (G-1-r-x) / (n+1);
+
+   const double aneg = r % (n+1) == 0 ? (1-P)*(1-u) : (1-P)*(1-u)+P*u/3;
+   const double dneg = r % (n+1) == 0 ? P*(1-u/3) : P*(1-u/3)+(1-P)*u;
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = m == 0 ? x+1 : K+1;
+
+   double dax_times_the_rest = dneg*pow(aneg,x);
+   for (int i = 0 ; i <= m ; i++) {
+      new->coeff[x+1+i*(n+1)] = dax_times_the_rest;
+      dax_times_the_rest *= pow(aneg,n+1);
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_W
+(
+   const size_t s,  // Destination phase.
+   const size_t n,  // Skipping.
+   const double u   // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (s > n) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo((int)n-(int)s, (int)n+1);
+   const int m = (G-1-x) / (n+1);
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = m == 0 ? x+1 : K+1;
+
+   const double a = (1-P)*(1-u);
+   const double d = P*(1-u/3.0);
+
+   double dax_times_the_rest = d*pow(a,x);
+   for (int i = 0 ; i <= m ; i++) {
+      new->coeff[x+1+i*(n+1)] = dax_times_the_rest;
+      dax_times_the_rest *= pow(a,n+1);
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
 
 
 // SECTION 4.6. TRANSFER MATRICES //

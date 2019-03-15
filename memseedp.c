@@ -1151,6 +1151,9 @@ new_trunc_pol_U
    const int x = modulo(-(int)(r+s+1), (int)n+1);
    const int m = (G-1-r-x) / (n+1);
 
+   // Polynomial is null in the following case.
+   if (r > G-1-x) return new;
+
    const double apos = r % (n+1) == 0 ? (1-P) * (1-u) : 1-P;
    const double dpos = r % (n+1) == 0 ? P * (1-u/3) : P;
 
@@ -1193,6 +1196,9 @@ new_trunc_pol_V
 
    const int x = modulo(-(int)(r+s+1), (int)n+1);
    const int m = (G-1-r-x) / (n+1);
+
+   // Polynomial is null in the following case.
+   if (r > G-1-x) return new;
 
    const double aneg = r % (n+1) == 0 ? (1-P)*(1-u) : (1-P)*(1-u)+P*u/3;
    const double dneg = r % (n+1) == 0 ? P*(1-u/3) : P*(1-u/3)+(1-P)*u;
@@ -1279,6 +1285,8 @@ new_matrix_M
 //   Fails if there is a memory error.
 {
 
+   matrix_t *M = NULL;
+
    // NOTE 4.6.1. Checking dynamic parameters //
    //
    // In the library, this function is called only by
@@ -1298,7 +1306,7 @@ new_matrix_M
    // -- END BLOCK -- //
    
    const size_t dim = G+N+1;
-   matrix_t *M = new_null_matrix(dim);
+   M = new_null_matrix(dim);
    handle_memory_error(M);
 
    // First N+1 series of rows.
@@ -1360,6 +1368,8 @@ new_matrix_L
 //   Fails if there is a memory error.
 {
 
+   matrix_t *L = NULL;
+
    // Assume parameters were checked by the caller.  See note 4.6.1.
    // about checking dynamic parameters if this code is reused.
    // -- BEGIN BLOCK -- //
@@ -1372,7 +1382,7 @@ new_matrix_L
    // -- END BLOCK -- //
 
    const size_t dim = 2*G;
-   matrix_t *L = new_null_matrix(dim);
+   L = new_null_matrix(dim);
    handle_memory_error(L);
 
    // First row.
@@ -1463,8 +1473,10 @@ new_matrix_S
 //   memory error.
 {
 
+   matrix_t *S = NULL;
+
    const size_t dim = n+2;
-   matrix_t *S = new_null_matrix(dim);
+   S = new_null_matrix(dim);
    handle_memory_error(S);
 
    // First n+1 rows.
@@ -1485,6 +1497,149 @@ new_matrix_S
 
 in_case_of_failure:
    destroy_mat(S);
+   return NULL;
+
+}
+
+
+matrix_t *
+new_matrix_T
+(
+   const size_t n,  // Skipping.
+   const double u   // Divergence rate.
+)
+// SYNOPSIS:
+//   Allocate memory for a new struct of type 'matrix_t' and initialize
+//   the entries (with a mix of NULL and non NULL pointers) to obtain the
+//   transfer matrix T(z) of reads without skip-n seed for either the
+//   target or a specific duplicate.
+//
+// RETURN:
+//   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if there is a memory error or if the static and dynamic
+//   parameters are not properly set.
+{
+
+   matrix_t *T = NULL;
+
+   // Check dynamic parameters. Only 'u' must be checked, so
+   // we pass 'K' as a first parameter, and 0 as third paramater,
+   // which cannot trigger an error.
+   if (!dynamic_params_OK(K,u,0)) {
+      goto in_case_of_failure;
+   }
+   
+   const size_t dim = n+2*G;
+   T = new_null_matrix(dim);
+   handle_memory_error(T);
+
+   // First row.
+   for (int i = 0 ; i < n+1 ; i++) {
+      handle_memory_error(
+         T->term[i] = new_trunc_pol_W(i,n,u)
+      );
+   }
+   for (int i = n+1 ; i < n+G ; i++) {
+      handle_memory_error(
+         T->term[i] = new_trunc_pol_r_plus(i-n-1,u)
+      );
+   }
+   for (int i = n+G ; i < dim-1 ; i++) {
+      handle_memory_error(
+         T->term[i] = new_trunc_pol_r_minus(i-n-G,u)
+      );
+   }
+   // Last term (tail).
+   handle_memory_error(
+      T->term[dim-1] = new_trunc_pol_F(G-1, u)
+   );
+
+   // Next 'n' rows.
+   for (int j = 1 ; j <= n ; j++) {
+      // First term (monomial equal to a power of z).
+      handle_memory_error(
+         T->term[j*dim+0] = new_zero_trunc_pol()
+      );
+      if (n+1-j <= K) {
+         T->term[j*dim+0]->coeff[n+1-j] = 1.0;
+         T->term[j*dim+0]->monodeg = n+1-j;
+      }
+      // Tail term (polynomial equal to 1).
+      handle_memory_error(
+         T->term[j*dim+dim-1] = new_zero_trunc_pol()
+      );
+      T->term[j*dim+dim-1]->coeff[0] = 1.0;
+   }
+
+   // Next 'G-1' rows.
+   for (int j = n+1 ; j < n+G ; j++) {
+      for (int i = 0 ; i <= n ; i++) {
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_U(j-n,i,n,u)
+         );
+      }
+      // Matrix A(z).
+      for (int i = n+1 ; i <= n+G-1 ; i++) {
+         int deg = i-j-1;
+         if (deg < 0) continue;
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_r_plus(deg,u)
+         );
+      }
+      // Matrix ~B(z).
+      for (int i = n+G ; i <= n+2*G-2 ; i++) {
+         int index = i-n-G;
+         int out_of_phase = (j-n) % (n+1) != 0;
+         if (index > G-1-j+n || out_of_phase) continue;
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_r_minus(index,u)
+         );
+      }
+      // Tail term (F polynomial).
+      handle_memory_error(
+         T->term[j*dim+dim-1] = new_trunc_pol_F(G-1+n-j, u)
+      );
+   }
+
+   // Next 'G-1' rows.
+   for (int j = n+G ; j < dim-1 ; j++) {
+      for (int i = 0 ; i <= n ; i++) {
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_V(j-n-G+1,i,n,u)
+         );
+      }
+      // Matrix ~C(z).
+      for (int i = n+1 ; i <= n+G-1 ; i++) {
+         int index = i-n-1;
+         int out_of_phase = (j+1-n-G) % (n+1) != 0;
+         if (index > 2*G+n-2-j || out_of_phase) continue;
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_r_plus(index,u)
+         );
+      }
+      // Matrix D(z).
+      for (int i = n+G ; i <= n+2*G-2 ; i++) {
+         int deg = i-j-1;
+         if (deg < 0) continue;
+         handle_memory_error(
+            T->term[j*dim+i] = new_trunc_pol_r_minus(deg,u)
+         );
+      }
+      // Tail term (polynomial F).
+      handle_memory_error(
+         T->term[j*dim+dim-1] = new_trunc_pol_F(2*G-2+n-j, u)
+      );
+   }
+
+   // Last row is null (nothing to do).
+
+   return T;
+
+in_case_of_failure:
+   destroy_mat(T);
    return NULL;
 
 }

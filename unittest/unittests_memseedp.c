@@ -2645,8 +2645,6 @@ test_new_matrix_M
 (void)
 {
 
-   matrix_t *M;
-
    trunc_pol_t *A;
    trunc_pol_t *B;
    trunc_pol_t *C;
@@ -2659,7 +2657,7 @@ test_new_matrix_M
    test_assert_critical(success);
 
    // Test martrix M with 0 duplicate because it is a special case.
-   M = new_matrix_M(.05,0);
+   matrix_t *M = new_matrix_M(.05,0);
    test_assert_critical(M != NULL);
 
    const int dim0 = 18; // 17+0+1
@@ -2955,13 +2953,11 @@ test_new_matrix_L
    int success = memseedp_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
-   matrix_t *L;
-
    trunc_pol_t *F;
    trunc_pol_t *R;
    trunc_pol_t *r;
 
-   L = new_matrix_L(.05);
+   matrix_t *L = new_matrix_L(.05);
    test_assert_critical(L != NULL);
 
    const int dim0 = 34; // 2 x 17
@@ -3190,12 +3186,10 @@ test_new_matrix_S
    const double p = 0.01;
    const double q = 0.99;
 
-   matrix_t *S;
-
    trunc_pol_t *J;
    trunc_pol_t *H;
 
-   S = new_matrix_S(9);
+   matrix_t *S = new_matrix_S(9);
    test_assert_critical(S != NULL);
 
    const int dim0 = 11; // 9+2
@@ -3258,6 +3252,330 @@ test_new_matrix_S
    memseedp_clean();
 
 }
+
+
+void
+test_new_matrix_T
+(void)
+{
+
+   int k = 50;
+   int n = 9;
+
+   const double a = .99 * .95;            // (1-p) * (1-u)
+   const double b = .99 * .05;            // (1-p) * u;
+   const double c = .01 * .05/3;          // p * u/3;
+   const double d = .01 * (1-.05/3);      // p * (1-u/3);
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+   
+   trunc_pol_t *x;
+   trunc_pol_t *F;
+   trunc_pol_t *r;
+   trunc_pol_t *U;
+   trunc_pol_t *V;
+   trunc_pol_t *W;
+
+   double target;
+
+   matrix_t *T = new_matrix_T(9, 0.05);
+   test_assert_critical(T != NULL);
+
+   const int dim0 = 43; // 9+2x17
+   test_assert(T->dim == dim0);
+
+   // -- First row -- //
+
+   // First 'n+1' terms (W polynomial).
+   for (int j = 0 ; j <= n ; j++) {
+      W = T->term[j];
+      test_assert_critical(W != NULL);
+      if (j <= 2) {
+         int deg = 10-j;
+         test_assert(W->monodeg == deg);
+         target = d*pow(a,deg-1);
+         test_assert(fabs(W->coeff[deg]-target) < 1e-9);
+         W->coeff[deg] = 0; // Erase to make the rest easier to check.
+         for (int i = 0 ; i <= k ; i++) {
+            test_assert(W->coeff[i] == 0);
+         }
+      }
+      else {
+         int deg = 10-j;
+         test_assert(W->monodeg > k);
+         target = d*pow(a,deg-1);
+         test_assert(fabs(W->coeff[deg]-target) < 1e-9);
+         target = d*pow(a,deg+9);
+         test_assert(fabs(W->coeff[deg+10]-target) < 1e-9);
+         // Erase to make the rest easier to check.
+         W->coeff[deg] = W->coeff[deg+10] = 0;
+         for (int i = 0 ; i <= k ; i++) {
+            test_assert(W->coeff[i] == 0);
+         }
+      }
+   }
+
+   // Next 'G-1' terms (r+ polynomials).
+   for (int j = 10 ; j <= 25 ; j++) {
+      r = T->term[j];
+      test_assert_critical(r != NULL);
+      int deg = j-9;
+      test_assert(r->monodeg == deg);
+      target = c*pow(a,deg-1);
+      test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+      r->coeff[deg] = 0; // Erase to make the rest easier to check.
+      for (int l = 0 ; l <= k ; l++) {
+         test_assert(r->coeff[l] == 0);
+      }
+   }
+
+   // Next 'G-1' terms (r- polynomials).
+   for (int j = 26 ; j <= 41 ; j++) {
+      r = T->term[j];
+      test_assert_critical(r != NULL);
+      int deg = j-25;
+      test_assert(r->monodeg == deg);
+      target = b*pow(a,deg-1);
+      test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+      r->coeff[deg] = 0; // Erase to make the rest easier to check.
+      for (int l = 0 ; l <= k ; l++) {
+         test_assert(r->coeff[l] == 0);
+      }
+   }
+
+   // Last term (F polynomial).
+   F = T->term[dim0-1];
+   test_assert_critical(F != NULL);
+   test_assert(F->monodeg > k);
+   for (int i = 0 ; i < 17 ; i++) {
+      target = pow(a,i);
+      test_assert(fabs(F->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 17 ; i <= k ; i++) {
+      test_assert(F->coeff[i] == 0);
+   }
+
+   // Next 'n' rows.
+   for (int i = 1 ; i <= 9 ; i++ ) {
+      x = T->term[i*dim0];
+      test_assert_critical(x != NULL);
+      test_assert(x->monodeg == 10-i);
+      test_assert(x->coeff[10-i] == 1);
+      x->coeff[10-i] = 0;
+      for (int l = 0 ; l <= k ; l++) {
+         test_assert(x->coeff[l] == 0);
+      }
+
+      // The first and the last terms are
+      // the only ones thar are non-zero.
+      for (int l = 1 ; l < dim0-1 ; l++) {
+         test_assert(T->term[i*dim0+l] == NULL);
+      }
+
+      x = T->term[i*dim0+dim0-1];
+      test_assert(x != NULL);
+      test_assert(x->monodeg == 0);
+      test_assert(x->coeff[0] == 1);
+      for (int l = 1 ; l <= k  ; l++) {
+         test_assert(x->coeff[l] == 0);
+      }
+
+   }
+
+   // Next 'G-1' rows.
+   const int phase[] = {-1,8,7,6,5,4,3,2,1,0,9,8,7,6,5,4,3};
+   for (int i = 10 ; i <= 25 ; i++) {
+      // Polynomials U.
+      for (int j = 0 ; j <= 9 ; j++) {
+         int r = i-9;
+         int s = j;
+         U = T->term[i*dim0+j];
+         test_assert_critical(U != NULL);
+         test_assert(U->coeff[0] == 0);
+         int deg = 0;
+         for (int l = 1 ; l <= 16 - (i-10) ; l++) {
+            if ((r+s-1) % 10 == phase[l]) {
+               double target = r % 10 == 0 ?
+                  d*pow(a,l-1) : (c+d)*pow(a+b,l-1);
+               test_assert(fabs(U->coeff[l]-target) < 1e-9);
+               // Bookkeeping for 'monodeg'.
+               deg = deg ? k+1 : l;
+            }
+            else {
+               test_assert(U->coeff[l] == 0);
+            }
+         }
+         for (int l = 17 ; l <= k ; l++) {
+            test_assert(U->coeff[l] == 0);
+         }
+         test_assert(U->monodeg == deg);
+      }
+      // Matrix A(z).
+      for (int j = 10 ; j <= 25 ; j++) {
+         r = T->term[i*dim0+j];
+         if (j <= i) {
+            test_assert(r == NULL);
+            continue;
+         }
+         else {
+            test_assert_critical(r != NULL);
+            int deg = j-i < 0 ? 0 : j-i;
+            test_assert(r->monodeg == deg);
+            double target = c * pow(a,deg-1);
+            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+            r->coeff[deg] = 0.0; // Erease for convenience.
+            for (int l = 0 ; l <= k ; l++) {
+               test_assert(r->coeff[l] == 0);
+            }
+         }
+      }
+
+      // Matrix ~B(z).
+      for (int j = 26 ; j <= 41 ; j++) {
+         r = T->term[i*dim0+j];
+         if ((i-9) % 10 != 0 || j > 51-i) {
+            test_assert(r == NULL);
+            continue;
+         }
+         else {
+            test_assert_critical(r != NULL);
+            int deg = j-25;
+            test_assert(r->monodeg == deg);
+            double target = b * pow(a,deg-1);
+            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+            r->coeff[deg] = 0.0; // Erease for convenience.
+            for (int l = 0 ; l <= k ; l++) {
+               test_assert(r->coeff[l] == 0);
+            }
+         }
+      }
+
+      // Last term (F polynomial).
+      F = T->term[i*dim0+dim0-1];
+      test_assert_critical(F != NULL);
+      if (i == 25) {
+         test_assert(F->monodeg == 0);
+         test_assert(F->coeff[0] == 1);
+         for (int l = 1 ; l <= k ; l++) {
+            test_assert(F->coeff[l] == 0);
+         }
+      }
+      else {
+         test_assert(F->monodeg > k);
+         for (int l = 0 ; l <= 25-i ; l++) {
+            target = pow(a,l);
+            test_assert(fabs(F->coeff[l]-target) < 1e-9);
+         }
+         for (int l = 26-i ; l <= k ; l++) {
+            test_assert(F->coeff[l] == 0);
+         }
+      }
+
+   }
+
+
+   // Next 'G-1' rows.
+   for (int i = 26 ; i <= 41 ; i++) {
+      // Polynomials V.
+      for (int j = 0 ; j <= 9 ; j++) {
+         int r = i-25;
+         int s = j;
+         V = T->term[i*dim0+j];
+         test_assert_critical(V != NULL);
+         test_assert(V->coeff[0] == 0);
+         int deg = 0;
+         for (int l = 1 ; l <= 16 - (i-26) ; l++) {
+            if ((r+s-1) % 10 == phase[l]) {
+               double target = r % 10 == 0 ?
+                  d*pow(a,l-1) : (b+d)*pow(a+c,l-1);
+               test_assert(fabs(V->coeff[l]-target) < 1e-9);
+               // Bookkeeping for 'monodeg'.
+               deg = deg ? k+1 : l;
+            }
+            else {
+               test_assert(V->coeff[l] == 0);
+            }
+         }
+         for (int l = 17 ; l <= k ; l++) {
+            test_assert(V->coeff[l] == 0);
+         }
+         test_assert(V->monodeg == deg);
+      }
+
+      // Matrix ~C(z).
+      for (int j = 10 ; j <= 25 ; j++) {
+         r = T->term[i*dim0+j];
+         if ((i-25) % 10 != 0 || j > 51-i) {
+            test_assert(r == NULL);
+            continue;
+         }
+         else {
+            test_assert_critical(r != NULL);
+            int deg = j-9;
+            test_assert(r->monodeg == deg);
+            double target = c * pow(a,deg-1);
+            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+            r->coeff[deg] = 0.0; // Erease for convenience.
+            for (int l = 0 ; l <= k ; l++) {
+               test_assert(r->coeff[l] == 0);
+            }
+         }
+      }
+      
+      // Matrix D(z).
+      for (int j = 26 ; j <= 41 ; j++) {
+         r = T->term[i*dim0+j];
+         if (j <= i) {
+            test_assert(r == NULL);
+            continue;
+         }
+         else {
+            test_assert_critical(r != NULL);
+            int deg = j-i < 0 ? 0 : j-i;
+            test_assert(r->monodeg == deg);
+            double target = b * pow(a,deg-1);
+            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
+            r->coeff[deg] = 0.0; // Erease for convenience.
+            for (int l = 0 ; l <= k ; l++) {
+               test_assert(r->coeff[l] == 0);
+            }
+         }
+      }
+
+      // Last term (F polynomial).
+      F = T->term[i*dim0+dim0-1];
+      test_assert_critical(F != NULL);
+      if (i == 41) {
+         test_assert(F->monodeg == 0);
+         test_assert(F->coeff[0] == 1);
+         for (int l = 1 ; l <= k ; l++) {
+            test_assert(F->coeff[l] == 0);
+         }
+      }
+      else {
+         test_assert(F->monodeg > k);
+         for (int l = 0 ; l <= 41-i ; l++) {
+            target = pow(a,l);
+            test_assert(fabs(F->coeff[l]-target) < 1e-9);
+         }
+         for (int l = 42-i ; l <= k ; l++) {
+            test_assert(F->coeff[l] == 0);
+         }
+      }
+
+   }
+
+   // Last row.
+   for (int j = 0 ; j <= dim0 ; j++) {
+      test_assert(T->term[(dim0-1)*dim0+j] == NULL);
+   }
+   
+   destroy_mat(T);
+   memseedp_clean();
+
+}
+
 
 
 void
@@ -4079,6 +4397,7 @@ const test_case_t test_cases_memseedp[] = {
    {"new_matrix_L",               test_new_matrix_L},
    {"error_new_matrix_L",         test_error_new_matrix_L},
    {"new_matrix_S",               test_new_matrix_S},
+   {"new_matrix_T",               test_new_matrix_T},
    // Matrix manipulation functions.
    {"matrix_mult",                test_matrix_mult},
    {"error_matrix_mult",          test_error_matrix_mult},

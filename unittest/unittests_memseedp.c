@@ -3255,6 +3255,42 @@ test_new_matrix_S
 
 
 void
+test_error_new_matrix_S
+(void)
+{
+
+   int success = memseedp_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   matrix_t *S;
+
+   set_alloc_failure_countdown_to(0);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   S = new_matrix_S(9);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(S == NULL);
+   test_assert_stderr("[memseedp] error in function `new_n");
+
+   set_alloc_failure_countdown_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail (later).
+   S = new_matrix_S(9);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(S == NULL);
+   test_assert_stderr("[memseedp] error in function `new_z");
+
+   memseedp_clean();
+
+}
+
+
+
+void
 test_new_matrix_T
 (void)
 {
@@ -3576,6 +3612,48 @@ test_new_matrix_T
 
 }
 
+
+void
+test_error_new_matrix_T
+(void)
+{
+
+   int success = memseedp_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   matrix_t *T;
+
+   set_alloc_failure_countdown_to(0);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   T = new_matrix_T(9, 0.05);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(T == NULL);
+   test_assert_stderr("[memseedp] error in function `new_n");
+
+   set_alloc_failure_countdown_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail (later).
+   T = new_matrix_T(9, 0.05);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(T == NULL);
+   test_assert_stderr("[memseedp] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'u' is not in (0,1).
+   T = new_matrix_T(9, 1.1);
+   unredirect_stderr();
+
+   test_assert(T == NULL);
+   test_assert_stderr("[memseedp] error in function `dynam");
+
+   memseedp_clean();
+
+}
 
 
 void
@@ -4397,7 +4475,9 @@ const test_case_t test_cases_memseedp[] = {
    {"new_matrix_L",               test_new_matrix_L},
    {"error_new_matrix_L",         test_error_new_matrix_L},
    {"new_matrix_S",               test_new_matrix_S},
+   {"error_new_matrix_S",         test_error_new_matrix_S},
    {"new_matrix_T",               test_new_matrix_T},
+   {"error_new_matrix_T",         test_error_new_matrix_T},
    // Matrix manipulation functions.
    {"matrix_mult",                test_matrix_mult},
    {"error_matrix_mult",          test_error_matrix_mult},

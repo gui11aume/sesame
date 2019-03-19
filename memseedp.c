@@ -1030,6 +1030,32 @@ in_case_of_failure:
 
 
 trunc_pol_t *
+new_trunc_pol_N
+(
+   size_t m
+)
+{
+
+   if (m > K) m = K;
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   if (m > 0) new->monodeg = K+1;
+
+   for (int i = 0 ; i <= m ; i++) {
+      new->coeff[i] = 1.0;
+   }
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
 new_trunc_pol_R
 (
    const size_t j,
@@ -1129,18 +1155,18 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-new_trunc_pol_U
+new_trunc_pol_ss
 (
-   const size_t r,  // Match length.
-   const size_t s,  // Destination phase.
-   const size_t n,  // Skipping.
+   const int i,  // Match length.
+   const int j,  // Destination phase.
+   const int n,  // Skipping.
    const double u   // Divergence rate.
 )
 {
 
    // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
-   if (s > n || r > G-1 || r == 0) {
+   if (i > G-1 || j > G-1 || i < 1 || j < 1) {
       warning(internal_error, __func__, __LINE__);
       goto in_case_of_failure;
    }
@@ -1148,23 +1174,108 @@ new_trunc_pol_U
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   const int x = modulo(-(int)(r+s+1), (int)n+1);
-   const int m = (G-1-r-x) / (n+1);
+   const int x = modulo(n-i+1, n+1);
 
    // Polynomial is null in the following case.
-   if (r > G-1-x) return new;
+   if (i+x+j > G) return new;
 
-   const double apos = r % (n+1) == 0 ? (1-P) * (1-u) : 1-P;
-   const double dpos = r % (n+1) == 0 ? P * (1-u/3) : P;
+   const double a = (1-P)*(1-u);
+   const double b = (1-P)*u;
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = x+j;
+   new->coeff[x+j] = b*pow(a,x+j-1);
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+new_trunc_pol_tt
+(
+   const int i,  // Match length.
+   const int j,  // Destination phase.
+   const int n,  // Skipping.
+   const double u   // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (i > G-1 || j > G-1 || i < 1 || j < 1) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo(n-i+1, n+1);
+
+   // Polynomial is null in the following case.
+   if (i+x+j > G) return new;
+
+   const double a = (1-P)*(1-u);
+   const double c = P*u/3;
+
+   // This is a monomial when 'm' is zero.
+   new->monodeg = x+j;
+   new->coeff[x+j] = c*pow(a,x+j-1);
+
+   return new;
+
+in_case_of_failure:
+   return NULL;
+
+}
+
+
+
+trunc_pol_t *
+new_trunc_pol_U
+(
+   const int i,  // Match length.
+   const int j,  // Destination phase.
+   const int n,  // Skipping.
+   const double u   // Divergence rate.
+)
+{
+
+   // NOTE: 'u' must be in (0,1), we assume the caller checked.
+
+   if (j > n || i > G-1 || i <= 0 || j < 0) {
+      warning(internal_error, __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   trunc_pol_t *new = new_zero_trunc_pol();
+   handle_memory_error(new);
+
+   const int x = modulo(-(i+j+1), n+1);
+   const int y = modulo(n-i+1, n+1);
+   const int m = (G-1-i-x) / (n+1);
+
+   // Polynomial is null in the following case.
+   if (i+x > G-1) return new;
+
+   const double a = (1-P)*(1-u);
+   const double b = (1-P)*u;
+   const double d = P*(1-u/3); 
 
    // This is a monomial when 'm' is zero.
    new->monodeg = m == 0 ? x+1 : K+1;
 
-   double dax_times_the_rest = dpos*pow(apos,x);
-   for (int i = 0 ; i <= m ; i++) {
-      new->coeff[x+1+i*(n+1)] = dax_times_the_rest;
-      dax_times_the_rest *= pow(apos,n+1);
+   double dax_times_the_rest = d*pow(a,x);
+   for (int r = 0 ; r <= m ; r++) {
+      new->coeff[x+1+r*(n+1)] = dax_times_the_rest;
+      dax_times_the_rest *= pow(a,n+1);
    }
+
+   if (j < y) new->coeff[x+1] += b*pow(a,x);
 
    return new;
 
@@ -1177,16 +1288,16 @@ in_case_of_failure:
 trunc_pol_t *
 new_trunc_pol_V
 (
-   const size_t r,  // Source phase.
-   const size_t s,  // Destination phase.
-   const size_t n,  // Skipping.
+   const int i,  // Source phase.
+   const int j,  // Destination phase.
+   const int n,  // Skipping.
    const double u   // Divergence rate.
 )
 {
 
    // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
-   if (s > n || r > G-1 || r == 0) {
+   if (j > n || i > G-1 || i == 0 || j < 0) {
       warning(internal_error, __func__, __LINE__);
       goto in_case_of_failure;
    }
@@ -1194,23 +1305,27 @@ new_trunc_pol_V
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   const int x = modulo(-(int)(r+s+1), (int)n+1);
-   const int m = (G-1-r-x) / (n+1);
+   const int x = modulo(-(i+j+1), n+1);
+   const int y = modulo(n-i+1, n+1);
+   const int m = (G-1-i-x) / (n+1);
 
    // Polynomial is null in the following case.
-   if (r > G-1-x) return new;
+   if (i+x > G-1) return new;
 
-   const double aneg = r % (n+1) == 0 ? (1-P)*(1-u) : (1-P)*(1-u)+P*u/3;
-   const double dneg = r % (n+1) == 0 ? P*(1-u/3) : P*(1-u/3)+(1-P)*u;
+   const double a = (1-P)*(1-u);
+   const double c = P*u/3;
+   const double d = P*(1-u/3); 
 
    // This is a monomial when 'm' is zero.
    new->monodeg = m == 0 ? x+1 : K+1;
 
-   double dax_times_the_rest = dneg*pow(aneg,x);
-   for (int i = 0 ; i <= m ; i++) {
-      new->coeff[x+1+i*(n+1)] = dax_times_the_rest;
-      dax_times_the_rest *= pow(aneg,n+1);
+   double dax_times_the_rest = d*pow(a,x);
+   for (int r = 0 ; r <= m ; r++) {
+      new->coeff[x+1+r*(n+1)] = dax_times_the_rest;
+      dax_times_the_rest *= pow(a,n+1);
    }
+
+   if (j < y) new->coeff[x+1] += c*pow(a,x);
 
    return new;
 
@@ -1223,15 +1338,15 @@ in_case_of_failure:
 trunc_pol_t *
 new_trunc_pol_W
 (
-   const size_t s,  // Destination phase.
-   const size_t n,  // Skipping.
+   const int j,  // Destination phase.
+   const int n,  // Skipping.
    const double u   // Divergence rate.
 )
 {
 
    // NOTE: 'u' must be in (0,1), we assume the caller checked.
 
-   if (s > n) {
+   if (j > n) {
       warning(internal_error, __func__, __LINE__);
       goto in_case_of_failure;
    }
@@ -1239,8 +1354,12 @@ new_trunc_pol_W
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
-   const int x = modulo((int)n-(int)s, (int)n+1);
+   const int x = modulo(n-j, n+1);
    const int m = (G-1-x) / (n+1);
+
+   // The polynomial is null in this condition.
+   // XXX Make a test case for this.
+   if (m < 0) return new;
 
    // This is a monomial when 'm' is zero.
    new->monodeg = m == 0 ? x+1 : K+1;
@@ -1563,15 +1682,14 @@ new_matrix_T
       handle_memory_error(
          T->term[j*dim+0] = new_zero_trunc_pol()
       );
-      if (n+1-j <= K) {
-         T->term[j*dim+0]->coeff[n+1-j] = 1.0;
-         T->term[j*dim+0]->monodeg = n+1-j;
+      if (j <= K) {
+         T->term[j*dim+0]->coeff[j] = 1.0;
+         T->term[j*dim+0]->monodeg = j;
       }
-      // Tail term (polynomial equal to 1).
+      // Tail term (tail).
       handle_memory_error(
-         T->term[j*dim+dim-1] = new_zero_trunc_pol()
+         T->term[j*dim+dim-1] = new_trunc_pol_N(j-1)
       );
-      T->term[j*dim+dim-1]->coeff[0] = 1.0;
    }
 
    // Next 'G-1' rows.
@@ -1591,11 +1709,10 @@ new_matrix_T
       }
       // Matrix ~B(z).
       for (int i = n+G ; i <= n+2*G-2 ; i++) {
-         int index = i-n-G;
-         int out_of_phase = (j-n) % (n+1) != 0;
-         if (index > G-1-j+n || out_of_phase) continue;
+         const int from = j-n;
+         const int to = i-n-G+1;
          handle_memory_error(
-            T->term[j*dim+i] = new_trunc_pol_r_minus(index,u)
+            T->term[j*dim+i] = new_trunc_pol_ss(from,to,n,u)
          );
       }
       // Tail term (F polynomial).
@@ -1613,11 +1730,10 @@ new_matrix_T
       }
       // Matrix ~C(z).
       for (int i = n+1 ; i <= n+G-1 ; i++) {
-         int index = i-n-1;
-         int out_of_phase = (j+1-n-G) % (n+1) != 0;
-         if (index > 2*G+n-2-j || out_of_phase) continue;
+         const int from = j-n-G+1;
+         const int to = i-n;
          handle_memory_error(
-            T->term[j*dim+i] = new_trunc_pol_r_plus(index,u)
+            T->term[j*dim+i] = new_trunc_pol_tt(from,to,n,u)
          );
       }
       // Matrix D(z).
@@ -2012,7 +2128,7 @@ wgf_dual
    const double c = (1-P) * u;
    const double d = P * (1-u/3.0);
    const double prob = b > c ? (b > d ? b : d) : (c > d ? c : d);
-   for (int n = 2 ; n < K ; n += 2) {
+   for (int n = 2 ; n <= K+1 ; n += 2) {
       // Increase the number of segments and update
       // the weighted generating function accordingly.
       matrix_mult(powL2, L, powL1);
@@ -2092,7 +2208,7 @@ wgf_skip
    // probabibility that a read contains more than m segments with
    // the Binomial distribution.
    // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
-   for (int s = 2 ; s < K ; s += 2) {
+   for (int s = 2 ; s <= K+1 ; s += 2) {
       // Increase the number of segments and update
       // the weighted generating function accordingly.
       matrix_mult(powS2, S, powS1);
@@ -2121,6 +2237,99 @@ in_case_of_failure:
    destroy_mat(powS2);
    destroy_mat(S);
    free(S);
+   return NULL;
+
+}
+
+
+trunc_pol_t *
+wgf_skip_dual
+(
+   const size_t n,    // Skipping.
+   const double u     // Divergence rate.
+)
+// SYNOPSIS:
+//   Compute the probabilities that reads contain neither an on-target
+//   skip-n gamma seed nor an off-target skip-n gamma seed for the
+//   specified static and dynamic parameters, where there is N = 1
+//   duplicate of the target.
+//
+// RETURN:
+//   A pointer to a struct of type 'trunc_pol_t' containing the
+//   probabilitie of interest, or NULL in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized or if 'malloc()'
+//   fails. Initialization is checked indirectly through the call to
+//   'new_zero_trunc_pol()'.
+{
+
+   // Assume parameters were checked by the caller.  See note 4.6.1.
+   // about checking dynamic parameters if this code is reused.
+   // -- BEGIN BLOCK -- //
+   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
+   // we pass 'K' as a first parameter, which cannot trigger an error.
+   //if (!dynamic_params_OK(K,u,N)) {
+   //   goto in_case_of_failure;
+   //}
+   // -- END BLOCK -- //
+
+   // The logic of this function is the same as 'wgf_mem()'.
+   // See the comments there for more detail on what is going on.
+   trunc_pol_t *w = new_zero_trunc_pol();
+   matrix_t *T = new_matrix_T(n,u);
+
+   matrix_t *powT1 = new_zero_matrix(n+2*G);
+   matrix_t *powT2 = new_zero_matrix(n+2*G);
+
+   handle_memory_error(w);
+   handle_memory_error(T);
+   handle_memory_error(powT1);
+   handle_memory_error(powT2);
+
+   // Update weighted generating function with
+   // one-segment reads (i.e. tail only).
+   trunc_pol_update_add(w, T->term[n+2*G-1]);
+
+   matrix_mult(powT1, T, T);
+
+   // Update weighted generating function with two-segment reads.
+   trunc_pol_update_add(w, powT1->term[n+2*G-1]);
+
+   // https://en.wikipedia.org/wiki/Binomial_distribution#Tail_Bounds
+   const double b = P * u/3.0;
+   const double c = (1-P) * u;
+   const double d = P * (1-u/3.0);
+   const double prob = b > c ? (b > d ? b : d) : (c > d ? c : d);
+   for (int s = 2 ; s <= K+1 ; s += 2) {
+      // Increase the number of segments and update
+      // the weighted generating function accordingly.
+      matrix_mult(powT2, T, powT1);
+      trunc_pol_update_add(w, powT2->term[n+2*G-1]);
+      matrix_mult(powT1, T, powT2);
+      trunc_pol_update_add(w, powT1->term[n+2*G-1]);
+      // In max precision mode, get all possible digits.
+      if (MAX_PRECISION)
+         continue;
+      // Otherwise, stop when reaching 1% precision.
+      double x = floor(s/2) / ((double) K);
+      double bound_on_imprecision = exp(-HH(x, prob)*K);
+      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+   }
+
+   // Clean temporary variables.
+   destroy_mat(powT1);
+   destroy_mat(powT2);
+   destroy_mat(T);
+
+   return w;
+
+in_case_of_failure:
+   // Clean everything.
+   destroy_mat(powT1);
+   destroy_mat(powT2);
+   destroy_mat(T);
+   free(w);
    return NULL;
 
 }
@@ -2411,8 +2620,8 @@ in_case_of_failure:
 trunc_pol_t *
 compute_skipseedp_mcmc
 (
-   const double u,   // Divergence rate.
-   const size_t n    // Skipping.
+   const size_t n,   // Skipping.
+   const double u    // Divergence rate.
 )
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain a skip-n

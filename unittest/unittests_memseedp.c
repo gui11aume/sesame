@@ -1862,6 +1862,408 @@ test_error_new_trunc_pol_r
 
 
 void
+test_new_trunc_pol_ss
+(void)
+{
+
+   const size_t k = 50;
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   const double a = .99 * .95;
+   const double b = .99 * .05;
+
+   double target;
+   trunc_pol_t *ss;
+
+   // Test the case that 'n' is larger than 'G-1'.
+   ss = new_trunc_pol_ss(1, 1, 17, 0.05);
+   test_assert(ss->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+
+   // Test the validity of skip-0.
+   ss = new_trunc_pol_ss(1, 1, 0, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 1);
+   test_assert(ss->coeff[0] == 0);
+   target = b;
+   test_assert(fabs(ss->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(1, 2, 0, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 2);
+   test_assert(ss->coeff[0] == 0);
+   test_assert(ss->coeff[1] == 0);
+   target = a*b;
+   test_assert(fabs(ss->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+
+   // test skip-1.
+   ss = new_trunc_pol_ss(1, 1, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 2);
+   test_assert(ss->coeff[0] == 0);
+   test_assert(ss->coeff[1] == 0);
+   target = a*b;
+   test_assert(fabs(ss->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(1, 2, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 3);
+   test_assert(ss->coeff[0] == 0);
+   test_assert(ss->coeff[1] == 0);
+   test_assert(ss->coeff[2] == 0);
+   target = a*a*b;
+   test_assert(fabs(ss->coeff[3]-target) < 1e-9);
+   for (int i = 4 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(16, 1, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 1);
+   test_assert(ss->coeff[0] == 0);
+   target = b;
+   test_assert(fabs(ss->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(16, 2, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(1, 15, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 16);
+   target = b*pow(a,15);
+   test_assert(fabs(ss->coeff[16]-target) < 1e-9);
+   ss->coeff[16] = 0.0;
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+   ss = new_trunc_pol_ss(1, 16, 1, 0.05);
+   test_assert_critical(ss != NULL);
+
+   test_assert(ss->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(ss->coeff[i] == 0);
+   }
+
+   free(ss);
+   ss = NULL;
+
+}
+
+
+void
+test_error_new_trunc_pol_ss
+(void)
+{
+
+   int success = memseedp_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   trunc_pol_t *ss;
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   ss = new_trunc_pol_ss(1, 1, 1, 0.05);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(ss == NULL);
+   test_assert_stderr("[memseedp] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'i' is greater than 'G-1'.
+   ss = new_trunc_pol_ss(17, 1, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(ss == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than 'n'.
+   ss = new_trunc_pol_ss(1, 17, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(ss == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+
+   redirect_stderr();
+   // The error is that 'i' is less than 1
+   ss = new_trunc_pol_ss(0, 1, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(ss == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+
+   redirect_stderr();
+   // The error is that 'j' is less than 1.
+   ss = new_trunc_pol_ss(1, 0, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(ss == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+
+
+   memseedp_clean();
+
+}
+
+
+void
+test_new_trunc_pol_tt
+(void)
+{
+
+   const size_t k = 50;
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   const double a = .99 * .95;
+   const double c = .01 * .05/3;
+
+   double target;
+   trunc_pol_t *tt;
+
+   // Test the case that 'n' is larger than 'G-1'.
+   tt = new_trunc_pol_tt(1, 1, 17, 0.05);
+   test_assert(tt->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+
+   // Test the validity of skip-0.
+   tt = new_trunc_pol_tt(1, 1, 0, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 1);
+   test_assert(tt->coeff[0] == 0);
+   target = c;
+   test_assert(fabs(tt->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(1, 2, 0, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 2);
+   test_assert(tt->coeff[0] == 0);
+   test_assert(tt->coeff[1] == 0);
+   target = a*c;
+   test_assert(fabs(tt->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+
+   // test skip-1.
+   tt = new_trunc_pol_tt(1, 1, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 2);
+   test_assert(tt->coeff[0] == 0);
+   test_assert(tt->coeff[1] == 0);
+   target = a*c;
+   test_assert(fabs(tt->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(1, 2, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 3);
+   test_assert(tt->coeff[0] == 0);
+   test_assert(tt->coeff[1] == 0);
+   test_assert(tt->coeff[2] == 0);
+   target = a*a*c;
+   test_assert(fabs(tt->coeff[3]-target) < 1e-9);
+   for (int i = 4 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(16, 1, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 1);
+   test_assert(tt->coeff[0] == 0);
+   target = c;
+   test_assert(fabs(tt->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(16, 2, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(1, 15, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 16);
+   target = c*pow(a,15);
+   test_assert(fabs(tt->coeff[16]-target) < 1e-9);
+   tt->coeff[16] = 0.0;
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+   tt = new_trunc_pol_tt(1, 16, 1, 0.05);
+   test_assert_critical(tt != NULL);
+
+   test_assert(tt->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(tt->coeff[i] == 0);
+   }
+
+   free(tt);
+   tt = NULL;
+
+}
+
+
+void
+test_error_new_trunc_pol_tt
+(void)
+{
+
+   int success = memseedp_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   trunc_pol_t *tt;
+
+   set_alloc_failure_rate_to(1);
+   redirect_stderr();
+   // The error is that 'malloc()' will fail.
+   tt = new_trunc_pol_tt(1, 1, 1, 0.05);
+   unredirect_stderr();
+   reset_alloc();
+
+   test_assert(tt == NULL);
+   test_assert_stderr("[memseedp] error in function `new_z");
+
+   redirect_stderr();
+   // The error is that 'i' is greater than 'G-1'.
+   tt = new_trunc_pol_tt(17, 1, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(tt == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+
+   redirect_stderr();
+   // The error is that 'j' is greater than 'n'.
+   tt = new_trunc_pol_tt(1, 17, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(tt == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+
+   redirect_stderr();
+   // The error is that 'i' is less than 1
+   tt = new_trunc_pol_tt(0, 1, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(tt == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+
+   redirect_stderr();
+   // The error is that 'j' is less than 1.
+   tt = new_trunc_pol_tt(1, 0, 1, 0.05);
+   unredirect_stderr();
+
+   test_assert(tt == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+
+
+   memseedp_clean();
+
+}
+
+
+void
 test_new_trunc_pol_U
 (void)
 {
@@ -1873,10 +2275,21 @@ test_new_trunc_pol_U
 
    const double a = .99 * .95;
    const double b = .99 * .05;
-   const double c = .01 * .05/3;
    const double d = .01 * (1-.05/3);
 
+   double target;
    trunc_pol_t *U;
+
+   // Test the case that 'n' is larger than 'G-1'.
+   U = new_trunc_pol_U(1, 0, 17, 0.05);
+   test_assert(U->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(U->coeff[i] == 0);
+   }
+
+   free(U);
+   U = NULL;
+
 
    // Test the validity of skip-0.
    U = new_trunc_pol_U(1, 0, 0, 0.05);
@@ -1885,10 +2298,39 @@ test_new_trunc_pol_U
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
    for (int i = 1 ; i <= 16 ; i++) {
-      double target = d * pow(a, i-1);
+      target = d * pow(a, i-1);
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
+      test_assert(U->coeff[i] == 0);
+   }
+
+   free(U);
+   U = NULL;
+
+   U = new_trunc_pol_U(10, 0, 0, 0.05);
+   test_assert_critical(U != NULL);
+
+   test_assert(U->monodeg > k);
+   test_assert(U->coeff[0] == 0);
+   for (int i = 1 ; i <= 7 ; i++) {
+      target = d * pow(a, i-1);
+      test_assert(fabs(U->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 8 ; i <= k ; i++) {
+      test_assert(U->coeff[i] == 0);
+   }
+
+   free(U);
+   U = NULL;
+
+   U = new_trunc_pol_U(16, 0, 0, 0.05);
+   test_assert_critical(U != NULL);
+
+   test_assert(U->monodeg == 1);
+   test_assert(U->coeff[0] == 0);
+   test_assert(fabs(U->coeff[1]-d) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
       test_assert(U->coeff[i] == 0);
    }
 
@@ -1902,8 +2344,10 @@ test_new_trunc_pol_U
 
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 2 == 1 ? (c+d) * pow(a+b, i-1) : 0.0;
+   target = b+d;
+   test_assert(fabs(U->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= 16 ; i++) {
+      target = i % 2 == 1 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -1919,8 +2363,9 @@ test_new_trunc_pol_U
 
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 2 == 0 ? (c+d) * pow(a+b, i-1) : 0.0;
+   test_assert(U->coeff[1] == 0);
+   for (int i = 2 ; i <= 16 ; i++) {
+      double target = i % 2 == 0 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -1971,8 +2416,11 @@ test_new_trunc_pol_U
 
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 2 ? (c+d) * pow(a+b, i-1) : 0.0;
+   test_assert(U->coeff[1] == 0);
+   target = (b+d) * a;
+   test_assert(fabs(U->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= 16 ; i++) {
+      target = i % 3 == 2 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -1988,8 +2436,10 @@ test_new_trunc_pol_U
 
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 1 ? (c+d) * pow(a+b, i-1) : 0.0;
+   target = b+d;
+   test_assert(fabs(U->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= 16 ; i++) {
+      double target = i % 3 == 1 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2006,7 +2456,7 @@ test_new_trunc_pol_U
    test_assert(U->monodeg > k);
    test_assert(U->coeff[0] == 0);
    for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 0 ? (c+d) * pow(a+b, i-1) : 0.0;
+      double target = i % 3 == 0 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(U->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2094,7 +2544,7 @@ test_error_new_trunc_pol_U
    test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
-   // The error is that 'r' is 0.
+   // The error is that 'i' is 0.
    U = new_trunc_pol_U(0, 0, 10, 0.05);
    unredirect_stderr();
 
@@ -2102,7 +2552,7 @@ test_error_new_trunc_pol_U
    test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
 
    redirect_stderr();
-   // The error is that 's' is greater than 'n'.
+   // The error is that 'j' is greater than 'n'.
    U = new_trunc_pol_U(1, 11, 10, 0.05);
    unredirect_stderr();
 
@@ -2110,8 +2560,16 @@ test_error_new_trunc_pol_U
    test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
 
    redirect_stderr();
-   // The error is that 'r' is greater than 'G-1'.
+   // The error is that 'i' is greater than 'G-1'.
    U = new_trunc_pol_U(17, 0, 10, 0.05);
+   unredirect_stderr();
+
+   test_assert(U == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
+
+   redirect_stderr();
+   // The error is that 'j' is negative.
+   U = new_trunc_pol_U(17, 0, -1, 0.05);
    unredirect_stderr();
 
    test_assert(U == NULL);
@@ -2134,11 +2592,22 @@ test_new_trunc_pol_V
    test_assert_critical(success);
 
    const double a = .99 * .95;
-   const double b = .99 * .05;
    const double c = .01 * .05/3;
    const double d = .01 * (1-.05/3);
 
+   double target;
    trunc_pol_t *V;
+
+   // Test the case that 'n' is larger than 'G-1'.
+   V = new_trunc_pol_V(1, 0, 17, 0.05);
+   test_assert(V->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(V->coeff[i] == 0);
+   }
+
+   free(V);
+   V = NULL;
+
 
    // Test the validity of skip-0.
    V = new_trunc_pol_V(1, 0, 0, 0.05);
@@ -2147,10 +2616,39 @@ test_new_trunc_pol_V
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
    for (int i = 1 ; i <= 16 ; i++) {
-      double target = d * pow(a, i-1);
+      target = d * pow(a, i-1);
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
+      test_assert(V->coeff[i] == 0);
+   }
+
+   free(V);
+   V = NULL;
+
+   V = new_trunc_pol_V(10, 0, 0, 0.05);
+   test_assert_critical(V != NULL);
+
+   test_assert(V->monodeg > k);
+   test_assert(V->coeff[0] == 0);
+   for (int i = 1 ; i <= 7 ; i++) {
+      target = d * pow(a, i-1);
+      test_assert(fabs(V->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 8 ; i <= k ; i++) {
+      test_assert(V->coeff[i] == 0);
+   }
+
+   free(V);
+   V = NULL;
+
+   V = new_trunc_pol_V(16, 0, 0, 0.05);
+   test_assert_critical(V != NULL);
+
+   test_assert(V->monodeg == 1);
+   test_assert(V->coeff[0] == 0);
+   test_assert(fabs(V->coeff[1]-d) < 1e-9);
+   for (int i = 2 ; i <= k ; i++) {
       test_assert(V->coeff[i] == 0);
    }
 
@@ -2164,8 +2662,10 @@ test_new_trunc_pol_V
 
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 2 == 1 ? (b+d) * pow(a+c, i-1) : 0.0;
+   target = c+d;
+   test_assert(fabs(V->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= 16 ; i++) {
+      target = i % 2 == 1 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2183,7 +2683,7 @@ test_new_trunc_pol_V
    test_assert(V->coeff[0] == 0);
    test_assert(V->coeff[1] == 0);
    for (int i = 2 ; i <= 16 ; i++) {
-      double target = i % 2 == 0 ? (b+d) * pow(a+c, i-1) : 0.0;
+      double target = i % 2 == 0 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2199,8 +2699,7 @@ test_new_trunc_pol_V
 
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
-   test_assert(V->coeff[1] == 0);
-   for (int i = 2 ; i <= 15 ; i++) {
+   for (int i = 1 ; i <= 15 ; i++) {
       double target = i % 2 == 0 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
@@ -2235,8 +2734,11 @@ test_new_trunc_pol_V
 
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 2 ? (b+d) * pow(a+c, i-1) : 0.0;
+   test_assert(V->coeff[1] == 0);
+   target = (c+d) * a;
+   test_assert(fabs(V->coeff[2]-target) < 1e-9);
+   for (int i = 3 ; i <= 16 ; i++) {
+      target = i % 3 == 2 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2252,8 +2754,10 @@ test_new_trunc_pol_V
 
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
-   for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 1 ? (b+d) * pow(a+c, i-1) : 0.0;
+   target = c+d;
+   test_assert(fabs(V->coeff[1]-target) < 1e-9);
+   for (int i = 2 ; i <= 16 ; i++) {
+      double target = i % 3 == 1 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2270,7 +2774,7 @@ test_new_trunc_pol_V
    test_assert(V->monodeg > k);
    test_assert(V->coeff[0] == 0);
    for (int i = 1 ; i <= 16 ; i++) {
-      double target = i % 3 == 0 ? (b+d) * pow(a+c, i-1) : 0.0;
+      double target = i % 3 == 0 ? d * pow(a, i-1) : 0.0;
       test_assert(fabs(V->coeff[i]-target) < 1e-9);
    }
    for (int i = 17 ; i <= k ; i++) {
@@ -2358,7 +2862,7 @@ test_error_new_trunc_pol_V
    test_assert_stderr("[memseedp] error in function `new_z");
 
    redirect_stderr();
-   // The error is that 'r' is 0.
+   // The error is that 'i' is 0.
    V = new_trunc_pol_V(0, 0, 10, 0.05);
    unredirect_stderr();
 
@@ -2366,7 +2870,7 @@ test_error_new_trunc_pol_V
    test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
 
    redirect_stderr();
-   // The error is that 's' is greater than 'n'.
+   // The error is that 'j' is greater than 'n'.
    V = new_trunc_pol_V(1, 11, 10, 0.05);
    unredirect_stderr();
 
@@ -2374,8 +2878,16 @@ test_error_new_trunc_pol_V
    test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
 
    redirect_stderr();
-   // The error is that 'r' is greater than 'G-1'.
+   // The error is that 'i' is greater than 'G-1'.
    V = new_trunc_pol_V(17, 0, 10, 0.05);
+   unredirect_stderr();
+
+   test_assert(V == NULL);
+   test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
+
+   redirect_stderr();
+   // The error is that 'j' is negative.
+   V = new_trunc_pol_V(17, 0, -1, 0.05);
    unredirect_stderr();
 
    test_assert(V == NULL);
@@ -2401,6 +2913,17 @@ test_new_trunc_pol_W
    const double d = .01 * (1-.05/3);
 
    trunc_pol_t *W;
+
+   // Test the case that 'n' is larger than 'G-1'.
+   W = new_trunc_pol_W(0, 17, 0.05);
+   test_assert(W->monodeg == 0);
+   for (int i = 0 ; i <= k ; i++) {
+      test_assert(W->coeff[i] == 0);
+   }
+
+   free(W);
+   W = NULL;
+
 
    // Test the validity of skip-0.
    W = new_trunc_pol_W(0, 0, 0.05);
@@ -3216,7 +3739,7 @@ test_new_matrix_S
          int m = (16+j-x) / 10;
          for (int c = 0 ; c <= m ; c++) {
             double target = p*pow(q,x+c*10);
-            test_assert((H->coeff[x+1+c*10]-target) < 1e-9);
+            test_assert(fabs(H->coeff[x+1+c*10]-target) < 1e-9);
             // Beware that the coefficient is set to zero
             // after testing so that we can easily check
             // that all the other coefficients are equal to
@@ -3309,6 +3832,8 @@ test_new_matrix_T
    trunc_pol_t *x;
    trunc_pol_t *F;
    trunc_pol_t *r;
+   trunc_pol_t *ss;
+   trunc_pol_t *tt;
    trunc_pol_t *U;
    trunc_pol_t *V;
    trunc_pol_t *W;
@@ -3320,6 +3845,26 @@ test_new_matrix_T
 
    const int dim0 = 43; // 9+2x17
    test_assert(T->dim == dim0);
+
+   int degrees[17][17] = {
+      {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+      {-1,10,11,12,13,14,15,16,0,0,0,0,0,0,0,0,0},
+      {-1,9,10,11,12,13,14,15,0,0,0,0,0,0,0,0,0},
+      {-1,8,9,10,11,12,13,14,0,0,0,0,0,0,0,0,0},
+      {-1,7,8,9,10,11,12,13,0,0,0,0,0,0,0,0,0},
+      {-1,6,7,8,9,10,11,12,0,0,0,0,0,0,0,0,0},
+      {-1,5,6,7,8,9,10,11,0,0,0,0,0,0,0,0,0},
+      {-1,4,5,6,7,8,9,10,0,0,0,0,0,0,0,0,0},
+      {-1,3,4,5,6,7,8,9,0,0,0,0,0,0,0,0,0},
+      {-1,2,3,4,5,6,7,8,0,0,0,0,0,0,0,0,0},
+      {-1,1,2,3,4,5,6,7,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+      {-1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+   };
 
    // -- First row -- //
 
@@ -3396,9 +3941,9 @@ test_new_matrix_T
    for (int i = 1 ; i <= 9 ; i++ ) {
       x = T->term[i*dim0];
       test_assert_critical(x != NULL);
-      test_assert(x->monodeg == 10-i);
-      test_assert(x->coeff[10-i] == 1);
-      x->coeff[10-i] = 0;
+      test_assert(x->monodeg == i);
+      test_assert(x->coeff[i] == 1);
+      x->coeff[i] = 0;
       for (int l = 0 ; l <= k ; l++) {
          test_assert(x->coeff[l] == 0);
       }
@@ -3411,42 +3956,59 @@ test_new_matrix_T
 
       x = T->term[i*dim0+dim0-1];
       test_assert(x != NULL);
-      test_assert(x->monodeg == 0);
-      test_assert(x->coeff[0] == 1);
-      for (int l = 1 ; l <= k  ; l++) {
+      test_assert(x->monodeg == (i == 1 ? 0 : k+1));
+      for (int l = 0 ; l <= i-1  ; l++) {
+         test_assert(fabs(x->coeff[l]-1) < 1e-9);
+      }
+      for (int l = i ; l <= k ; l++) {
          test_assert(x->coeff[l] == 0);
       }
 
    }
 
    // Next 'G-1' rows.
-   const int phase[] = {-1,8,7,6,5,4,3,2,1,0,9,8,7,6,5,4,3};
    for (int i = 10 ; i <= 25 ; i++) {
       // Polynomials U.
       for (int j = 0 ; j <= 9 ; j++) {
-         int r = i-9;
-         int s = j;
+         int from = i-9;
+         int to = j;
          U = T->term[i*dim0+j];
          test_assert_critical(U != NULL);
+         int dist = modulo(-from-to,10); if (dist == 0) dist = 10;
+         int deg = dist;
+              if ( dist > 17-from ) deg = 0;
+         else if ( dist >  7-from ) deg = dist;
+         else                       deg = 51;
+         test_assert(U->monodeg == deg);
          test_assert(U->coeff[0] == 0);
-         int deg = 0;
-         for (int l = 1 ; l <= 16 - (i-10) ; l++) {
-            if ((r+s-1) % 10 == phase[l]) {
-               double target = r % 10 == 0 ?
-                  d*pow(a,l-1) : (c+d)*pow(a+b,l-1);
-               test_assert(fabs(U->coeff[l]-target) < 1e-9);
-               // Bookkeeping for 'monodeg'.
-               deg = deg ? k+1 : l;
-            }
-            else {
+         if (deg == 0) {
+            for (int l = 1 ; l <= k ; l++) {
                test_assert(U->coeff[l] == 0);
+            }
+         }
+         else {
+            for (int l = 1 ; l <= 16 - (i-10) ; l++) {
+               if (l == dist) {
+                  int meets_phase_zero_first = to < modulo(-from,10);
+                  if (meets_phase_zero_first)
+                     target = (b+d)*pow(a,l-1);
+                  else
+                     target = d*pow(a,l-1);
+               }
+               else if (l % 10 == dist && deg == 51) {
+                  target = d*pow(a,l-1);
+               }
+               else {
+                  target = 0.0;
+               }
+               test_assert(U->coeff[l]-target < 1e-9);
             }
          }
          for (int l = 17 ; l <= k ; l++) {
             test_assert(U->coeff[l] == 0);
          }
-         test_assert(U->monodeg == deg);
       }
+
       // Matrix A(z).
       for (int j = 10 ; j <= 25 ; j++) {
          r = T->term[i*dim0+j];
@@ -3460,30 +4022,24 @@ test_new_matrix_T
             test_assert(r->monodeg == deg);
             double target = c * pow(a,deg-1);
             test_assert(fabs(r->coeff[deg]-target) < 1e-9);
-            r->coeff[deg] = 0.0; // Erease for convenience.
+            r->coeff[deg] = 0.0; // Erase for convenience.
             for (int l = 0 ; l <= k ; l++) {
                test_assert(r->coeff[l] == 0);
             }
          }
       }
-
       // Matrix ~B(z).
       for (int j = 26 ; j <= 41 ; j++) {
-         r = T->term[i*dim0+j];
-         if ((i-9) % 10 != 0 || j > 51-i) {
-            test_assert(r == NULL);
-            continue;
-         }
-         else {
-            test_assert_critical(r != NULL);
-            int deg = j-25;
-            test_assert(r->monodeg == deg);
-            double target = b * pow(a,deg-1);
-            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
-            r->coeff[deg] = 0.0; // Erease for convenience.
-            for (int l = 0 ; l <= k ; l++) {
-               test_assert(r->coeff[l] == 0);
-            }
+         ss = T->term[i*dim0+j];
+         test_assert_critical(ss != NULL);
+         int from = i-9;
+         int to = j-25;
+         int deg = degrees[from][to];
+         test_assert(ss->monodeg == deg);
+         target = deg == 0 ? 0.0 : b*pow(a,deg-1);
+         ss->coeff[deg] = 0.0;
+         for (int l = 0 ; l <= k ; l++) {
+            test_assert(ss->coeff[l] == 0);
          }
       }
 
@@ -3515,47 +4071,57 @@ test_new_matrix_T
    for (int i = 26 ; i <= 41 ; i++) {
       // Polynomials V.
       for (int j = 0 ; j <= 9 ; j++) {
-         int r = i-25;
-         int s = j;
+         int from = i-25;
+         int to = j;
          V = T->term[i*dim0+j];
          test_assert_critical(V != NULL);
+         int dist = modulo(-from-to,10); if (dist == 0) dist = 10;
+         int deg = dist;
+              if ( dist > 17-from ) deg = 0;
+         else if ( dist >  7-from ) deg = dist;
+         else                       deg = 51;
+         test_assert(V->monodeg == deg);
          test_assert(V->coeff[0] == 0);
-         int deg = 0;
-         for (int l = 1 ; l <= 16 - (i-26) ; l++) {
-            if ((r+s-1) % 10 == phase[l]) {
-               double target = r % 10 == 0 ?
-                  d*pow(a,l-1) : (b+d)*pow(a+c,l-1);
-               test_assert(fabs(V->coeff[l]-target) < 1e-9);
-               // Bookkeeping for 'monodeg'.
-               deg = deg ? k+1 : l;
-            }
-            else {
+         if (deg == 0) {
+            for (int l = 1 ; l <= k ; l++) {
                test_assert(V->coeff[l] == 0);
+            }
+         }
+         else {
+            for (int l = 1 ; l <= 16 - (i-10) ; l++) {
+               if (l == dist) {
+                  int meets_phase_zero_first = to < modulo(-from,10);
+                  if (meets_phase_zero_first)
+                     target = (c+d)*pow(a,l-1);
+                  else
+                     target = d*pow(a,l-1);
+               }
+               else if (l % 10 == dist && deg == 51) {
+                  target = d*pow(a,l-1);
+               }
+               else {
+                  target = 0.0;
+               }
+               test_assert(V->coeff[l]-target < 1e-9);
             }
          }
          for (int l = 17 ; l <= k ; l++) {
             test_assert(V->coeff[l] == 0);
          }
-         test_assert(V->monodeg == deg);
       }
 
       // Matrix ~C(z).
       for (int j = 10 ; j <= 25 ; j++) {
-         r = T->term[i*dim0+j];
-         if ((i-25) % 10 != 0 || j > 51-i) {
-            test_assert(r == NULL);
-            continue;
-         }
-         else {
-            test_assert_critical(r != NULL);
-            int deg = j-9;
-            test_assert(r->monodeg == deg);
-            double target = c * pow(a,deg-1);
-            test_assert(fabs(r->coeff[deg]-target) < 1e-9);
-            r->coeff[deg] = 0.0; // Erease for convenience.
-            for (int l = 0 ; l <= k ; l++) {
-               test_assert(r->coeff[l] == 0);
-            }
+         tt = T->term[i*dim0+j];
+         test_assert_critical(tt != NULL);
+         int from = i-25;
+         int to = j-9;
+         int deg = degrees[from][to];
+         test_assert(tt->monodeg == deg);
+         target = deg == 0 ? 0.0 : c*pow(a,deg-1);
+         tt->coeff[deg] = 0.0;
+         for (int l = 0 ; l <= k ; l++) {
+            test_assert(tt->coeff[l] == 0);
          }
       }
       
@@ -3572,7 +4138,7 @@ test_new_matrix_T
             test_assert(r->monodeg == deg);
             double target = b * pow(a,deg-1);
             test_assert(fabs(r->coeff[deg]-target) < 1e-9);
-            r->coeff[deg] = 0.0; // Erease for convenience.
+            r->coeff[deg] = 0.0; // Erase for convenience.
             for (int l = 0 ; l <= k ; l++) {
                test_assert(r->coeff[l] == 0);
             }
@@ -4358,7 +4924,7 @@ test_memseedp_mcmc
 
 }
 
-
+/*
 void
 test_skipseedp_mcmc
 (void)
@@ -4367,11 +4933,23 @@ test_skipseedp_mcmc
    const size_t k = 18;
 
    trunc_pol_t *mc = NULL;
+   trunc_pol_t *w = NULL;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = memseedp_set_static_params(3, 5, 0.05);
    test_assert_critical(success);
 
-   mc = compute_skipseedp_mcmc(.05,0);
+   w = wgf_skip_dual(1,.5);
+   test_assert_critical(w != NULL);
+
+   for (int i = 0 ; i <= 5 ; i++) {
+      fprintf(stderr, "%f\n", w->coeff[i]);
+   }
+
+   
+   success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   mc = compute_skipseedp_mcmc(0,.05);
    test_assert_critical(mc != NULL);
 
    test_assert(mc->monodeg > k);
@@ -4418,6 +4996,91 @@ test_skipseedp_mcmc
    memseedp_clean();
 
 }
+*/
+
+void
+test_wgf_skip_dual
+(void)
+{
+
+   trunc_pol_t *w = NULL;
+   trunc_pol_t *mc = NULL;
+
+   memseedp_set_max_prcsn();
+
+   // Accuracy test based on exact computations.
+   test_assert_critical(memseedp_set_static_params(3, 5, 0.05));
+
+   w = wgf_skip_dual(1,.5);
+   test_assert_critical(w != NULL);
+
+   // The R code below computes the probability that a read of
+   // size 5 with the parameters specified above has no dual seed.
+   // p = .05; q = 1-p;
+   // u = .5
+   // 
+   // C1 = sum(dbinom(size=2, 1:2, prob=p)*(1-u)^(1:0)*(u/3)^(1:2))
+   // C2 = sum(dbinom(size=2, 0:2, prob=p)*(1-u)^(2:0)*(u/3)^(0:2))
+   // 
+   // # Probability of YES seed.
+   // YYN = q^2*p * u/3 * (  (1-u)^2  + C2 -  (1-u)^2*C2  )
+   // YNN = q*p^2 * u/3 * ( u/3*(1-u) + C2 - u/3*(1-u)*C2 )
+   // NYN = q*p^2 * u/3 * ( u/3*(1-u) + C2 - u/3*(1-u)*C2 )
+   // NNN = p^3   * u/3 * (  (u/3)^2  + C2 -  (u/3)^2*C2  )
+   // 
+   // # Probability of YES seed.
+   // YYY = q^3 
+   // YNY = q^2*p * ((1-u) * (1-(1-u/3*(1-u)) * (1-q^2-C1)) + u*q^2)
+   // NYY = q^2*p * ((1-u) * (1-(1-u/3*(1-u)) * (1-q^2-C1)) + u*q^2)
+   // NNY = q*p^2 * ((1-u) * (1-(1- (u/3)^2 ) * (1-q^2-C1)) + u*q^2)
+   //  
+   // tot = YYY + YYN + YNY + YNN + NYY + NYN + NNY + NNN 
+   // print(1-tot)
+   // # 0.05488278456950879125031
+
+   test_assert(fabs(w->coeff[0]-1.0) < 1e-9);
+   test_assert(fabs(w->coeff[1]-1.0) < 1e-9);
+   test_assert(fabs(w->coeff[2]-1.0) < 1e-9);
+   test_assert(fabs(w->coeff[3]-0.13688483796) < 1e-9);
+   test_assert(fabs(w->coeff[4]-0.13688483796) < 1e-9);
+   test_assert(fabs(w->coeff[5]-0.05488278457) < 1e-9);
+
+   free(w);
+   w = NULL;
+
+
+   // Accuracy test based on comparison with random sampling.
+   const size_t k = 50;
+
+   int success = memseedp_set_static_params(17, k, 0.01);
+   test_assert_critical(success);
+
+   w = wgf_skip_dual(9, .05);
+   test_assert_critical(w != NULL);
+
+   mc = compute_skipseedp_mcmc(9, .05);
+   test_assert_critical(mc != NULL);
+
+   test_assert(mc->monodeg > 50);
+   // First values are equal to 1.
+   for (int i = 0 ; i < 17 ; i++) {
+      test_assert(fabs(w->coeff[i]-1) < 1e-9);
+   }
+
+   // Check that the MCMC is within 2.2 standard deviations of
+   // the exact value (note that the Gaussian approximation becomes bad
+   // at the tail of the binomial distribution).
+   for (int i = 17 ; i <= k ; i++) {
+      double SD = sqrt(w->coeff[i]*(1-w->coeff[i]) / MCMC_RESAMPLINGS);
+      test_assert(fabs(mc->coeff[i] - w->coeff[i]) < 2.2 * SD);
+   }
+
+   free(w);
+   free(mc);
+
+   memseedp_clean();
+
+}
 
 
 // Test cases for export.
@@ -4458,6 +5121,10 @@ const test_case_t test_cases_memseedp[] = {
    {"error_new_trunc_pol_R",      test_error_new_trunc_pol_R},
    {"new_trunc_pol_r",            test_new_trunc_pol_r},
    {"error_new_trunc_pol_r",      test_error_new_trunc_pol_r},
+   {"new_trunc_pol_ss",           test_new_trunc_pol_ss},
+   {"error_new_trunc_pol_ss",     test_error_new_trunc_pol_ss},
+   {"new_trunc_pol_tt",           test_new_trunc_pol_tt},
+   {"error_new_trunc_pol_tt",     test_error_new_trunc_pol_tt},
    {"new_trunc_pol_U",            test_new_trunc_pol_U},
    {"error_new_trunc_pol_U",      test_error_new_trunc_pol_U},
    {"new_trunc_pol_V",            test_new_trunc_pol_V},
@@ -4488,10 +5155,10 @@ const test_case_t test_cases_memseedp[] = {
    {"wgf_skip",                   test_wgf_skip},
    {"misc_correctness",           test_misc_correctness},
    {"memseedp_mcmc",              test_memseedp_mcmc},
-   {"skipseedp_mcmc",             test_skipseedp_mcmc},
+   {"wgf_skip_dual",              test_wgf_skip_dual},
 #if 0
-   {"average_errors",              test_average_errors},
-   {"error_memseedp",         test_error_memseedp},
+   {"average_errors",             test_average_errors},
+   {"error_memseedp",             test_error_memseedp},
 #endif
    {NULL, NULL},
 };

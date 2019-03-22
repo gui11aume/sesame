@@ -1354,12 +1354,11 @@ new_trunc_pol_W
    trunc_pol_t *new = new_zero_trunc_pol();
    handle_memory_error(new);
 
+   // In this case the polynomial is null.
+   if (j < n-G+1) return new;
+
    const int x = modulo(n-j, n+1);
    const int m = (G-1-x) / (n+1);
-
-   // The polynomial is null in this condition.
-   // XXX Make a test case for this.
-   if (m < 0) return new;
 
    // This is a monomial when 'm' is zero.
    new->monodeg = m == 0 ? x+1 : K+1;

@@ -6,8 +6,8 @@
 
 // SECTION 1. MACROS //
 
-#define LIBNAME "memseedp"
-#define VERSION "0.9 02-03-2019"
+#define LIBNAME "sesame"
+#define VERSION "0.9 06-05-2019"
 
 #define SUCCESS 1
 #define FAILURE 0
@@ -134,7 +134,7 @@ static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
 // user. The other parameters (actual read size, number of duplicates and
 // rate of divergence) can depend on the read under consideration and are
 // called "dynamic". Static parameters are set by initializing the
-// library with 'memseedp_set_static_params()'.
+// library with 'sesame_set_static_params()'.
 
 static int  G = 0;       // Minimum size of MEM seeds.
 static int  K = 0;       // Max degree of 'trunc_pol_t' (read size).
@@ -165,9 +165,9 @@ const char internal_error[] =
 
 // SECTION 4.1. OPTION SETTING FUNCTIONS //
 
-void memseedp_set_method (int m) { METH = m; }              // VISIBLE
-void memseedp_set_max_prcsn (void) { MAX_PRECISION = 1; }   // VISIBLE
-void memseedp_unset_max_prcsn (void) { MAX_PRECISION = 0; } // VISIBLE
+void sesame_set_method (int m) { METH = m; }              // VISIBLE
+void sesame_set_max_prcsn (void) { MAX_PRECISION = 1; }   // VISIBLE
+void sesame_unset_max_prcsn (void) { MAX_PRECISION = 0; } // VISIBLE
 
 
 // SECTION 4.2. ERROR HANDLING FUNCTIONS //
@@ -344,9 +344,9 @@ new_zero_trunc_pol
 //   error.
 {
 
-   // Cannot be called before 'memseedp_set_static_params()'.
+   // Cannot be called before 'sesame_set_static_params()'.
    if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `memseedp_set_static_params'",
+      warning("parameters unset: call `sesame_set_static_params'",
             __func__, __LINE__);
       goto in_case_of_failure;
    }
@@ -424,7 +424,7 @@ new_zero_matrix
    matrix_t *new = new_null_matrix(dim);
    handle_memory_error(new);
 
-   // NOTE: cannot be called before 'memseedp_set_static_params()'.
+   // NOTE: cannot be called before 'sesame_set_static_params()'.
    for (int i = 0 ; i < dim*dim ; i++) {
       handle_memory_error(new->term[i] = new_zero_trunc_pol());
    }
@@ -571,7 +571,7 @@ dynamic_params_OK
    // Check if sequencing parameters were set. Otherwise
    // warn user and fail gracefully (return nan).
    if (!PARAMS_INITIALIZED) {
-      warning("parameters unset: call `memseedp_set_static_params'",
+      warning("parameters unset: call `sesame_set_static_params'",
             __func__, __LINE__);
       return FAILURE;
    }
@@ -595,7 +595,7 @@ dynamic_params_OK
 }
 
 void
-memseedp_clean // VISIBLE //
+sesame_clean // VISIBLE //
 (void)
 // SYNOPSIS:
 //   Rest global parameters to their uninitialized state and free
@@ -635,7 +635,7 @@ memseedp_clean // VISIBLE //
 
 
 int
-memseedp_set_static_params // VISIBLE //
+sesame_set_static_params // VISIBLE //
 (
    int g,
    int k,
@@ -690,7 +690,7 @@ memseedp_set_static_params // VISIBLE //
    return SUCCESS;
 
 in_case_of_failure:
-   memseedp_clean();
+   sesame_clean();
    return FAILURE;
 
 }
@@ -1409,7 +1409,7 @@ new_matrix_M
    //
    // In the library, this function is called only by
    // 'wgf_mem()', itself called only by
-   // memseedp_false_positive_or_negative(),
+   // sesame_false_positive_or_negative(),
    // which already checks that dynamic parameters 'k', 'u' and 'N' are
    // conform. If this code is reused somewhere else, it may be a good
    // thing to check them on every call by uncommenting the following
@@ -2542,7 +2542,7 @@ one_mcmc_skip
 // SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
 trunc_pol_t *
-compute_memseedp_mcmc
+compute_sesame_mcmc
 (
    const double u,   // Divergence rate.
    const int N    // Number of duplicates.
@@ -2672,7 +2672,7 @@ in_case_of_failure:
 // SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
 
 trunc_pol_t *
-memseedp_false_positive_or_negative         // VISIBLE //
+sesame_false_positive_or_negative         // VISIBLE //
 (
    const int k,       // Segment or read size.
    const double u,       // Divergence rate.
@@ -2700,7 +2700,7 @@ memseedp_false_positive_or_negative         // VISIBLE //
                (METH == METHOD_AUTO && N < 21 && P < .05);
    
    trunc_pol_t *pol = use_method_wgf ?
-          wgf_mem(u, N):compute_memseedp_mcmc(u, N);
+          wgf_mem(u, N):compute_sesame_mcmc(u, N);
 
    if (pol == NULL)
       goto in_case_of_failure;
@@ -2714,7 +2714,7 @@ in_case_of_failure:
 
 
 trunc_pol_t *
-memseedp_false_negative   // VISIBLE //
+sesame_false_negative   // VISIBLE //
 (
    const int k,       // Segment or read size.
    const double u,       // Divergence rate.
@@ -2771,7 +2771,7 @@ in_case_of_failure:
 
 
 double
-memseedp_auto_false_positive    // VISIBLE //
+sesame_auto_false_positive    // VISIBLE //
 (
    const int k,        // Segment or read size.
    const double u,        // Divergence rate.
@@ -2789,7 +2789,7 @@ memseedp_auto_false_positive    // VISIBLE //
    // Compute the probabilities if needed.
    if (rec1 == NULL) {
       trunc_pol_t *pol =
-         memseedp_false_positive_or_negative(k, u, sqN);
+         sesame_false_positive_or_negative(k, u, sqN);
       // Insert in the global hash 'HF'.
       rec1 = insert(HF, u, sqN, pol);
       if (rec1 == NULL) {
@@ -2800,7 +2800,7 @@ memseedp_auto_false_positive    // VISIBLE //
 
    if (rec2 == NULL) {
       trunc_pol_t *pol = 
-         memseedp_false_negative(k, u, sqN);
+         sesame_false_negative(k, u, sqN);
       // Insert in the global hash 'HFN'.
       rec2 = insert(HFN, u, sqN, pol);
       if (rec2 == NULL) {

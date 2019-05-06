@@ -1,6 +1,6 @@
 P= main
 
-OBJECTS= memseedp.o
+OBJECTS= sesame.o
 
 CC= gcc
 CFLAGS= -std=gnu99 -Wall

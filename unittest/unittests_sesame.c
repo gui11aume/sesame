@@ -1,10 +1,10 @@
 #include "unittest.h"
-#include "memseedp.c"
+#include "sesame.c"
 
 #if 0
 
 void
-test_error_memseedp
+test_error_sesame
 (void)
 {
 
@@ -12,51 +12,51 @@ test_error_memseedp
 
    redirect_stderr();
    // The error is that the parameters are not initialized.
-   x = memseedp(2,2);
+   x = sesame(2,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[memseedp] error in function `fault_");
+   test_assert_stderr("[sesame] error in function `fault_");
 
-   int success = memseedp_set_static_params(17, 50, 0.01, 0.05);
+   int success = sesame_set_static_params(17, 50, 0.01, 0.05);
    test_assert_critical(success);
 
    redirect_stderr();
    // The error is that 'N' is greater than 'MAXN'.
-   x = memseedp(2,1025);
+   x = sesame(2,1025);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[memseedp] error in function `fault_");
+   test_assert_stderr("[sesame] error in function `fault_");
 
    redirect_stderr();
    // The error is that 'k' is greater than specified value above.
-   x = memseedp(51,2);
+   x = sesame(51,2);
    unredirect_stderr();
 
    test_assert(x != x);
-   test_assert_stderr("[memseedp] error in function `fault_");
+   test_assert_stderr("[sesame] error in function `fault_");
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   x = memseedp(10,2);
+   x = sesame(10,2);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (somewhere else).
-   x = memseedp(10,2);
+   x = sesame(10,2);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(x != x);
-   test_assert_stderr("[memseedp] error in function `new_n");
-   memseedp_clean();
+   test_assert_stderr("[sesame] error in function `new_n");
+   sesame_clean();
 
 }
 
@@ -181,7 +181,7 @@ test_zeta
 }
 
 void
-test_memseedp_set_static_params
+test_sesame_set_static_params
 (void)
 {
 
@@ -191,7 +191,7 @@ test_memseedp_set_static_params
    // 'K' the maximum size of the reads, 'P' the probability of
    // read error and 'U' (mu) the divergence rate between
    // the duplicates and the target.
-   success = memseedp_set_static_params(17, 50, 0.01);
+   success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    test_assert(G == 17);
@@ -213,7 +213,7 @@ test_memseedp_set_static_params
 
    test_assert(PARAMS_INITIALIZED);
 
-   memseedp_clean();
+   sesame_clean();
 
    return;
 
@@ -221,7 +221,7 @@ test_memseedp_set_static_params
 
 
 void
-test_error_memseedp_set_static_params
+test_error_sesame_set_static_params
 (void)
 {
 
@@ -230,43 +230,43 @@ test_error_memseedp_set_static_params
    // Case 1.
    redirect_stderr();
    // The error is that 'p' is 0.0.
-   success = memseedp_set_static_params(17, 50, 0.00);
+   success = sesame_set_static_params(17, 50, 0.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[memseedp] error in function `memseedp_s");
+   test_assert_stderr("[sesame] error in function `sesame_s");
 
    // Case 2.
    redirect_stderr();
    // The error is that 'p' is 1.0.
-   success = memseedp_set_static_params(17, 50, 1.00);
+   success = sesame_set_static_params(17, 50, 1.00);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[memseedp] error in function `memseedp_s");
+   test_assert_stderr("[sesame] error in function `sesame_s");
 
    // Case 3.
    redirect_stderr();
    // The error is that 'G' (gamma) is 0.
-   success = memseedp_set_static_params(0, 50, 0.01);
+   success = sesame_set_static_params(0, 50, 0.01);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[memseedp] error in function `memseedp_s");
+   test_assert_stderr("[sesame] error in function `sesame_s");
 
    // Case 4.
    redirect_stderr();
    // The error is that 'K' is 0.
-   success = memseedp_set_static_params(17, 0, 0.01);
+   success = sesame_set_static_params(17, 0, 0.01);
    unredirect_stderr();
    test_assert(!success);
-   test_assert_stderr("[memseedp] error in function `memseedp_s");
+   test_assert_stderr("[sesame] error in function `sesame_s");
 
    // Casae 5. Test memory error.
    set_alloc_failure_rate_to(1.0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   success = memseedp_set_static_params(17, 50, 0.01);
+   success = sesame_set_static_params(17, 50, 0.01);
    unredirect_stderr();
    reset_alloc();
-   test_assert_stderr("[memseedp] error in function `new_zero");
+   test_assert_stderr("[sesame] error in function `new_zero");
 
    return;
 
@@ -278,11 +278,11 @@ test_uninitialized_error
 (void)
 {
 
-   // Do not call 'memseedp_set_static_params()'.
+   // Do not call 'sesame_set_static_params()'.
    redirect_stderr();
-   trunc_pol_t *x = memseedp_false_positive_or_negative(5, .05, 20);
+   trunc_pol_t *x = sesame_false_positive_or_negative(5, .05, 20);
    unredirect_stderr();
-   test_assert_stderr("[memseedp] error in function `dynamic_p");
+   test_assert_stderr("[sesame] error in function `dynamic_p");
    test_assert(x == NULL);
 
    return;
@@ -296,7 +296,7 @@ test_new_zero_trunc_pol
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *a = new_zero_trunc_pol();
@@ -308,7 +308,7 @@ test_new_zero_trunc_pol
    }
 
    free(a);
-   memseedp_clean();
+   sesame_clean();
 
    return;
 
@@ -326,7 +326,7 @@ test_error_new_zero_trunc_pol
    unredirect_stderr();
 
    test_assert(w == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -335,7 +335,7 @@ test_error_new_zero_trunc_pol
    reset_alloc();
 
    test_assert(w == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
 }
 
@@ -345,7 +345,7 @@ test_trunc_pol_update_add
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *w1 = new_zero_trunc_pol();
@@ -401,7 +401,7 @@ test_trunc_pol_update_add
 
    free(w1);
    free(w2);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -414,7 +414,7 @@ test_trunc_pol_mult
 
    size_t k = 50;
 
-   memseedp_set_static_params(17, k, 0.01);
+   sesame_set_static_params(17, k, 0.01);
    trunc_pol_t *a = new_zero_trunc_pol();
 
    test_assert_critical(a != NULL);
@@ -577,7 +577,7 @@ test_trunc_pol_mult
    free(b);
    free(c);
 
-   memseedp_clean();
+   sesame_clean();
 
    return;
 
@@ -590,7 +590,7 @@ test_new_trunc_pol_A
 {
 
    size_t k = 50;
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *A;
@@ -722,7 +722,7 @@ test_new_trunc_pol_A
 
    free(A);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -732,7 +732,7 @@ test_error_new_trunc_pol_A
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *A;
@@ -748,9 +748,9 @@ test_error_new_trunc_pol_A
    reset_alloc();
 
    test_assert(A == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -762,7 +762,7 @@ test_new_trunc_pol_B
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *B = NULL;
@@ -817,7 +817,7 @@ test_new_trunc_pol_B
 
    free(B);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -827,7 +827,7 @@ test_error_new_trunc_pol_B
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *B;
@@ -840,7 +840,7 @@ test_error_new_trunc_pol_B
    reset_alloc();
 
    test_assert(B == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i = 0'.
@@ -848,9 +848,9 @@ test_error_new_trunc_pol_B
    unredirect_stderr();
 
    test_assert(B == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc");
+   test_assert_stderr("[sesame] error in function `new_trunc");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -866,7 +866,7 @@ test_new_trunc_pol_C
    
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *C;
@@ -924,7 +924,7 @@ test_new_trunc_pol_C
 
    free(C);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -934,7 +934,7 @@ test_error_new_trunc_pol_C
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *C;
@@ -947,9 +947,9 @@ test_error_new_trunc_pol_C
    reset_alloc();
 
    test_assert(C == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -960,7 +960,7 @@ test_new_trunc_pol_D
 {
 
    size_t k = 50;
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *D;
@@ -1065,7 +1065,7 @@ test_new_trunc_pol_D
    
    free(D);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1075,7 +1075,7 @@ test_error_new_trunc_pol_D
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *D;
@@ -1088,7 +1088,7 @@ test_error_new_trunc_pol_D
    reset_alloc();
 
    test_assert(D == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1097,9 +1097,9 @@ test_error_new_trunc_pol_D
    reset_alloc();
 
    test_assert(D == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1111,7 +1111,7 @@ test_new_trunc_pol_E
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *E;
@@ -1143,7 +1143,7 @@ test_new_trunc_pol_E
 
    free(E);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1153,7 +1153,7 @@ test_error_new_trunc_pol_E
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *E;
@@ -1166,7 +1166,7 @@ test_error_new_trunc_pol_E
    reset_alloc();
 
    test_assert(E == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1174,9 +1174,9 @@ test_error_new_trunc_pol_E
    unredirect_stderr();
 
    test_assert(E == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1188,7 +1188,7 @@ test_new_trunc_pol_F
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *F;
@@ -1220,7 +1220,7 @@ test_new_trunc_pol_F
 
    free(F);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1230,7 +1230,7 @@ test_error_new_trunc_pol_F
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *F;
@@ -1243,7 +1243,7 @@ test_error_new_trunc_pol_F
    reset_alloc();
 
    test_assert(F == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1251,9 +1251,9 @@ test_error_new_trunc_pol_F
    unredirect_stderr();
 
    test_assert(F == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1263,7 +1263,7 @@ test_new_trunc_pol_H
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 17, 0.01);
+   int success = sesame_set_static_params(17, 17, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *H;
@@ -1288,7 +1288,7 @@ test_new_trunc_pol_H
 
    size_t k = 50;
 
-   success = memseedp_set_static_params(17, k, 0.01);
+   success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    // Test the validity of skip-0.
@@ -1523,7 +1523,7 @@ test_new_trunc_pol_H
    free(H);
    H = NULL;
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1533,7 +1533,7 @@ test_error_new_trunc_pol_H
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *H;
@@ -1546,7 +1546,7 @@ test_error_new_trunc_pol_H
    reset_alloc();
 
    test_assert(H == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'r' is greater than 'n';
@@ -1554,7 +1554,7 @@ test_error_new_trunc_pol_H
    unredirect_stderr();
 
    test_assert(H == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
    redirect_stderr();
    // The error is that 's' is greater than 'n';
@@ -1562,9 +1562,9 @@ test_error_new_trunc_pol_H
    unredirect_stderr();
 
    test_assert(H == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1576,7 +1576,7 @@ test_new_trunc_pol_J
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *J;
@@ -1647,7 +1647,7 @@ test_new_trunc_pol_J
    free(J);
    J = NULL;
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1657,7 +1657,7 @@ test_error_new_trunc_pol_J
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *J;
@@ -1670,7 +1670,7 @@ test_error_new_trunc_pol_J
    reset_alloc();
 
    test_assert(J == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'r' is greater than 'n';
@@ -1678,9 +1678,9 @@ test_error_new_trunc_pol_J
    unredirect_stderr();
 
    test_assert(J == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1693,7 +1693,7 @@ test_new_trunc_pol_R
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *R;
@@ -1727,7 +1727,7 @@ test_new_trunc_pol_R
 
    free(R);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1737,7 +1737,7 @@ test_error_new_trunc_pol_R
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *R;
@@ -1750,7 +1750,7 @@ test_error_new_trunc_pol_R
    reset_alloc();
 
    test_assert(R == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1758,9 +1758,9 @@ test_error_new_trunc_pol_R
    unredirect_stderr();
 
    test_assert(R == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1770,7 +1770,7 @@ test_new_trunc_pol_r
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, .01);
+   int success = sesame_set_static_params(17, 50, .01);
    test_assert_critical(success);
 
    trunc_pol_t *r;
@@ -1805,7 +1805,7 @@ test_new_trunc_pol_r
       r = NULL;
    }
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1815,7 +1815,7 @@ test_error_new_trunc_pol_r
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *r;
@@ -1828,7 +1828,7 @@ test_error_new_trunc_pol_r
    reset_alloc();
 
    test_assert(r == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    set_alloc_failure_rate_to(1);
    redirect_stderr();
@@ -1838,7 +1838,7 @@ test_error_new_trunc_pol_r
    reset_alloc();
 
    test_assert(r == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1846,7 +1846,7 @@ test_error_new_trunc_pol_r
    unredirect_stderr();
 
    test_assert(r == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1854,9 +1854,9 @@ test_error_new_trunc_pol_r
    unredirect_stderr();
 
    test_assert(r == NULL);
-   test_assert_stderr("[memseedp] error in function `new_tr");
+   test_assert_stderr("[sesame] error in function `new_tr");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -1868,7 +1868,7 @@ test_new_trunc_pol_ss
 
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double a = .99 * .95;
@@ -2009,7 +2009,7 @@ test_error_new_trunc_pol_ss
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *ss;
@@ -2022,7 +2022,7 @@ test_error_new_trunc_pol_ss
    reset_alloc();
 
    test_assert(ss == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -2030,7 +2030,7 @@ test_error_new_trunc_pol_ss
    unredirect_stderr();
 
    test_assert(ss == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_ss");
 
    redirect_stderr();
    // The error is that 'j' is greater than 'n'.
@@ -2038,7 +2038,7 @@ test_error_new_trunc_pol_ss
    unredirect_stderr();
 
    test_assert(ss == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_ss");
 
    redirect_stderr();
    // The error is that 'i' is less than 1
@@ -2046,7 +2046,7 @@ test_error_new_trunc_pol_ss
    unredirect_stderr();
 
    test_assert(ss == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_ss");
 
    redirect_stderr();
    // The error is that 'j' is less than 1.
@@ -2054,10 +2054,10 @@ test_error_new_trunc_pol_ss
    unredirect_stderr();
 
    test_assert(ss == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_ss");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_ss");
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2069,7 +2069,7 @@ test_new_trunc_pol_tt
 
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double a = .99 * .95;
@@ -2210,7 +2210,7 @@ test_error_new_trunc_pol_tt
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *tt;
@@ -2223,7 +2223,7 @@ test_error_new_trunc_pol_tt
    reset_alloc();
 
    test_assert(tt == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -2231,7 +2231,7 @@ test_error_new_trunc_pol_tt
    unredirect_stderr();
 
    test_assert(tt == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_tt");
 
    redirect_stderr();
    // The error is that 'j' is greater than 'n'.
@@ -2239,7 +2239,7 @@ test_error_new_trunc_pol_tt
    unredirect_stderr();
 
    test_assert(tt == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_tt");
 
    redirect_stderr();
    // The error is that 'i' is less than 1
@@ -2247,7 +2247,7 @@ test_error_new_trunc_pol_tt
    unredirect_stderr();
 
    test_assert(tt == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_tt");
 
    redirect_stderr();
    // The error is that 'j' is less than 1.
@@ -2255,10 +2255,10 @@ test_error_new_trunc_pol_tt
    unredirect_stderr();
 
    test_assert(tt == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_tt");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_tt");
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2270,7 +2270,7 @@ test_new_trunc_pol_U
 
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double a = .99 * .95;
@@ -2518,7 +2518,7 @@ test_new_trunc_pol_U
    U = NULL;
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2528,7 +2528,7 @@ test_error_new_trunc_pol_U
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *U;
@@ -2541,7 +2541,7 @@ test_error_new_trunc_pol_U
    reset_alloc();
 
    test_assert(U == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i' is 0.
@@ -2549,7 +2549,7 @@ test_error_new_trunc_pol_U
    unredirect_stderr();
 
    test_assert(U == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_U");
 
    redirect_stderr();
    // The error is that 'j' is greater than 'n'.
@@ -2557,7 +2557,7 @@ test_error_new_trunc_pol_U
    unredirect_stderr();
 
    test_assert(U == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_U");
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -2565,7 +2565,7 @@ test_error_new_trunc_pol_U
    unredirect_stderr();
 
    test_assert(U == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_U");
 
    redirect_stderr();
    // The error is that 'j' is negative.
@@ -2573,10 +2573,10 @@ test_error_new_trunc_pol_U
    unredirect_stderr();
 
    test_assert(U == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_U");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_U");
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2588,7 +2588,7 @@ test_new_trunc_pol_V
 
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double a = .99 * .95;
@@ -2836,7 +2836,7 @@ test_new_trunc_pol_V
    V = NULL;
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2846,7 +2846,7 @@ test_error_new_trunc_pol_V
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *V;
@@ -2859,7 +2859,7 @@ test_error_new_trunc_pol_V
    reset_alloc();
 
    test_assert(V == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'i' is 0.
@@ -2867,7 +2867,7 @@ test_error_new_trunc_pol_V
    unredirect_stderr();
 
    test_assert(V == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_V");
 
    redirect_stderr();
    // The error is that 'j' is greater than 'n'.
@@ -2875,7 +2875,7 @@ test_error_new_trunc_pol_V
    unredirect_stderr();
 
    test_assert(V == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_V");
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -2883,7 +2883,7 @@ test_error_new_trunc_pol_V
    unredirect_stderr();
 
    test_assert(V == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_V");
 
    redirect_stderr();
    // The error is that 'j' is negative.
@@ -2891,10 +2891,10 @@ test_error_new_trunc_pol_V
    unredirect_stderr();
 
    test_assert(V == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_V");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_V");
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -2906,7 +2906,7 @@ test_new_trunc_pol_W
 
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double a = .99 * .95;
@@ -3028,7 +3028,7 @@ test_new_trunc_pol_W
    W = NULL;
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3038,7 +3038,7 @@ test_error_new_trunc_pol_W
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *W;
@@ -3051,7 +3051,7 @@ test_error_new_trunc_pol_W
    reset_alloc();
 
    test_assert(W == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 's' is greater than 'n'.
@@ -3059,10 +3059,10 @@ test_error_new_trunc_pol_W
    unredirect_stderr();
 
    test_assert(W == NULL);
-   test_assert_stderr("[memseedp] error in function `new_trunc_pol_W");
+   test_assert_stderr("[sesame] error in function `new_trunc_pol_W");
 
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3097,7 +3097,7 @@ test_error_new_null_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
 }
 
@@ -3107,7 +3107,7 @@ test_new_zero_matrix
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    // Test a matrix of dimension 10.
@@ -3125,7 +3125,7 @@ test_new_zero_matrix
 
    destroy_mat(matrix);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3137,7 +3137,7 @@ test_error_new_zero_matrix
 
    matrix_t *matrix;
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    set_alloc_failure_countdown_to(0);
@@ -3147,7 +3147,7 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -3156,9 +3156,9 @@ test_error_new_zero_matrix
    reset_alloc();
 
    test_assert(matrix == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3176,7 +3176,7 @@ test_new_matrix_M
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    // Test martrix M with 0 duplicate because it is a special case.
@@ -3426,7 +3426,7 @@ test_new_matrix_M
    }
 
    destroy_mat(M);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3436,7 +3436,7 @@ test_error_new_matrix_M
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *M;
@@ -3449,7 +3449,7 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -3459,9 +3459,9 @@ test_error_new_matrix_M
    reset_alloc();
 
    test_assert(M == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3473,7 +3473,7 @@ test_new_matrix_L
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *F;
@@ -3656,7 +3656,7 @@ test_new_matrix_L
    }
    
    destroy_mat(L);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3666,7 +3666,7 @@ test_error_new_matrix_L
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *L;
@@ -3679,7 +3679,7 @@ test_error_new_matrix_L
    reset_alloc();
 
    test_assert(L == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -3689,9 +3689,9 @@ test_error_new_matrix_L
    reset_alloc();
 
    test_assert(L == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3703,7 +3703,7 @@ test_new_matrix_S
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    const double p = 0.01;
@@ -3772,7 +3772,7 @@ test_new_matrix_S
    }
    
    destroy_mat(S);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3782,7 +3782,7 @@ test_error_new_matrix_S
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *S;
@@ -3795,7 +3795,7 @@ test_error_new_matrix_S
    reset_alloc();
 
    test_assert(S == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -3805,9 +3805,9 @@ test_error_new_matrix_S
    reset_alloc();
 
    test_assert(S == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -3826,7 +3826,7 @@ test_new_matrix_T
    const double c = .01 * .05/3;          // p * u/3;
    const double d = .01 * (1-.05/3);      // p * (1-u/3);
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
    
    trunc_pol_t *x;
@@ -4174,7 +4174,7 @@ test_new_matrix_T
    }
    
    destroy_mat(T);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4184,7 +4184,7 @@ test_error_new_matrix_T
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *T;
@@ -4197,7 +4197,7 @@ test_error_new_matrix_T
    reset_alloc();
 
    test_assert(T == NULL);
-   test_assert_stderr("[memseedp] error in function `new_n");
+   test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
@@ -4207,7 +4207,7 @@ test_error_new_matrix_T
    reset_alloc();
 
    test_assert(T == NULL);
-   test_assert_stderr("[memseedp] error in function `new_z");
+   test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
    // The error is that 'u' is not in (0,1).
@@ -4215,9 +4215,9 @@ test_error_new_matrix_T
    unredirect_stderr();
 
    test_assert(T == NULL);
-   test_assert_stderr("[memseedp] error in function `dynam");
+   test_assert_stderr("[sesame] error in function `dynam");
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4229,7 +4229,7 @@ test_matrix_mult
 
    size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    matrix_t *mat1 = new_zero_matrix(2);
@@ -4295,7 +4295,7 @@ test_matrix_mult
    destroy_mat(mat2);
    destroy_mat(tmp1);
    destroy_mat(tmp2);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4305,7 +4305,7 @@ test_error_matrix_mult
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    matrix_t *mat1 = new_zero_matrix(2);
@@ -4320,12 +4320,12 @@ test_error_matrix_mult
    test_assert(matrix_mult(tmp, mat1, mat2) == NULL);
    unredirect_stderr();
 
-   test_assert_stderr("[memseedp] error in function `matrix_");
+   test_assert_stderr("[sesame] error in function `matrix_");
 
    destroy_mat(mat1);
    destroy_mat(mat2);
    destroy_mat(tmp);
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4335,7 +4335,7 @@ test_wgf_seed
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *w = wgf_seed();
@@ -4379,7 +4379,7 @@ test_wgf_seed
 
    free(w);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4388,7 +4388,7 @@ test_wgf_dual
 (void)
 {
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *w = wgf_dual(.05);
@@ -4421,7 +4421,7 @@ test_wgf_dual
    target_18 = 0.148627374682;
    test_assert(fabs(w->coeff[18]-target_18) < 1e-9);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4438,7 +4438,7 @@ test_wgf_mem
    trunc_pol_t *w4  = NULL;
    trunc_pol_t *w20 = NULL;
 
-   int success = memseedp_set_static_params(17, 19, 0.01);
+   int success = sesame_set_static_params(17, 19, 0.01);
    test_assert_critical(success);
 
    w0  = wgf_mem(.05,0);
@@ -4549,11 +4549,11 @@ test_wgf_mem
 
    // Other test case with longer seeds.
    
-   success = memseedp_set_static_params(20, 21, 0.02);
+   success = sesame_set_static_params(20, 21, 0.02);
    test_assert_critical(success);
 
    // Compute with maximum precision.
-   memseedp_set_max_prcsn();
+   sesame_set_max_prcsn();
 
    w0 = wgf_mem(.05,0);
    w1 = wgf_mem(.05,1);
@@ -4609,7 +4609,7 @@ test_wgf_mem
    free(w3);
    free(w4);
 
-   memseedp_unset_max_prcsn();
+   sesame_unset_max_prcsn();
 
    // Recompute without maximum precision. Test relative
    // error (results must be within 1% of the target).
@@ -4669,7 +4669,7 @@ test_wgf_mem
    free(w3);
    free(w4);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4684,7 +4684,7 @@ test_wgf_skip
    trunc_pol_t *w2  = NULL;
    trunc_pol_t *w3  = NULL;
 
-   int success = memseedp_set_static_params(17, 19, 0.01);
+   int success = sesame_set_static_params(17, 19, 0.01);
    test_assert_critical(success);
 
    w0 = wgf_skip(0);
@@ -4737,7 +4737,7 @@ test_wgf_skip
    free(w2);
    free(w3);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4790,7 +4790,7 @@ test_misc_correctness
    size_t k = 35;
    const double u = 0.05; // Needed to compute 'xi' and 'eta'.
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    matrix_t *M  = NULL;
@@ -4880,26 +4880,26 @@ test_misc_correctness
 
    free(tmp);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
 
 void
-test_memseedp_mcmc
+test_sesame_mcmc
 (void)
 {
 
    trunc_pol_t *w  = NULL;
    trunc_pol_t *mc = NULL;
 
-   int success = memseedp_set_static_params(17, 50, 0.01);
+   int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
    w = wgf_mem(.05,5);
    test_assert_critical(w != NULL);
 
-   mc = compute_memseedp_mcmc(.05,5);
+   mc = compute_sesame_mcmc(.05,5);
    test_assert_critical(mc != NULL);
 
    test_assert(mc->monodeg > 50);
@@ -4920,7 +4920,7 @@ test_memseedp_mcmc
    free(w);
    free(mc);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
@@ -4935,7 +4935,7 @@ test_skipseedp_mcmc
    trunc_pol_t *mc = NULL;
    trunc_pol_t *w = NULL;
 
-   int success = memseedp_set_static_params(3, 5, 0.05);
+   int success = sesame_set_static_params(3, 5, 0.05);
    test_assert_critical(success);
 
    w = wgf_skip_dual(1,.5);
@@ -4946,7 +4946,7 @@ test_skipseedp_mcmc
    }
 
    
-   success = memseedp_set_static_params(17, k, 0.01);
+   success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    mc = compute_skipseedp_mcmc(0,.05);
@@ -4993,7 +4993,7 @@ test_skipseedp_mcmc
    free(mc);
    mc = NULL;
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 */
@@ -5006,10 +5006,10 @@ test_wgf_skip_dual
    trunc_pol_t *w = NULL;
    trunc_pol_t *mc = NULL;
 
-   memseedp_set_max_prcsn();
+   sesame_set_max_prcsn();
 
    // Accuracy test based on exact computations.
-   test_assert_critical(memseedp_set_static_params(3, 5, 0.05));
+   test_assert_critical(sesame_set_static_params(3, 5, 0.05));
 
    w = wgf_skip_dual(1,.5);
    test_assert_critical(w != NULL);
@@ -5052,7 +5052,7 @@ test_wgf_skip_dual
    // Accuracy test based on comparison with random sampling.
    const size_t k = 50;
 
-   int success = memseedp_set_static_params(17, k, 0.01);
+   int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    w = wgf_skip_dual(9, .05);
@@ -5078,21 +5078,21 @@ test_wgf_skip_dual
    free(w);
    free(mc);
 
-   memseedp_clean();
+   sesame_clean();
 
 }
 
 
 // Test cases for export.
-const test_case_t test_cases_memseedp[] = {
+const test_case_t test_cases_sesame[] = {
    // Math functions
    {"omega",                      test_omega},
    {"psi",                        test_psi},
    {"zeta",                       test_zeta},
    // Initialization functions
-   {"memseedp_set_static_params", test_memseedp_set_static_params},
-   {"error_memseedp_set_static_params",
-                                  test_error_memseedp_set_static_params},
+   {"sesame_set_static_params",   test_sesame_set_static_params},
+   {"error_sesame_set_static_params",
+                                  test_error_sesame_set_static_params},
    {"uninitialized_error",        test_uninitialized_error},
    // Basic truncated polynomial constructors
    {"new_zero_trunc_pol",         test_new_zero_trunc_pol},
@@ -5154,11 +5154,11 @@ const test_case_t test_cases_memseedp[] = {
    {"wgf_mem",                    test_wgf_mem},
    {"wgf_skip",                   test_wgf_skip},
    {"misc_correctness",           test_misc_correctness},
-   {"memseedp_mcmc",              test_memseedp_mcmc},
+   {"sesame_mcmc",                test_sesame_mcmc},
    {"wgf_skip_dual",              test_wgf_skip_dual},
 #if 0
    {"average_errors",             test_average_errors},
-   {"error_memseedp",             test_error_memseedp},
+   {"error_sesame",             test_error_sesame},
 #endif
    {NULL, NULL},
 };

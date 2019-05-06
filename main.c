@@ -1,10 +1,10 @@
 #include <stdio.h>
-#include "memseedp.h"
+#include "sesame.h"
 
 int main(void) {
 
    // Worst mu: 0.016
-   int success = memseedp_set_static_params(17, 100, .01);
+   int success = sesame_set_static_params(17, 100, .01);
    if (!success) return -1;
 
    // N curves.
@@ -13,7 +13,7 @@ int main(void) {
    for (int i = 2 ; i <= 2 ; i++) {
       for (int k = 17 ; k <= 100 ; k++) {
          fprintf(stdout, "\t%.12f",
-               memseedp_auto_false_positive(k, .01, N[i]));
+               sesame_auto_false_positive(k, .01, N[i]));
       }
       fprintf(stdout, "\n");
    }
@@ -40,7 +40,7 @@ int main(void) {
       fprintf(stdout, "%.4f %.12f %.12f %.12f %.12f\n",
             mu, p1, p2, p3, p4);
 
-      memseedprob_clean(); 
+      sesamerob_clean(); 
    }
 #endif
 

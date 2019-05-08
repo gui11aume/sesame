@@ -1,4 +1,4 @@
-P= main
+P= run_example
 
 OBJECTS= sesame.o
 
@@ -16,7 +16,7 @@ profile: CFLAGS += -g -pg -O3 -fprofile-arcs -ftest-coverage
 profile: $(P)
 
 
-$(P): main.c $(OBJECTS)
+$(P): example_sesame_dump.c $(OBJECTS)
 	gcc $(CFLAGS) $^ -lm -o $@
 
 clean:

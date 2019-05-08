@@ -7,13 +7,27 @@
 // SECTION 1. MACROS //
 
 #define LIBNAME "sesame"
-#define VERSION "0.9 06-05-2019"
+#define VERSION "0.9 08-05-2019"
+
+// Overwrite at compile time for other values.
+
+#ifndef DEFAULT_EPSILON
+// Tolerance on the estimates (execpt MCMC).
+#define DEFAULT_EPSILON 0.01
+#endif
+
+#ifndef DEFAULT_SAMPLINGS
+// Number of MCMC samples.
+#define DEFAULT_SAMPLINGS 10000000
+#endif
+
+#ifndef HSIZE
+// Number of MCMC samples.
+#define HSIZE 4096
+#endif
 
 #define SUCCESS 1
 #define FAILURE 0
-
-// Number of entries in the global hashes.
-#define HSIZE 4096
 
 // Modulo operation that returns a positive number.
 #define modulo(x,y) ((((int)x) % ((int)y) + ((int)y)) % ((int)y))
@@ -88,10 +102,10 @@ typedef struct rec_t        rec_t;         // Hash table records.
 typedef struct trunc_pol_t  trunc_pol_t;   // Truncated polynomials.
 
 struct rec_t {
-	double        u;      // Divergence rate.
-	size_t        N;      // Number of duplicates (log2).
-	trunc_pol_t * prob;   // False positive probabilities.
-   rec_t       * next;   // Next record if any.
+	double    u;      // Divergence rate.
+	size_t    N;      // Number of duplicates (log2).
+	double  * prob;   // False positive probabilities.
+   rec_t   * next;   // Next record if any.
 };
 
 struct matrix_t {
@@ -117,12 +131,9 @@ size_t rbinom(size_t, double);
 
 // SECTION 3. GLOBALS //
 
-// Methods options (to compute the probability of good seeds).
-static enum meth_t { METHOD_AUTO, METHOD_WGF, METHOD_MCMC } METH = 0;
-
 // Precision options.
-static int    MAX_PRECISION = 0;             // 'double' precision.
-static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
+static double EPSILON = DEFAULT_EPSILON;
+static size_t MCMC_SAMPLINGS = DEFAULT_SAMPLINGS;
 
 // NOTE 3.1 Static parameters. //
 //
@@ -136,14 +147,18 @@ static size_t MCMC_RESAMPLINGS = 10000000;   // Number of MCMC samples.
 // called "dynamic". Static parameters are set by initializing the
 // library with 'sesame_set_static_params()'.
 
-static int  G = 0;       // Minimum size of MEM seeds.
-static int  K = 0;       // Max degree of 'trunc_pol_t' (read size).
-static double  P = 0.0;     // Probability of a read error.
+static int G = 0;        // Minimum size of MEM seeds.
+static int K = 0;        // Max degree of 'trunc_pol_t' (read size).
+static double P = 0.0;   // Probability of a read error.
 
 static size_t  KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
 
-static rec_t * HF[HSIZE] = {0};  // Probabilities of MEM failure.
-static rec_t * HFN[HSIZE] = {0};  // Probabilities of type I failure.
+// Define 6 generic hash tables to store the probabilities. Hashes 'H1'
+// to 'H3' are private; hash 'Y1' can be used  with automatic functions.
+static rec_t * H1[HSIZE] = {0}; // Exact seeds, null.
+static rec_t * H2[HSIZE] = {0}; // Exact seeds, off target.
+static rec_t * H3[HSIZE] = {0}; // Skip seeds, null.
+static rec_t * Y1[HSIZE] = {0}; // Skip seeds, off target.
 
 static trunc_pol_t * TEMP = NULL;  // For matrix multipliciation.
 
@@ -163,12 +178,19 @@ const char internal_error[] =
 
 // SECTION 4. FUNCTION DEFINITIONS //
 
-// SECTION 4.1. OPTION SETTING FUNCTIONS //
+// SECTION 4.1. GET AND SET FUNCTIONS  (VISIBLE) //
 
-void sesame_set_method (int m) { METH = m; }              // VISIBLE
-void sesame_set_max_prcsn (void) { MAX_PRECISION = 1; }   // VISIBLE
-void sesame_unset_max_prcsn (void) { MAX_PRECISION = 0; } // VISIBLE
+void sesame_set_epsilon (double p) { EPSILON = p < 0 ? 0.0 : p; }
 
+double *
+to_array_of_double
+(
+   trunc_pol_t * x
+)
+// Transforms a 'trunc_pol_t' to an array of double.
+{
+   return (double *) memmove(x, x->coeff, K * sizeof(double));
+}
 
 // SECTION 4.2. ERROR HANDLING FUNCTIONS //
 
@@ -306,7 +328,7 @@ destroy_mat
 
 
 void
-destroy_hash
+clean_hash
 (
    rec_t ** hash
 )
@@ -325,6 +347,7 @@ destroy_hash
 }
 
 
+
 // SECTION 4.4.2. CONSTRUCTORS //
 
 trunc_pol_t *
@@ -340,8 +363,8 @@ new_zero_trunc_pol
 //
 // FAILURE:
 //   Fails if parameters are not initialized (if 'K' is unknown, we
-//   cannot call 'malloc()' with the proper size) or if there is a memory
-//   error.
+//   cannot call 'malloc()' with the proper size) or if there is a
+//   memory error.
 {
 
    // Cannot be called before 'sesame_set_static_params()'.
@@ -477,19 +500,13 @@ lookup
 )
 // SYNOPSIS:
 //   Look for the entry of the hash associated with the key (N,u).
-//   Both 'N' and 'u' are "coarse-grained" (see function 'squish()'
-//   and note 4.4.3.2).
+//   'u' is "coarse-grained" to 0.01.
 //
 // RETURN:
 //   A pointer to the struct of type 'rec_t' that corresponds to the key
 //   (or its coarse-grained variants) if present, or NULL otherwise.
 {
 
-   // NOTE 4.4.3.2. Granularity of 'N' and 'u'.
-   //
-   // The granularity of 'N' values is defined by the 'squish()'
-   // function. The vaules of 'u' are allowed to vary by 0.01.
-   
    size_t coarse_u = (100 * u);
    size_t addr = (37*N + coarse_u) % HSIZE;
    
@@ -506,15 +523,14 @@ lookup
 rec_t *
 insert
 (
-          rec_t       ** hash,
-    const double         u,
-    const size_t         N,
-          trunc_pol_t *  prob
+          rec_t   ** hash,
+    const double     u,
+    const size_t     N,
+          double  *  prob
 )
 // SYNOPSIS:
-//   Create an entry in the hash associated with the key
-//   (N,u), and associate it with the array 'prob'. Both 'N' and 'u' are
-//   "coarse-grained" (see function 'squish()' and note 4.4.3.2).
+//   Create an entry in the hash associated with the key (N,u).
+//   'u' is "coarse-grained" to 0.01.
 //
 // RETURN:
 //   A pointer to the struct of type 'rec_t' that corresponds to the
@@ -544,6 +560,54 @@ in_case_of_failure:
    return NULL;
 
 }
+
+
+double *
+fetch_prob   // VISIBLE // 
+(
+    const double     u,
+    const size_t     N
+)
+// SYNOPSIS:
+//   Look for the entry of the hash associated with the key (N,u).
+//   'u' is "coarse-grained" to 0.01.
+//
+// RETURN:
+//   An array of numbers that corresponds to the key  (or its
+//   coarse-grained variants) if present, or NULL otherwise.
+{
+
+   rec_t *record = lookup(Y1, u, N);
+   return record == NULL ? NULL : record->prob;
+
+}
+
+
+
+int
+store_prob   // VISIBLE // 
+(
+    const double     u,
+    const size_t     N,
+          double  *  prob
+)
+// SYNOPSIS:
+//   Create an entry in the hash associated with the key
+//   'u' is "coarse-grained" to 0.01.
+//
+// RETURN:
+//   'SUCCESS' (1) in case of success, 'FAILURE' (0) in case of
+//   failure.
+//
+// FAILURE:
+//   Fails if 'insert()' fails.
+{
+
+   rec_t *record = insert(Y1, u, N, prob);
+   return record == NULL ? FAILURE : SUCCESS;
+
+}
+
 
 
 // SECTION 4.4.4. LIBRARY INITIALIATION AND CLEAN UP //
@@ -605,7 +669,7 @@ sesame_clean // VISIBLE //
 // SIDE-EFFETS:
 //   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
 //   and 'PARAMS_INITIALIZED'. Free global variables 'TEMP', 'XI',
-//   'XIc', 'ETA' and 'ETAc'. Destroy global hashes 'HF' and 'HFN'.
+//   'XIc', 'ETA' and 'ETAc'. Destroy global hashes 'H1' to 'H6'.
 {
 
    PARAMS_INITIALIZED = 0;
@@ -625,9 +689,11 @@ sesame_clean // VISIBLE //
    free(ETA);   ETA  = NULL;
    free(ETAc);  ETAc = NULL;
 
-   // Clean hash table.
-   destroy_hash(HF);
-   destroy_hash(HFN);
+   // Clean hash tables.
+   clean_hash(H1);
+   clean_hash(H2);
+   clean_hash(H3);
+   clean_hash(Y1);
    
    return;
 
@@ -649,7 +715,7 @@ sesame_set_static_params // VISIBLE //
 //
 // SIDE-EFFETS:
 //   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
-//   and 'PARAMS_INITIALIZED'. Destroy global hashes 'HF' and 'HFN'.
+//   and 'PARAMS_INITIALIZED'. Destroy global hashes 'H1' to 'H6'.
 //   Reset the global 'TEMP'.
 //
 // FAILURE:
@@ -681,8 +747,10 @@ sesame_set_static_params // VISIBLE //
    PARAMS_INITIALIZED = 1;
 
    // Clean previous values (if any).
-   destroy_hash(HF);
-   destroy_hash(HFN);
+   clean_hash(H1);
+   clean_hash(H2);
+   clean_hash(H3);
+   clean_hash(Y1);
 
    free(TEMP); // Nothing happens if 'TEMP' is NULL.
    handle_memory_error(TEMP = new_zero_trunc_pol());
@@ -1946,12 +2014,12 @@ double HH(double x, double y)
 trunc_pol_t *
 wgf_mem
 (
-   const double u,   // Divergence rate.
-   const int N    // Number of duplicates.
+   const double u, // Divergence rate.
+   const int N     // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probabilities that reads do not contain a good
-//   seed for specified static and dynamic parameters.
+//   Compute the probabilities that reads do not contain an on-target
+//   MEM seed for specified static and dynamic parameters.
 //
 // RETURN:
 //   A pointer to a struct of type 'trunc_pol_t' containing the
@@ -2036,12 +2104,10 @@ wgf_mem
       trunc_pol_update_add(w, powM1->term[G+N]);
       // In max precision mode, get all possible digits by computing all
       // the powers of 'M' up to 'K'.
-      if (MAX_PRECISION)
-         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor((n-1)/2) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, P)*K);
-      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+      if (bound_on_imprecision / w->coeff[K] < EPSILON) break;
    }
 
    // Clean temporary variables.
@@ -2135,12 +2201,10 @@ wgf_dual
       matrix_mult(powL1, L, powL2);
       trunc_pol_update_add(w, powL1->term[2*G-1]);
       // In max precision mode, get all possible digits.
-      if (MAX_PRECISION)
-         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor(n-1) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, prob)*K);
-      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+      if (bound_on_imprecision / w->coeff[K] < EPSILON) break;
    }
 
    // Clean temporary variables.
@@ -2215,12 +2279,10 @@ wgf_skip
       matrix_mult(powS1, S, powS2);
       trunc_pol_update_add(w, powS1->term[n+1]);
       // In max precision mode, get all possible digits.
-      if (MAX_PRECISION)
-         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor(s-1) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, P)*K);
-      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+      if (bound_on_imprecision / w->coeff[K] < EPSILON) break;
    }
 
    // Clean temporary variables.
@@ -2308,12 +2370,10 @@ wgf_skip_dual
       matrix_mult(powT1, T, powT2);
       trunc_pol_update_add(w, powT1->term[n+2*G-1]);
       // In max precision mode, get all possible digits.
-      if (MAX_PRECISION)
-         continue;
       // Otherwise, stop when reaching 1% precision.
       double x = floor(s/2) / ((double) K);
       double bound_on_imprecision = exp(-HH(x, prob)*K);
-      if (bound_on_imprecision / w->coeff[K] < 1e-2) break;
+      if (bound_on_imprecision / w->coeff[K] < EPSILON) break;
    }
 
    // Clean temporary variables.
@@ -2486,6 +2546,11 @@ one_mcmc_skip
 //   the positions of the read where a skip seed is present, i.e., the
 //   positions such that a skip seed would be present if the read
 //   terminated at this position.
+//
+//   This function is not actuall used in the library because it is
+//   quite slow. It is here only for testing purpose, to make sure
+//   that the computations with weighted generating functions are
+//   correct.
 {
 
    const double a = (1-P)*(1-u);
@@ -2542,14 +2607,14 @@ one_mcmc_skip
 // SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
 trunc_pol_t *
-compute_sesame_mcmc
+mem_mcmc
 (
-   const double u,   // Divergence rate.
-   const int N    // Number of duplicates.
+   const double u, // Divergence rate.
+   const int N     // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probabilities that reads do not contain a good
-//   seed for specified static and dynamic parameters, using the
+//   Compute the probabilities that reads do not contain an on-target
+//   MEM seed for specified static and dynamic parameters, using the
 //   Monte Carlo Markov chain approach.
 //
 // RETURN:
@@ -2590,12 +2655,12 @@ compute_sesame_mcmc
    }
 
    w->monodeg = K+1;
-   for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
+   for (int i = 0 ; i < MCMC_SAMPLINGS ; i++) {
       one_mcmc_mem(N, w->coeff);
    }
 
    for (int i = 0 ; i <= K ; i++) {
-      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_RESAMPLINGS;
+      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_SAMPLINGS;
    }
 
    free(XI);    XI   = NULL;
@@ -2652,12 +2717,12 @@ compute_skipseedp_mcmc
    handle_memory_error(w);
 
    w->monodeg = K+1;
-   for (int i = 0 ; i < MCMC_RESAMPLINGS ; i++) {
+   for (int i = 0 ; i < MCMC_SAMPLINGS ; i++) {
       one_mcmc_skip(n, u, w->coeff);
    }
 
    for (int i = 0 ; i <= K ; i++) {
-      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_RESAMPLINGS;
+      w->coeff[i] = 1.0 - w->coeff[i] / MCMC_SAMPLINGS;
    }
 
    return w;
@@ -2671,151 +2736,671 @@ in_case_of_failure:
 
 // SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
 
-trunc_pol_t *
-sesame_false_positive_or_negative         // VISIBLE //
+
+double *
+exact_seed_nullp        // VISIBLE //
 (
-   const int k,       // Segment or read size.
-   const double u,       // Divergence rate.
-   const int N        // Number of duplicates.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that there is no on-target MEM seed.
+//   Compute the probability that exact seeding is null.
 //
 // RETURN:
-//   A double-precision number with the probability of interest, or 'nan'
-//   in case of failure.
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform, if 'n' is negative or if 'malloc()'
+//   fails.
+{
+
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
+   
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   PS0   = wgf_seed();     // Prob no exact seed.
+   PS0S1 = wgf_dual(u);    // Prob no hit (two seq model).
+
+   if (PS0 == NULL || PS0S1 == NULL)
+      goto in_case_of_failure;
+
+   // This is the probability that there is no exact seed
+   // (on-target or off-target) given that there is no on-target
+   // exact seed, multiplied by the probability that there is no
+   // on-target exact seed. See equation (8).
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'PS0'.
+      PS0->coeff[i] = 
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PS0->coeff[i] < 0) PS0->coeff[i] = 0.0;
+   }
+
+   free(PS0S1);
+
+   return to_array_of_double(PS0);
+
+in_case_of_failure:
+   free(PS0);
+   free(PS0S1);
+   return NULL;
+
+}
+
+
+double *
+exact_seed_offp        // VISIBLE //
+(
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that exact seeding is off target.
+//
+// RETURN:
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
 //
 // FAILURE:
 //   Fails if static parameters are unininitialized, if dynamic
 //   parameters are not conform or if 'malloc()' fails.
 {
 
-   // Check dynamic parameters.
-   if (!dynamic_params_OK(k,u,N)) {
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
+   
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
       goto in_case_of_failure;
    }
 
-   // Choose method. If 'N' > 20 and 'P' < 0.05 use MCMC.
-   int use_method_wgf = METH == METHOD_WGF ||
-               (METH == METHOD_AUTO && N < 21 && P < .05);
-   
-   trunc_pol_t *pol = use_method_wgf ?
-          wgf_mem(u, N):compute_sesame_mcmc(u, N);
+   PS0   = wgf_seed();     // Prob no exact seed.
+   PS0S1 = wgf_dual(u);    // Prob no hit (two seq model).
 
-   if (pol == NULL)
+   if (PS0 == NULL || PS0S1 == NULL)
       goto in_case_of_failure;
 
-   return pol;
+   // This is the probability that there is no on-target exact
+   // seed minus the probability that there is no positive at
+   // all. The latter is computed as the probability that
+   // there is no exact seed (on-target or off-target) given
+   // that there is no on-target exact seed, multiplied by the
+   // probability that there is no on-target exact seed. See
+   // equation (9).
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'PS0'.
+      PS0->coeff[i] = PS0->coeff[i] -
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PS0->coeff[i] < 0) PS0->coeff[i] = 0.0;
+   }
+
+   free(PS0S1);
+
+   return to_array_of_double(PS0);
 
 in_case_of_failure:
+   free(PS0);
+   free(PS0S1);
    return NULL;
 
 }
 
 
-trunc_pol_t *
-sesame_false_negative   // VISIBLE //
+double *
+skip_seed_nullp        // VISIBLE //
 (
-   const int k,       // Segment or read size.
-   const double u,       // Divergence rate.
-   const int N        // Number of duplicates.
+   const int    n,   // Skipping.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that there is no on-target or off-target
-//   MEM seed (i.e. there is no seed at all).
+//   Compute the probability that exact seeding is off null.
 //
 // RETURN:
-//   A double-precision number with the probability of interest, or 'nan'
-//   in case of failure.
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
 //
 // FAILURE:
 //   Fails if static parameters are unininitialized, if dynamic
-//   parameters are not conform of if 'malloc()' fails.
+//   parameters are not conform or if 'malloc()' fails.
 {
 
-   trunc_pol_t *pol1 = NULL;
-   trunc_pol_t *pol2 = NULL;
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
    
-   // Check dynamic parameters.
-   if (!dynamic_params_OK(k,u,N)) {
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
       goto in_case_of_failure;
    }
 
-   pol1 = wgf_seed();   // Prob no exact gamma-seed.
-   pol2 = wgf_dual(u);  // Prob no hit (two seq model).
-   if (pol1 == NULL || pol2 == NULL)
+   if (n < 0) {
+      warning("skipping (n) must be non-negative",
+            __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   PS0   = wgf_skip(n);          // Prob no exact seed.
+   PS0S1 = wgf_skip_dual(n, u);  // Prob no hit (two seq model).
+
+   if (PS0 == NULL || PS0S1 == NULL)
       goto in_case_of_failure;
 
-   // This is the probability that there is no good seed,
-   // minus the probability that there is no positive at
+   // This is the probability that there is no skip seed
+   // (on-target or off-target) given that there is no on-target
+   // skip seed, multiplied by the probability that there is no
+   // on-target skip seed. See equation (8).
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'PS0'.
+      PS0->coeff[i] = 
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PS0->coeff[i] < 0) PS0->coeff[i] = 0.0;
+   }
+
+   free(PS0S1);
+
+   return to_array_of_double(PS0);
+
+in_case_of_failure:
+   free(PS0);
+   free(PS0S1);
+   return NULL;
+
+}
+
+
+double *
+skip_seed_offp        // VISIBLE //
+(
+   const int    n,   // Skipping.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that exact seeding is off target.
+//
+// RETURN:
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform, if 'n' is negative or if 'malloc()'
+//   fails.
+{
+
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
+   
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   if (n < 0) {
+      warning("skipping (n) must be non-negative",
+            __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   PS0   = wgf_skip(n);          // Prob no exact seed.
+   PS0S1 = wgf_skip_dual(n, u);  // Prob no hit (two seq model).
+
+   if (PS0 == NULL || PS0S1 == NULL)
+      goto in_case_of_failure;
+
+   // This is the probability that there is no on-target skip
+   // seed minus the probability that there is no positive at
+   // all. The latter is computed as the probability that
+   // there is no skip seed (on-target or off-target) given
+   // that there is no on-target skip seed, multiplied by the
+   // probability that there is no on-target skip seed. See
+   // equation (9).
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'PS0'.
+      PS0->coeff[i] = PS0->coeff[i] -
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PS0->coeff[i] < 0) PS0->coeff[i] = 0.0;
+   }
+
+   free(PS0S1);
+
+   return to_array_of_double(PS0);
+
+in_case_of_failure:
+   free(PS0);
+   free(PS0S1);
+   return NULL;
+
+}
+
+
+double *
+mem_seed_nullp        // VISIBLE //
+(
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that MEM seeding is null.
+//
+// RETURN:
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   // This is exactly the same probability.
+   return exact_seed_nullp(u, N);
+
+}
+
+
+double *
+mem_seed_offp        // VISIBLE //
+(
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that MEM seeding is off target.
+//
+// RETURN:
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
+   trunc_pol_t *PM0 = NULL;
+   
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   PS0   = wgf_seed();     // Prob no exact seed.
+   PS0S1 = wgf_dual(u);    // Prob no hit (two seq model).
+   PM0   = wgf_mem(u, N);  // Prob no on-target MEM seed.
+
+   if (PS0 == NULL || PS0S1 == NULL || PM0 == NULL)
+      goto in_case_of_failure;
+
+   // This is the probability that there is no on-target MEM
+   // seed minus the probability that there is no positive at
    // all. The latter is computed as the probability that
    // there is no exact seed (on-target or off-target) given
    // that there is no on-target exact seed, multiplied by the
-   // probability that there is no on-target exact seed.
+   // probability that there is no on-target exact seed. See
+   // equation (21).
    for (int i = 0 ; i <= K ; i++) {
-      // Store everything in 'pol1', ('pol2' will be discarded).
-      pol1->coeff[i] = pol1->coeff[i] *
-         pow(pol2->coeff[i] / pol1->coeff[i], N);
+      // Store everything in 'M0'.
+      PM0->coeff[i] = PM0->coeff[i] -
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PM0->coeff[i] < 0) PM0->coeff[i] = 0.0;
    }
 
-   free(pol2);
+   free(PS0);
+   free(PS0S1);
 
-   return pol1;
+   return to_array_of_double(PM0);
 
 in_case_of_failure:
-   free(pol1);
-   free(pol2);
+   free(PS0);
+   free(PS0S1);
+   free(PM0);
+   return NULL;
+
+}
+
+
+double *
+mem_seed_offp_mcmc   // VISIBLE //
+(
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that MEM seeding is off target, using
+//   the MCMC algorithm (for speed).
+//
+// RETURN:
+//   A pointer to newly allocated 'trunc_pol_t', or NULL in case
+//   of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   trunc_pol_t *PS0 = NULL;
+   trunc_pol_t *PS0S1 = NULL;
+   trunc_pol_t *PM0 = NULL;
+   
+   // Check dynamic parameters 'u' and 'N'.
+   if (!dynamic_params_OK(K,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   PS0   = wgf_seed();      // Prob no exact seed.
+   PS0S1 = wgf_dual(u);     // Prob no hit (two seq model).
+   PM0   = mem_mcmc(u, N);  // Prob no on-target MEM seed.
+
+   if (PS0 == NULL || PS0S1 == NULL || PM0 == NULL)
+      goto in_case_of_failure;
+
+   // This is the probability that there is no on-target MEM
+   // seed minus the probability that there is no positive at
+   // all. The latter is computed as the probability that
+   // there is no exact seed (on-target or off-target) given
+   // that there is no on-target exact seed, multiplied by the
+   // probability that there is no on-target exact seed. See
+   // equation (21).
+   for (int i = 0 ; i <= K ; i++) {
+      // Store everything in 'M0'.
+      PM0->coeff[i] = PM0->coeff[i] -
+         PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+      // Suppress fluctuations in very small numbers.
+      if (PM0->coeff[i] < 0) PM0->coeff[i] = 0.0;
+   }
+
+   free(PS0);
+   free(PS0S1);
+
+   return to_array_of_double(PM0);
+
+in_case_of_failure:
+   free(PS0);
+   free(PS0S1);
+   free(PM0);
    return NULL;
 
 }
 
 
 double
-sesame_auto_false_positive    // VISIBLE //
+auto_exact_seed_offp   // VISIBLE //
 (
-   const int k,        // Segment or read size.
-   const double u,        // Divergence rate.
-   const int N         // Number of duplicates.
+   const int    k,   // Segment or read size.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
 )
+// SYNOPSIS:
+//   Compute the probability that the exact seeding process is off
+//   target. Takes care of the detail regarding the choice of the
+//   algorithm and the caching so that computations are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
 {
 
-   // Set 'N' to closest grid value.
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
    size_t sqN = squish(N);
 
-   // Retrieve probabilities if already computed.
-   rec_t *rec1 = lookup(HF, u, sqN);
-   rec_t *rec2 = lookup(HFN, u, sqN);
+   // Retrieve probabilities from H1.
+   rec_t *record = lookup(H1, u, sqN);
 
-   // Compute the probabilities if needed.
-   if (rec1 == NULL) {
-      trunc_pol_t *pol =
-         sesame_false_positive_or_negative(k, u, sqN);
-      // Insert in the global hash 'HF'.
-      rec1 = insert(HF, u, sqN, pol);
-      if (rec1 == NULL) {
-         free(pol);
+   // Otherwise compute them.
+   if (record == NULL) {
+      prob = exact_seed_offp(u, sqN);
+      // Insert in H1.
+      record = insert(H1, u, sqN, prob);
+      if (record == NULL) {
          goto in_case_of_failure;
       }
    }
 
-   if (rec2 == NULL) {
-      trunc_pol_t *pol = 
-         sesame_false_negative(k, u, sqN);
-      // Insert in the global hash 'HFN'.
-      rec2 = insert(HFN, u, sqN, pol);
-      if (rec2 == NULL) {
-         free(pol);
-         goto in_case_of_failure;
-      }
-   }
-
-   double false_pos_or_neg = rec1->prob->coeff[k];
-   double false_neg = rec2->prob->coeff[k]; 
-
-   return false_pos_or_neg - false_neg;
+   return record->prob[k];
 
 in_case_of_failure:
-   return 0.0/0.0; // nan
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+double
+auto_skip_seed_offp   // VISIBLE //
+(
+   const int    k,   // Segment or read size.
+   const int    n,   // Skipping.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that the skip seeding process is off
+//   target. Takes care of the detail regarding the choice of the
+//   algorithm and the caching so that computations are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   if (n < 0) {
+      warning("skipping (n) must be non-negative",
+            __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities from H2.
+   rec_t *record = lookup(H2, u, sqN);
+
+   // Otherwise compute them.
+   if (record == NULL) {
+      prob = skip_seed_offp(n, u, sqN);
+      // Insert in H2.
+      record = insert(H2, u, sqN, prob);
+      if (record == NULL) {
+         goto in_case_of_failure;
+      }
+   }
+
+   return record->prob[k];
+
+in_case_of_failure:
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+double
+auto_mem_seed_offp   // VISIBLE //
+(
+   const int    k,   // Segment or read size.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that the MEM seeding process is off
+//   target. Takes care of the detail regarding the choice of the
+//   algorithm and the caching so that computations are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities from H3.
+   rec_t *record = lookup(H3, u, sqN);
+
+   // Otherwise compute them.
+   if (record == NULL) {
+      // If 'N' > 20 and 'P' < 0.05 use MCMC.
+      if (N < 21 && P < .05) {
+         prob = mem_seed_offp(u, sqN);
+      }
+      else {
+         prob = mem_seed_offp_mcmc(u, sqN);
+      }
+
+      // Insert in H3.
+      record = insert(H3, u, sqN, prob);
+      if (record == NULL) {
+         goto in_case_of_failure;
+      }
+
+   }
+
+   return record->prob[k];
+
+in_case_of_failure:
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+void clean_prob_storage (void) { clean_hash(Y1); } // VISIBLE //
+
+void
+dump_prob_to_file   // VISIBLE //
+(
+    FILE   * f
+)
+// SYNOPSIS:
+{
+
+   // Write the static parameters.
+   fprintf(f, "# gamma:%d, k:%d, p:%.3f\n", G, K, P);
+
+   // Iterate over the values of the hash table.
+   for (int i = 0 ; i < HSIZE ; i++) {
+      for (rec_t *rec = Y1[i] ; rec != NULL ; rec = rec->next) {
+         fprintf(f, "%.2f\t%ld", rec->u / 100.0, rec->N);
+         for (int j = 0 ; j <= K ; j++) {
+            fprintf(f, "\t%.8f", rec->prob[j]);
+         }
+         fprintf(f, "\n");
+      }
+   }
+
+}
+
+
+int
+load_prob_from_file   // VISIBLE //
+(
+    FILE   * f
+)
+// SYNOPSIS:
+{
+
+   // For maximum portability, we are not using any external code
+   // to read the file. Unfortunately, this makes it less readable.
+   char line[4096] = {0};
+   char *s = NULL;
+   
+   // Read the header.
+   if ((s = fgets(line, 4096, f)) == NULL) {
+      warning("input file is empty", __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   int g = -1;
+   int k = -1;
+   double p = -1.;
+
+   // Decode the header.
+   if (sscanf(line, "# gamma:%d, k:%d, p:%lf", &g, &k, &p) != 3) {
+      warning("could not read header", __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   sesame_set_static_params(g, k, p);
+   fprintf(stderr, "sesame static parameters: %d, %d, %.3f\n", g, k, p);
+
+   while((s = fgets(line, 4096, f)) != NULL) {
+
+      double u = -1.;
+      int N = -1;
+      double *prob = malloc((K+1) * sizeof(double));
+      handle_memory_error(prob);
+
+      int counter = 0;
+      char *token = strtok(line, "\t");
+      while (token != NULL) {
+         if      (counter == 0) u = strtod(token, NULL);
+         else if (counter == 1) N = strtoul(token, NULL, 10);
+         else                   prob[counter-2] = strtod(token, NULL);
+         counter++;
+         token = strtok(NULL, "\t");
+      }
+
+      if (counter != K+3) {
+         warning("could not parse input file", __func__, __LINE__);
+         goto in_case_of_failure;
+      }
+
+      if (!store_prob(u, N, prob)) {
+         warning("memory error", __func__, __LINE__);
+         goto in_case_of_failure;
+      }
+
+   }
+
+   return SUCCESS;
+
+in_case_of_failure:
+   clean_prob_storage();
+   return FAILURE;
 
 }
 

@@ -201,8 +201,10 @@ test_sesame_set_static_params
    test_assert(KSZ == sizeof(trunc_pol_t) + 51*sizeof(double));
 
    for (int i = 0 ; i < HSIZE ; i++) {
-      test_assert(HF[i] == NULL);
-      test_assert(HFN[i] == NULL);
+      test_assert(H1[i] == NULL);
+      test_assert(H2[i] == NULL);
+      test_assert(H3[i] == NULL);
+      test_assert(Y1[i] == NULL);
    }
 
    test_assert_critical(TEMP != NULL);
@@ -280,10 +282,10 @@ test_uninitialized_error
 
    // Do not call 'sesame_set_static_params()'.
    redirect_stderr();
-   trunc_pol_t *x = sesame_false_positive_or_negative(5, .05, 20);
+   double *prob = mem_seed_offp(.05, 20);
    unredirect_stderr();
    test_assert_stderr("[sesame] error in function `dynamic_p");
-   test_assert(x == NULL);
+   test_assert(prob == NULL);
 
    return;
 
@@ -4553,7 +4555,7 @@ test_wgf_mem
    test_assert_critical(success);
 
    // Compute with maximum precision.
-   sesame_set_max_prcsn();
+   sesame_set_epsilon(0);
 
    w0 = wgf_mem(.05,0);
    w1 = wgf_mem(.05,1);
@@ -4609,7 +4611,7 @@ test_wgf_mem
    free(w3);
    free(w4);
 
-   sesame_unset_max_prcsn();
+   sesame_set_epsilon(0.01);
 
    // Recompute without maximum precision. Test relative
    // error (results must be within 1% of the target).
@@ -4899,7 +4901,7 @@ test_sesame_mcmc
    w = wgf_mem(.05,5);
    test_assert_critical(w != NULL);
 
-   mc = compute_sesame_mcmc(.05,5);
+   mc = mem_mcmc(.05,5);
    test_assert_critical(mc != NULL);
 
    test_assert(mc->monodeg > 50);
@@ -4913,7 +4915,7 @@ test_sesame_mcmc
    // the exact value (note that the Gaussian approximation becomes bad
    // at the tail of the binomial distribution).
    for (int i = 17 ; i <= 50 ; i++) {
-      double SD = sqrt(w->coeff[i] * (1-w->coeff[i]) / MCMC_RESAMPLINGS);
+      double SD = sqrt(w->coeff[i] * (1-w->coeff[i]) / MCMC_SAMPLINGS);
       test_assert(fabs(mc->coeff[i] - w->coeff[i]) < 2.2 * SD);
    }
 
@@ -5006,7 +5008,7 @@ test_wgf_skip_dual
    trunc_pol_t *w = NULL;
    trunc_pol_t *mc = NULL;
 
-   sesame_set_max_prcsn();
+   sesame_set_epsilon(0);
 
    // Accuracy test based on exact computations.
    test_assert_critical(sesame_set_static_params(3, 5, 0.05));
@@ -5071,7 +5073,7 @@ test_wgf_skip_dual
    // the exact value (note that the Gaussian approximation becomes bad
    // at the tail of the binomial distribution).
    for (int i = 17 ; i <= k ; i++) {
-      double SD = sqrt(w->coeff[i]*(1-w->coeff[i]) / MCMC_RESAMPLINGS);
+      double SD = sqrt(w->coeff[i]*(1-w->coeff[i]) / MCMC_SAMPLINGS);
       test_assert(fabs(mc->coeff[i] - w->coeff[i]) < 2.2 * SD);
    }
 

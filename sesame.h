@@ -8,8 +8,11 @@ int sesame_set_static_params(size_t, size_t, double);
 void sesame_clean(void);
 
 // Automatic functions.
+double auto_exact_seed_nullp (int, double, int);
 double auto_exact_seed_offp (int, double, int);
+double auto_mem_seed_nullp (int, double, int);
 double auto_mem_seed_offp (int, double, int);
+double auto_skip_seed_nullp (int, int, double, int);
 double auto_skip_seed_offp (int, int, double, int);
 
 

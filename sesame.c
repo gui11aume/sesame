@@ -7,7 +7,7 @@
 // SECTION 1. MACROS //
 
 #define LIBNAME "sesame"
-#define VERSION "0.9 08-05-2019"
+#define VERSION "0.9 21-05-2019"
 
 // Overwrite at compile time for other values.
 
@@ -153,11 +153,14 @@ static double P = 0.0;   // Probability of a read error.
 
 static size_t  KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
 
-// Define 6 generic hash tables to store the probabilities. Hashes 'H1'
-// to 'H3' are private; hash 'Y1' can be used  with automatic functions.
-static rec_t * H1[HSIZE] = {0}; // Exact seeds, null.
-static rec_t * H2[HSIZE] = {0}; // Exact seeds, off target.
-static rec_t * H3[HSIZE] = {0}; // Skip seeds, null.
+// Define 6 generic hash tables to store the probabilities. Hashes 'H'
+// are private; hash 'Y1' is public.
+static rec_t * H1N[HSIZE] = {0}; // Exact seeds, null.
+static rec_t * H1O[HSIZE] = {0}; // Exact seeds, null.
+static rec_t * H2N[HSIZE] = {0}; // Exact seeds, off target.
+static rec_t * H2O[HSIZE] = {0}; // Exact seeds, off target.
+static rec_t * H3N[HSIZE] = {0}; // Skip seeds, null.
+static rec_t * H3O[HSIZE] = {0}; // Skip seeds, null.
 static rec_t * Y1[HSIZE] = {0}; // Skip seeds, off target.
 
 static trunc_pol_t * TEMP = NULL;  // For matrix multipliciation.
@@ -669,7 +672,7 @@ sesame_clean // VISIBLE //
 // SIDE-EFFETS:
 //   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
 //   and 'PARAMS_INITIALIZED'. Free global variables 'TEMP', 'XI',
-//   'XIc', 'ETA' and 'ETAc'. Destroy global hashes 'H1' to 'H6'.
+//   'XIc', 'ETA' and 'ETAc'. Destroy global hashes.
 {
 
    PARAMS_INITIALIZED = 0;
@@ -690,9 +693,12 @@ sesame_clean // VISIBLE //
    free(ETAc);  ETAc = NULL;
 
    // Clean hash tables.
-   clean_hash(H1);
-   clean_hash(H2);
-   clean_hash(H3);
+   clean_hash(H1N);
+   clean_hash(H1O);
+   clean_hash(H2N);
+   clean_hash(H2O);
+   clean_hash(H3N);
+   clean_hash(H3O);
    clean_hash(Y1);
    
    return;
@@ -715,8 +721,8 @@ sesame_set_static_params // VISIBLE //
 //
 // SIDE-EFFETS:
 //   Change the values of the global constants 'G', 'K', 'P', 'KSZ'
-//   and 'PARAMS_INITIALIZED'. Destroy global hashes 'H1' to 'H6'.
-//   Reset the global 'TEMP'.
+//   and 'PARAMS_INITIALIZED'. Destroy global hashes. Reset the
+//   global 'TEMP'.
 //
 // FAILURE:
 //   Fails if static parameters do not conform specifications or if
@@ -747,9 +753,12 @@ sesame_set_static_params // VISIBLE //
    PARAMS_INITIALIZED = 1;
 
    // Clean previous values (if any).
-   clean_hash(H1);
-   clean_hash(H2);
-   clean_hash(H3);
+   clean_hash(H1N);
+   clean_hash(H1O);
+   clean_hash(H2N);
+   clean_hash(H2O);
+   clean_hash(H3N);
+   clean_hash(H3O);
    clean_hash(Y1);
 
    free(TEMP); // Nothing happens if 'TEMP' is NULL.
@@ -3135,16 +3144,16 @@ in_case_of_failure:
 
 
 double
-auto_exact_seed_offp   // VISIBLE //
+auto_exact_seed_nullp   // VISIBLE //
 (
    const int    k,   // Segment or read size.
    const double u,   // Divergence rate.
    const int    N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that the exact seeding process is off
-//   target. Takes care of the detail regarding the choice of the
-//   algorithm and the caching so that computations are fast.
+//   Compute the probability that the exact seeding process is null.
+//   Take care of the detail regarding the caching so that
+//   computations are fast.
 //
 // RETURN:
 //   A double-precision number with the probability of interest,
@@ -3165,14 +3174,14 @@ auto_exact_seed_offp   // VISIBLE //
    // Squish 'N' for "coarseness".
    size_t sqN = squish(N);
 
-   // Retrieve probabilities from H1.
-   rec_t *record = lookup(H1, u, sqN);
+   // Retrieve probabilities from H1N.
+   rec_t *record = lookup(H1N, u, sqN);
 
    // Otherwise compute them.
    if (record == NULL) {
-      prob = exact_seed_offp(u, sqN);
-      // Insert in H1.
-      record = insert(H1, u, sqN, prob);
+      prob = exact_seed_nullp(u, sqN);
+      // Insert in H1N.
+      record = insert(H1N, u, sqN, prob);
       if (record == NULL) {
          goto in_case_of_failure;
       }
@@ -3188,7 +3197,60 @@ in_case_of_failure:
 
 
 double
-auto_skip_seed_offp   // VISIBLE //
+auto_exact_seed_offp   // VISIBLE //
+(
+   const int    k,   // Segment or read size.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that the exact seeding process is off
+//   target. Take care of the detail regarding caching so that
+//   computations are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities from H1O.
+   rec_t *record = lookup(H1O, u, sqN);
+
+   // Otherwise compute them.
+   if (record == NULL) {
+      prob = exact_seed_offp(u, sqN);
+      // Insert in H1O.
+      record = insert(H1O, u, sqN, prob);
+      if (record == NULL) {
+         goto in_case_of_failure;
+      }
+   }
+
+   return record->prob[k];
+
+in_case_of_failure:
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+double
+auto_skip_seed_nullp   // VISIBLE //
 (
    const int    k,   // Segment or read size.
    const int    n,   // Skipping.
@@ -3196,9 +3258,9 @@ auto_skip_seed_offp   // VISIBLE //
    const int    N    // Number of duplicates.
 )
 // SYNOPSIS:
-//   Compute the probability that the skip seeding process is off
-//   target. Takes care of the detail regarding the choice of the
-//   algorithm and the caching so that computations are fast.
+//   Compute the probability that the skip seeding process is null.
+//   Take care of the detail regarding caching so that computations
+//   are fast.
 //
 // RETURN:
 //   A double-precision number with the probability of interest,
@@ -3225,17 +3287,131 @@ auto_skip_seed_offp   // VISIBLE //
    // Squish 'N' for "coarseness".
    size_t sqN = squish(N);
 
-   // Retrieve probabilities from H2.
-   rec_t *record = lookup(H2, u, sqN);
+   // Retrieve probabilities from H2N.
+   rec_t *record = lookup(H2N, u, sqN);
+
+   // Otherwise compute them.
+   if (record == NULL) {
+      prob = skip_seed_nullp(n, u, sqN);
+      // Insert in H2N.
+      record = insert(H2N, u, sqN, prob);
+      if (record == NULL) {
+         goto in_case_of_failure;
+      }
+   }
+
+   return record->prob[k];
+
+in_case_of_failure:
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+double
+auto_skip_seed_offp   // VISIBLE //
+(
+   const int    k,   // Segment or read size.
+   const int    n,   // Skipping.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that the skip seeding process is off
+//   target. Take care of the detail regarding caching so that
+//   computations are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   if (n < 0) {
+      warning("skipping (n) must be non-negative",
+            __func__, __LINE__);
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities from H2O.
+   rec_t *record = lookup(H2O, u, sqN);
 
    // Otherwise compute them.
    if (record == NULL) {
       prob = skip_seed_offp(n, u, sqN);
-      // Insert in H2.
-      record = insert(H2, u, sqN, prob);
+      // Insert in H2O.
+      record = insert(H2O, u, sqN, prob);
       if (record == NULL) {
          goto in_case_of_failure;
       }
+   }
+
+   return record->prob[k];
+
+in_case_of_failure:
+   free(prob);
+   return 0.0/0.0;
+
+}
+
+
+double
+auto_mem_seed_nullp   // VISIBLE //
+(
+   const int    k,   // Segment or read size.
+   const double u,   // Divergence rate.
+   const int    N    // Number of duplicates.
+)
+// SYNOPSIS:
+//   Compute the probability that the MEM seeding process is null.
+//   Take care of the detail regarding caching so that computations
+//   are fast.
+//
+// RETURN:
+//   A double-precision number with the probability of interest,
+//   or 'nan' in case of failure.
+//
+// FAILURE:
+//   Fails if static parameters are unininitialized, if dynamic
+//   parameters are not conform or if 'malloc()' fails.
+{
+
+   double *prob = NULL;
+
+   // Check dynamic parameters.
+   if (!dynamic_params_OK(k,u,N)) {
+      goto in_case_of_failure;
+   }
+
+   // Squish 'N' for "coarseness".
+   size_t sqN = squish(N);
+
+   // Retrieve probabilities from H3N.
+   rec_t *record = lookup(H3N, u, sqN);
+
+   // Otherwise compute them.
+   if (record == NULL) {
+      prob = mem_seed_nullp(u, sqN);
+      // Insert in H3N.
+      record = insert(H3N, u, sqN, prob);
+      if (record == NULL) {
+         goto in_case_of_failure;
+      }
+
    }
 
    return record->prob[k];
@@ -3256,7 +3432,7 @@ auto_mem_seed_offp   // VISIBLE //
 )
 // SYNOPSIS:
 //   Compute the probability that the MEM seeding process is off
-//   target. Takes care of the detail regarding the choice of the
+//   target. Take care of the detail regarding the choice of the
 //   algorithm and the caching so that computations are fast.
 //
 // RETURN:
@@ -3278,8 +3454,8 @@ auto_mem_seed_offp   // VISIBLE //
    // Squish 'N' for "coarseness".
    size_t sqN = squish(N);
 
-   // Retrieve probabilities from H3.
-   rec_t *record = lookup(H3, u, sqN);
+   // Retrieve probabilities from H3O.
+   rec_t *record = lookup(H3O, u, sqN);
 
    // Otherwise compute them.
    if (record == NULL) {
@@ -3291,8 +3467,8 @@ auto_mem_seed_offp   // VISIBLE //
          prob = mem_seed_offp_mcmc(u, sqN);
       }
 
-      // Insert in H3.
-      record = insert(H3, u, sqN, prob);
+      // Insert in H3O.
+      record = insert(H3O, u, sqN, prob);
       if (record == NULL) {
          goto in_case_of_failure;
       }

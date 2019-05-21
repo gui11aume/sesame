@@ -201,9 +201,12 @@ test_sesame_set_static_params
    test_assert(KSZ == sizeof(trunc_pol_t) + 51*sizeof(double));
 
    for (int i = 0 ; i < HSIZE ; i++) {
-      test_assert(H1[i] == NULL);
-      test_assert(H2[i] == NULL);
-      test_assert(H3[i] == NULL);
+      test_assert(H1N[i] == NULL);
+      test_assert(H1O[i] == NULL);
+      test_assert(H2N[i] == NULL);
+      test_assert(H2O[i] == NULL);
+      test_assert(H3N[i] == NULL);
+      test_assert(H3O[i] == NULL);
       test_assert(Y1[i] == NULL);
    }
 

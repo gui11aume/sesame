@@ -18,13 +18,13 @@ int main(void) {
       for (int j = 0 ; j < 8 ; j++) {
          double *prob = mem_seed_offp(u[i], N[j]);
          // Store the results in 'H1'.
-         if (!store_prob(u[i], N[j], prob)) return -1;
+         if (!store_prob(0, u[i], N[j], prob)) return -1;
       }
       // Above 20, switch to 'mem_seed_offp_mcmc'.
       for (int j = 8 ; j < 11 ; j++) {
          double *prob = mem_seed_offp_mcmc(u[i], N[j]);
          // Store the results in 'H1'.
-         if (!store_prob(u[i], N[j], prob)) return -1;
+         if (!store_prob(0, u[i], N[j], prob)) return -1;
       }
    }
 
@@ -43,7 +43,7 @@ int main(void) {
    load_prob_from_file(g);
    fclose(g);
 
-   double *prob = fetch_prob(.01, 5);
+   double *prob = fetch_prob(0, .01, 5);
    fprintf(stderr, "u=0.01, N=5, prob:%.8f\n", prob[20]);
 
    sesame_clean();

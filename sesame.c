@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/types.h>
 
 // SECTION 1. MACROS //
 
@@ -193,7 +194,7 @@ to_array_of_double
 )
 // Transforms a 'trunc_pol_t' to an array of double.
 {
-   return (double *) memmove(x, x->coeff, K * sizeof(double));
+   return (double *) memmove(x, x->coeff, (K+1) * sizeof(double));
 }
 
 // SECTION 4.2. ERROR HANDLING FUNCTIONS //

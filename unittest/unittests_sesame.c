@@ -277,6 +277,71 @@ test_error_sesame_set_static_params
 
 }
 
+void
+test_dynamic_params_OK
+(void) {
+
+   int success;
+
+   // Case 1.
+   redirect_stderr();
+   // The error is that static parameters non initialized.
+   success = dynamic_params_OK(50, 0.05, 1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   success = sesame_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+   // Case 2.
+   redirect_stderr();
+   // The error is that 'k' is less than 1.
+   success = dynamic_params_OK(0, 0.05, 1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   // Case 3.
+   redirect_stderr();
+   // The error is that 'k' is greater than 50 (set above).
+   success = dynamic_params_OK(51, 0.05, 1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   // Case 4.
+   redirect_stderr();
+   // The error is that 'u' is nonpositive.
+   success = dynamic_params_OK(50, 0.0, 1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   // Case 5.
+   redirect_stderr();
+   // The error is that 'u' is not less than 1.
+   success = dynamic_params_OK(50, 1.0, 1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   // Case 6.
+   redirect_stderr();
+   // The error is that 'N' is negative.
+   success = dynamic_params_OK(50, 0.05, -1);
+   unredirect_stderr();
+   test_assert(!success);
+   test_assert_stderr("[sesame] error in function `dynamic_params_OK'");
+
+   // Case 7.
+   success = dynamic_params_OK(50, 0.05, 0);
+   test_assert(success);
+
+   sesame_clean();
+
+}
+
 
 void
 test_uninitialized_error
@@ -5098,6 +5163,7 @@ const test_case_t test_cases_sesame[] = {
    {"sesame_set_static_params",   test_sesame_set_static_params},
    {"error_sesame_set_static_params",
                                   test_error_sesame_set_static_params},
+   {"dynamic_params_OK",          test_dynamic_params_OK},
    {"uninitialized_error",        test_uninitialized_error},
    // Basic truncated polynomial constructors
    {"new_zero_trunc_pol",         test_new_zero_trunc_pol},

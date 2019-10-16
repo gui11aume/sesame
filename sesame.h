@@ -20,6 +20,7 @@ double auto_skip_seed_offp (int, int, double, int);
 
 // Set precision.
 void sesame_set_epsilon(double);
+void sesame_set_mcmcsamplings(size_t);
 
 // Compute probabilities.
 double * exact_seed_null (double, int);

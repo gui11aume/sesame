@@ -618,7 +618,7 @@ int sesame_set_static_params  // VISIBLE //
 //   allocated).
 {
   // Check input
-  if (g == 0 || k == 0) {
+  if (g <= 0 || k <= 0) {
     warning("parameters g and k must greater than 0", __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -3045,7 +3045,7 @@ void clean_prob_storage(void) {
 
 void dump_prob_to_file  // VISIBLE //
     (FILE* f)
-// SYNOPSIS:
+// SYNOPSIS: XXX
 {
   // Write the static parameters.
   fprintf(f, "# gamma:%d, k:%d, p:%.3f\n", G, K, P);
@@ -3064,12 +3064,13 @@ void dump_prob_to_file  // VISIBLE //
 
 int load_prob_from_file  // VISIBLE //
     (FILE* f)
-// SYNOPSIS:
+// SYNOPSIS: XXX
 {
   double* prob = NULL;
 
   // For maximum portability, we are not using any external code
-  // to read the file. Unfortunately, this makes it less readable.
+  // to read the file. Unfortunately, this makes this part of the
+  // code a little rough.
   char line[4096] = {0};
   char* s = NULL;
 
@@ -3079,6 +3080,7 @@ int load_prob_from_file  // VISIBLE //
     goto in_case_of_failure;
   }
 
+  // Initialize with invalid parameters.
   int g = -1;
   int k = -1;
   double p = -1.;
@@ -3089,14 +3091,20 @@ int load_prob_from_file  // VISIBLE //
     goto in_case_of_failure;
   }
 
-  sesame_set_static_params(g, k, p);
+  int success = sesame_set_static_params(g, k, p);
+  if (!success) {
+    warning("invalid static parameters", __func__, __LINE__);
+    goto in_case_of_failure;
+  }
+
   fprintf(stderr, "sesame static parameters: %d, %d, %.3f\n", g, k, p);
 
   while ((s = fgets(line, 4096, f)) != NULL) {
+    // Initialize with invalid parameters.
     int n = -1;
     double u = -1.;
     int N = -1;
-    prob = malloc((K + 1) * sizeof(double));
+    prob = calloc(K + 1, sizeof(double));
     handle_memory_error(prob);
 
     int counter = 0;

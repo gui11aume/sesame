@@ -8,7 +8,11 @@ P= runtests
 OBJECTS= libunittest.so unittests_sesame.o
 SOURCES= sesame.c
 
+ifdef TRAVIS_COMPILER
+CC= $(TRAVIS_COMPILER)
+else
 CC= gcc
+endif
 INCLUDES= -I.. -Ilib
 COVERAGE= -fprofile-arcs -ftest-coverage
 PROFILE= -pg

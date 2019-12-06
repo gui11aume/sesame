@@ -1,3 +1,7 @@
+// REFERENCES:
+// [1] Calibrating seed-based heuristics to map short DNA reads
+// https://doi.org/10.1101/619155
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +12,7 @@
 // SECTION 1. MACROS //
 
 #define LIBNAME "sesame"
-#define VERSION "0.9 16-10-2019"
+#define VERSION "0.9 05-12-2019"
 
 // Overwrite at compile time for other values.
 
@@ -45,7 +49,7 @@
 // instructions for handling errors and exceptions without crashing. In
 // general, this means freeing the allocated memory and returning a
 // special value that will inform the caller that something went wrong,
-// so that the error can be further propagated.
+// so that the error can be propagated.
 //
 // The macro below simplifies error handling for memory errors. See
 // function 'warning()' defined in section 4.1.
@@ -115,7 +119,7 @@ struct matrix_t {
 };
 
 struct trunc_pol_t {
-  int monodeg;     // Monomial (see note 2.1.1).
+  int monodeg;     // Monomial (see NOTE 2.1.1).
   double coeff[];  // Terms of the polynomial.
 };
 
@@ -136,14 +140,14 @@ static long int MCMC_SAMPLINGS = DEFAULT_SAMPLINGS;
 // NOTE 3.1 Static parameters. //
 //
 // The static parameters of the seeding problem are 'G' (a.k.a gamma, the
-// minimum size of MEM seeds), 'K' (the maximum degree of all truncated
+// minimum seed size), 'K' (the maximum degree of all truncated
 // polynomial, standing for the longest possible sequencing read) and 'P'
 // (the probability of a sequencing error). They define the properties of
-// the sequencing instrument and the choice of a minimum size by the
-// user. The other parameters (actual read size, number of duplicates and
-// rate of divergence) can depend on the read under consideration and are
-// called "dynamic". Static parameters are set by initializing the
-// library with 'sesame_set_static_params()'.
+// the sequencing instrument and the choice of a minimum size by the user.
+// The other parameters (actual read size, number of duplicates and rate
+// of divergence) can depend on the read under consideration and are
+// called "dynamic". Static parameters are set by initializing the library
+// with 'sesame_set_static_params()'.
 
 static int G = 0;       // Minimum size of MEM seeds.
 static int K = 0;       // Max degree of 'trunc_pol_t' (read size).
@@ -153,13 +157,13 @@ static int KSZ = 0;  // Memory size of the 'trunc_pol_t' struct.
 
 // Define 6 generic hash tables to store the probabilities. Hashes 'H'
 // are private; hash 'Y1' is public.
-static rec_t* H1N[HSIZE] = {0};  // Exact seeds, null.
-static rec_t* H1O[HSIZE] = {0};  // Exact seeds, null.
-static rec_t* H2N[HSIZE] = {0};  // Exact seeds, off target.
-static rec_t* H2O[HSIZE] = {0};  // Exact seeds, off target.
-static rec_t* H3N[HSIZE] = {0};  // Skip seeds, null.
-static rec_t* H3O[HSIZE] = {0};  // Skip seeds, null.
-static rec_t* Y1[HSIZE] = {0};   // Skip seeds, off target.
+static rec_t* H1N[HSIZE] = {0};  // 'auto_exact_seed_nullp()'
+static rec_t* H1O[HSIZE] = {0};  // 'auto_exact_seed_offp()'
+static rec_t* H2N[HSIZE] = {0};  // 'auto_skip_seed_nullp()'
+static rec_t* H2O[HSIZE] = {0};  // 'auto_skip_seed_offp()'
+static rec_t* H3N[HSIZE] = {0};  // 'auto_mem_seed_nullp()'
+static rec_t* H3O[HSIZE] = {0};  // 'auto_mem_seed_offp()'
+static rec_t* Y1[HSIZE] = {0};   // Generic public hash
 
 static trunc_pol_t* TEMP = NULL;  // For matrix multipliciation.
 
@@ -170,8 +174,12 @@ static double* ETAc;  // Precomputed values of '1-eta'.
 
 static int PARAMS_INITIALIZED = 0;  // Parameters bookkeeping
 
-// The following should never appear. This is only to give the end users
-// a means to contact us and hopefully fix the problems with them.
+// NOTE 3.2 Internal errors. //
+//
+// The following should never appear. However, if the code is run in an
+// environment that is very different from the ones where it was tested,
+// unpredictable things can happen and we want to give the users a handle
+// to contact us so that we can fix the problem.
 const char internal_error[] =
     "internal error (please contact guillaume.filion@gmail.com)";
 
@@ -179,14 +187,17 @@ const char internal_error[] =
 
 // SECTION 4.1. GET AND SET FUNCTIONS  (VISIBLE) //
 
-void sesame_set_epsilon(double p) {
+void
+sesame_set_epsilon(double p) {
   EPSILON = p < 0 ? 0.0 : p;
 }
-void sesame_set_mcmcsamplings(long int n) {
+void
+sesame_set_mcmcsamplings(long int n) {
   MCMC_SAMPLINGS = n;
 }
 
-double* to_array_of_double(trunc_pol_t* x)
+double*
+to_array_of_double(trunc_pol_t* x)
 // Transforms a 'trunc_pol_t' to an array of double.
 {
   return (double*)memmove(x, x->coeff, (K + 1) * sizeof(double));
@@ -194,11 +205,16 @@ double* to_array_of_double(trunc_pol_t* x)
 
 // SECTION 4.2. ERROR HANDLING FUNCTIONS //
 
-void warning(const char* msg, const char* function, const int line)
+void
+warning(                   // PRIVATE
+    const char* msg,       // Message to display
+    const char* function,  // Calling function
+    const int line         // Line in the function
+)
 // SYNOPSIS:
 //   Print warning message to stderr. This function is used to report
 //   errors using the error macros (see macros defined in section 1 and
-//   see note 1.1 about error handling).
+//   see NOTE 1.1 about error handling).
 {
   fprintf(stderr, "[%s] error in function `%s' (line %d): %s\n", LIBNAME,
           function, line, msg);
@@ -206,31 +222,50 @@ void warning(const char* msg, const char* function, const int line)
 
 // SECTION 4.3. MATHEMATICAL FUNCTIONS //
 
-double xi(const int i, const double u) {
-  return 1 - pow(1 - u, i);
-}
-
-double omega(const int m, const double u, const int N) {
+double
+omega(               // PRIVATE
+    const int m,     // See equation (10)
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (10) of reference [1].
+{
   if (m > N) {
     return 0.0;
   }
 
-  double log_N_choose_m = lgamma(N + 1) - lgamma(m + 1) - lgamma(N - m + 1);
+  double log_N_choose_m =
+      lgamma(N + 1) - lgamma(m + 1) - lgamma(N - m + 1);
   return exp(log_N_choose_m + (N - m) * log(1 - u / 3) + m * log(u / 3));
 }
 
-double psi(const int i,
-           const int m,
-           const int n,
-           const int r,
-           const double u,
-           const int N) {
+double
+xi(                 // PRIVATE
+    const int j,    // See equation (13)
+    const double u  // Sequence divergence
+)
+// Convenience function described in equation (13) of reference [1].
+{
+  return 1 - pow(1 - u, j);
+}
+
+double
+psi(                 // PRIVATE
+    const int j,     // See equation (19)
+    const int m,     // See equation (19)
+    const int n,     // See equation (19)
+    const int r,     // See equation (19)
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (19) of reference [1].
+{
   if (N < (m + r))
     return 0.0;
 
   // Take out the terms of the sum that do not depend on 'q'.
   const double lC = lgamma(m + 1) + lgamma(N - m - r + 1);
-  const double lx = log(xi(i, u));
+  const double lx = log(xi(j, u));
   double val = 0.0;
   int topq = n - r < m ? n - r : m;
   for (int q = 0; q <= topq; q++) {
@@ -241,22 +276,27 @@ double psi(const int i,
   return val;
 }
 
-double zeta(const int i,
-            const int m,
-            const int n,
-            const double u,
-            const int N) {
+double
+zeta(                // PRIVATE
+    const int j,     // See equation (19)
+    const int m,     // See equation (19)
+    const int n,     // See equation (19)
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (19) of reference [1].
+{
   if (N < m)
     return 0.0;
 
   // Take out the terms of the sum that do not depend on 'r'.
-  const double lC =
-      lgamma(N - m + 1) + lgamma(n + 1) + lgamma(N - n + 1) - lgamma(N + 1);
-  const double lu = i * log(1 - u);
+  const double lC = lgamma(N - m + 1) + lgamma(n + 1) + lgamma(N - n + 1) -
+                    lgamma(N + 1);
+  const double lu = j * log(1 - u);
   double val = 0.0;
   int topr = N - m < n ? N - m : n;
   for (int r = 1; r <= topr; r++) {
-    val += psi(i, m, n, r, u, N) *
+    val += psi(j, m, n, r, u, N) *
            exp(r * lu - lgamma(r + 1) - lgamma(N - m - r + 1) + lC);
   }
 
@@ -267,7 +307,10 @@ double zeta(const int i,
 
 // SECTION 4.4.1. DESTRUCTORS //
 
-void destroy_mat(matrix_t* mat)
+void
+destroy_mat(       // PRIVATE
+    matrix_t* mat  // Matrix to destroy
+)
 // SYNOPSIS:
 //   Free the memory for all entries of the matrix passed as argument.
 {
@@ -281,7 +324,10 @@ void destroy_mat(matrix_t* mat)
   free(mat);
 }
 
-void clean_hash(rec_t** hash)
+void
+clean_hash(       // PRIVATE
+    rec_t** hash  // Table to empty
+)
 // SYNOPSIS:
 //   Free the memory for all entries of the hash.
 {
@@ -298,7 +344,10 @@ void clean_hash(rec_t** hash)
 
 // SECTION 4.4.2. CONSTRUCTORS //
 
-trunc_pol_t* new_zero_trunc_pol(void)
+trunc_pol_t*
+new_zero_trunc_pol(  // PRIVATE
+    void             // No argument
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'trunc_pol_t', initialize
 //   it to 0 (i.e. null polynomial).
@@ -328,7 +377,10 @@ in_case_of_failure:
   return NULL;
 }
 
-matrix_t* new_null_matrix(const int dim)
+matrix_t*
+new_null_matrix(   // PRIVATE
+    const int dim  // Number of rows / columns
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t', initialize all
 //   entries to 0 (i.e. all are NULL pointers). Since the entries of
@@ -359,7 +411,10 @@ in_case_of_failure:
   return NULL;
 }
 
-matrix_t* new_zero_matrix(const int dim)
+matrix_t*
+new_zero_matrix(   // PRIVATE
+    const int dim  // Number of rows / columns
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t', initialize all
 //   entries to different null polynomials (i.e. all are non NULL
@@ -379,7 +434,6 @@ matrix_t* new_zero_matrix(const int dim)
   matrix_t* new = new_null_matrix(dim);
   handle_memory_error(new);
 
-  // NOTE: cannot be called before 'sesame_set_static_params()'.
   for (int i = 0; i < dim * dim; i++) {
     handle_memory_error(new->term[i] = new_zero_trunc_pol());
   }
@@ -393,31 +447,44 @@ in_case_of_failure:
 
 // SECTION 4.4.3 HASH MANIPULATION FUNCTIONS //
 
-int squish(int N)
+int
+squish(    // PRIVATE
+    int N  // Number of duplicates
+)
 // SYNOPSIS:
 //   Assign 'N' to predefined buckets.
 //
 // RETURN:
 //   The reference value for 'N'.
 {
-  // NOTE 4.4.3.1. Shared buckets for the values of N.
+  // NOTE 4.4.3.1. Shared buckets for the values of N. //
   //
-  // The value of log2(N+1) changes at N = 0, 1, 3, 7, 15, 31, 63, 127,
-  // 255, 511, 1023, 2047, 4095, 8191, 16383. In other words, 0 has its
-  // own bucket, 1 and 2 have the same bucket, so do 3, 4, 5, 6 etc.
-  // The normalized values of 'N' are the mid-points of the intervals.
+  // The values are approximately the mid-points of consecutive powers of
+  // two. 0 has its own bucket, 1, 2 and 3 are in the same bucket, so are
+  // 3, 4, 5, 6, 7 8 and 9 etc.  The normalized values of 'N' are the
+  // mid-points of the intervals.
 
-  const int normalized_values[] = {0,   1,   4,    10,   22,   46,    94,   190,
-                                   382, 766, 1534, 3070, 6142, 12286, 24574};
+  const int coarse_values[] = {0,    1,    4,    10,    22,
+                                   46,   94,   190,  382,   766,
+                                   1534, 3070, 6142, 12286, 24574};
 
   int lgN = N < 16383 ? floor(log2(N + 1)) : 14;
-  return normalized_values[lgN];
+  return coarse_values[lgN];
 }
 
-rec_t* lookup(rec_t** hash, const int n, const double u, const int N)
+rec_t*
+lookup(              // PRIVATE
+    rec_t** hash,    // Table to perform the lookup in
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
-//   Look for the entry of the hash associated with the key (N,u).
-//   'u' is "coarse-grained" to 0.01.
+//   Look for the entry of 'hash', associated with the key (n, u, N)
+//   where 'n' can be thought of the amount of skipping (use 0 for
+//   exact or MEM seeds), 'u' can be thought of the sequence divergence
+//   "coarse-grained" to 0.01 and 'N' can be thought of the number of
+//   duplicates.
 //
 // RETURN:
 //   A pointer to the struct of type 'rec_t' that corresponds to the key
@@ -435,14 +502,20 @@ rec_t* lookup(rec_t** hash, const int n, const double u, const int N)
   return NULL;
 }
 
-rec_t* insert(rec_t** hash,
-              const int n,
-              const double u,
-              const int N,
-              double* prob)
+rec_t*
+insert(              // PRIVATE
+    rec_t** hash,    // Table to insert entry into
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N,     // Number of duplicates
+    double* prob     // Array of probabilities
+)
 // SYNOPSIS:
-//   Create an entry in the hash associated with the key (N,u).
-//   'u' is "coarse-grained" to 0.01.
+//   Create an entry in 'hash', with value 'prob', associated with the
+//   key (n, u, N) where 'n' can be thought of the amount of skipping
+//   (use 0 for exact or MEM seeds), 'u' can be thought of the sequence
+//   divergence "coarse-grained" to 0.01 and 'N' can be thought of the
+//   number of duplicates.
 //
 // RETURN:
 //   A pointer to the struct of type 'rec_t' that corresponds to the
@@ -451,7 +524,6 @@ rec_t* insert(rec_t** hash,
 // FAILURE:
 //   Fails if 'malloc()' fails.
 {
-  // See note 4.4.3.2.
   size_t coarse_u = (100 * u);
   size_t addr = (739 * n + 37 * N + coarse_u) % HSIZE;
 
@@ -472,8 +544,12 @@ in_case_of_failure:
   return NULL;
 }
 
-double* fetch_prob  // VISIBLE //
-    (const int n, const double u, const int N)
+double*
+fetch_prob(          // PUBLIC
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Look for the entry of the hash associated with the key (N,u).
 //   'u' is "coarse-grained" to 0.01.
@@ -486,8 +562,13 @@ double* fetch_prob  // VISIBLE //
   return record == NULL ? NULL : record->prob;
 }
 
-int store_prob  // VISIBLE //
-    (const int n, const double u, const int N, double* prob)
+int
+store_prob(          // PUBLIC
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N,     // Number of duplicates
+    double* prob     // Array of probabilities
+)
 // SYNOPSIS:
 //   Create an entry in the hash associated with the key
 //   'u' is "coarse-grained" to 0.01.
@@ -505,13 +586,14 @@ int store_prob  // VISIBLE //
 
 // SECTION 4.4.4. LIBRARY INITIALIATION AND CLEAN UP //
 
-int dynamic_params_OK(const int k,     // Segment or read size.
-                      const double u,  // Divergence rate.
-                      const int N      // Number of duplicates.
-                      )
+int
+dynamic_params_OK(   // PRIVATE
+    const int k,     // Segment or read size
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
-//   Check if dynamic parameters (see note 3.1) are conform to
-//   specifications.
+//   Check if dynamic parameters are valid.
 //
 // RETURN:
 //   SUCCESS (1) upon success or FAILURE (0) upon failure.
@@ -530,7 +612,8 @@ int dynamic_params_OK(const int k,     // Segment or read size.
 
   if (k > K) {
     char msg[128];
-    snprintf(msg, 128, "parameter k (%d) greater than set value (%d)", k, K);
+    snprintf(msg, 128, "parameter k (%d) greater than set value (%d)", k,
+             K);
     warning(msg, __func__, __LINE__);
     return FAILURE;
   }
@@ -553,8 +636,10 @@ int dynamic_params_OK(const int k,     // Segment or read size.
   return SUCCESS;
 }
 
-void sesame_clean  // VISIBLE //
-    (void)
+void
+sesame_clean(  // PUBLIC
+    void       // No argument
+)
 // SYNOPSIS:
 //   Rest global parameters to their uninitialized state and free
 //   allocated memory. The function must be called after using the
@@ -599,8 +684,12 @@ void sesame_clean  // VISIBLE //
   return;
 }
 
-int sesame_set_static_params  // VISIBLE //
-    (int g, int k, double p)
+int
+sesame_set_static_params(  // PRIVATE
+    int g,                 // Minimum seed size
+    int k,                 // Segment or read size
+    double p               // Error rate
+)
 // SYNOPSIS:
 //   Initialize static parameters from user-defined values.
 //
@@ -659,13 +748,14 @@ in_case_of_failure:
 // SECTION 4.5. WEIGHTED GENERATING FUNCTIONS //
 
 // NOTE 4.5.1. Internal errors in weighted generating functions //
+//
 // The functions below do not have detailed synopsis because they all
 // follow the same pattern of allocating a particular polynomial defined
 // in the theory of computing MEM seeding probabilities by the symbolic
 // method. Some functions check the value of the input paramters and can
-// trigger an "internal error" (see note 1.1), whereas others do not. The
+// trigger an "internal error" (see NOTE 3.2), whereas others do not. The
 // logic is that the polynomials can be mathematically undefined (when
-// the expression involves a division by zero for instance) or simply not
+// the expression involves a division by zero for instance) or can be not
 // used in the present theory. The former case triggers an internal
 // error, whereas the second does not. This is to allow anyone to reuse
 // the code for their own purpose, without "hurting themselves" by
@@ -673,12 +763,16 @@ in_case_of_failure:
 // visible functions of this library should never trigger an internal
 // error.
 
-trunc_pol_t* new_trunc_pol_A(const size_t m,  // Initial state (down).
-                             const size_t n,  // Final state (down).
-                             const double u,  // Divergence rate.
-                             const int N      // Number of duplicates.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_A(     // PRIVATE
+    const size_t m,  // See equation (20)
+    const size_t n,  // See equation (20)
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (20) of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
@@ -702,8 +796,9 @@ trunc_pol_t* new_trunc_pol_A(const size_t m,  // Initial state (down).
     omega_p_pow_of_q *= (1.0 - P);
   }
   for (int i = G + 1; i <= K; i++) {
-    new->coeff[i] = (1 - pow(xi(i - 1, u), m) * (1 - zeta(i - 1, m, n, u, N))) *
-                    omega_p_pow_of_q;
+    new->coeff[i] =
+        (1 - pow(xi(i - 1, u), m) * (1 - zeta(i - 1, m, n, u, N))) *
+        omega_p_pow_of_q;
     omega_p_pow_of_q *= (1.0 - P);
   }
   return new;
@@ -712,11 +807,15 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_B(const size_t i,  // Final state (up).
-                             const double u,  // Divergence rate.
-                             const int N      // Number of duplicates.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_B(     // PRIVATE
+    const size_t i,  // See equation (14)
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (14) of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (i < 1) {
     warning(internal_error, __func__, __LINE__);
@@ -738,22 +837,26 @@ trunc_pol_t* new_trunc_pol_B(const size_t i,  // Final state (up).
 
   // This is a monomial.
   new->monodeg = i;
-  new->coeff[i] = (pow(xi(i, u), N) - pow(xi(i - 1, u), N)) * pow(1 - P, i);
+  new->coeff[i] =
+      (pow(xi(i, u), N) - pow(xi(i - 1, u), N)) * pow(1 - P, i);
   return new;
 
 in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_C(const size_t m,  // Initial state (down).
-                             const double u,  // Divergence rate.
-                             const int N      // Number of duplicates.
-                             )
+trunc_pol_t*
+new_trunc_pol_C(     // PRIVATE
+    const size_t m,  // See equation (15)
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (15) of reference [1].
 // Note: the polynomials are defined in the case m > N, but
 // they have no meaning in the present context. Here they are
 // simply not forbidden, but also not used (and not tested).
 {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
@@ -786,12 +889,16 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_D(const int j,     // Initial state (up).
-                             const int m,     // Final state (down).
-                             const double u,  // Divergence rate.
-                             const int N      // Number of duplicates.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_D(     // PRIVATE
+    const int j,     // See equation (11)
+    const int m,     // See equation (11)
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
+// Convenience function described in equation (11) of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > G - 1) {
     warning(internal_error, __func__, __LINE__);
@@ -823,8 +930,12 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_E(const int j  // Initial state (up).
-) {
+trunc_pol_t*
+new_trunc_pol_E(  // PRIVATE
+    const int j   // See equation (12)
+)
+// Convenience function described in equation (12) of reference [1].
+{
   if (j > G - 1) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
@@ -848,10 +959,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_F(const int j,
-                             const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_F(    // PRIVATE
+    const int j,    // See definition on page 18
+    const double u  // Divergence rate
+)
+// Convenience function described on page 18 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > G - 1) {
     warning(internal_error, __func__, __LINE__);
@@ -877,11 +992,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_H(
-    const int r,  // Source phase.
-    const int s,  // Target phase.
-    const int n   // Skipping. XXX Make a global constant???
-) {
+trunc_pol_t*
+new_trunc_pol_H(  // PRIVATE
+    const int r,  // See equation (4)
+    const int s,  // See equation (4)
+    const int n   // Amount of skipping
+)
+// Convenience function described in equation (4) of reference [1].
+{
   if (s > n || r > n) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
@@ -910,10 +1028,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_J(const int r,  // Source phase.
-                             const int n   // Skipping.
-) {
-  if (r > n) {
+trunc_pol_t*
+new_trunc_pol_J(  // PRIVATE
+    const int i,  // See equation (5)
+    const int n   // Amount of skipping
+)
+// Convenience function described in equation (5) of reference [1].
+{
+  if (i > n) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -924,9 +1046,9 @@ trunc_pol_t* new_trunc_pol_J(const int r,  // Source phase.
   new->monodeg = K + 1;
 
   double pow_of_q = 1.0;
-  const int imax = K > G - 1 + r ? G - 1 + r : K;
-  for (int i = 0; i <= imax; i++) {
-    new->coeff[i] = pow_of_q;
+  const int jmax = K > G - 1 + i ? G - 1 + i : K;
+  for (int j = 0; j <= jmax; j++) {
+    new->coeff[j] = pow_of_q;
     pow_of_q *= 1 - P;
   }
 
@@ -936,18 +1058,23 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_N(int m) {
-  if (m > K)
-    m = K;
+trunc_pol_t*
+new_trunc_pol_N(  // PRIVATE
+    int i         // See page 22 of reference [1]
+)
+// Convenience function described on page 22 of reference [1].
+{
+  if (i > K)
+    i = K;
 
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  if (m > 0)
+  if (i > 0)
     new->monodeg = K + 1;
 
-  for (int i = 0; i <= m; i++) {
-    new->coeff[i] = 1.0;
+  for (int j = 0; j <= i; j++) {
+    new->coeff[j] = 1.0;
   }
 
   return new;
@@ -956,10 +1083,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_R(const int j,
-                             const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_R(    // PRIVATE
+    const int j,    // See page 18 of reference [1]
+    const double u  // Divergence rate
+)
+// Convenience function described on page 18 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > G - 1) {
     warning(internal_error, __func__, __LINE__);
@@ -986,10 +1117,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_r_plus(const int i,
-                                  const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_r_plus(  // PRIVATE
+    const int i,       // See page 18 of reference [1]
+    const double u     // Divergence rate
+)
+// Convenience function described on page 18 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (i > G - 2) {
     warning(internal_error, __func__, __LINE__);
@@ -1010,10 +1145,14 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_r_minus(const int i,
-                                   const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_r_minus(  // PRIVATE
+    const int i,        // See page 18 of reference [1]
+    const double u      // Divergence rate.
+)
+// Convenience function described on page 18 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (i > G - 2) {
     warning(internal_error, __func__, __LINE__);
@@ -1034,12 +1173,17 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_ss(const int i,    // Match length.
-                              const int j,    // Destination phase.
-                              const int n,    // Skipping.
-                              const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_ss(   // PRIVATE
+    const int i,    // See page 24 of reference [1]
+    const int j,    // See page 24 of reference [1]
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
+// Convenience function described on page 24 of reference [1].
+// Note that it is originally descrbied as polynomial "s".
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (i > G - 1 || j > G - 1 || i < 1 || j < 1) {
     warning(internal_error, __func__, __LINE__);
@@ -1068,12 +1212,17 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_tt(const int i,    // Match length.
-                              const int j,    // Destination phase.
-                              const int n,    // Skipping.
-                              const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_tt(   // PRIVATE
+    const int i,    // See page 24 of reference [1]
+    const int j,    // See page 24 of reference [1]
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
+// Convenience function described on page 24 of reference [1].
+// Note that it is originally descrbied as polynomial "t".
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (i > G - 1 || j > G - 1 || i < 1 || j < 1) {
     warning(internal_error, __func__, __LINE__);
@@ -1102,12 +1251,16 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_U(const int i,    // Match length.
-                             const int j,    // Destination phase.
-                             const int n,    // Skipping.
-                             const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_U(    // PRIVATE
+    const int i,    // See page 22 of reference [1]
+    const int j,    // See page 22 of reference [1]
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
+// Convenience function described on page 22 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > n || i > G - 1 || i <= 0 || j < 0) {
     warning(internal_error, __func__, __LINE__);
@@ -1147,12 +1300,16 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_V(const int i,    // Source phase.
-                             const int j,    // Destination phase.
-                             const int n,    // Skipping.
-                             const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_V(    // PRIVATE
+    const int i,    // See page 22 of reference [1]
+    const int j,    // See page 22 of reference [1]
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
+// Convenience function described on page 22 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > n || i > G - 1 || i == 0 || j < 0) {
     warning(internal_error, __func__, __LINE__);
@@ -1192,11 +1349,15 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* new_trunc_pol_W(const int j,    // Destination phase.
-                             const int n,    // Skipping.
-                             const double u  // Divergence rate.
-) {
-  // NOTE: 'u' must be in (0,1), we assume the caller checked.
+trunc_pol_t*
+new_trunc_pol_W(    // PRIVATE
+    const int j,    // See page 22 of reference [1]
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
+// Convenience function described on page 22 of reference [1].
+{
+  // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
   if (j > n) {
     warning(internal_error, __func__, __LINE__);
@@ -1233,9 +1394,11 @@ in_case_of_failure:
 
 // SECTION 4.6. TRANSFER MATRICES //
 
-matrix_t* new_matrix_M(const double u,  // Divergence rate.
-                       const int N      // Number of duplicates.
-                       )
+matrix_t*
+new_matrix_M(        // PRIVATE
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
@@ -1276,12 +1439,15 @@ matrix_t* new_matrix_M(const double u,  // Divergence rate.
   // First N+1 series of rows.
   for (int j = 0; j <= N; j++) {
     for (int i = 0; i <= N; i++) {
-      handle_memory_error(M->term[j * dim + i] = new_trunc_pol_A(j, i, u, N));
+      handle_memory_error(M->term[j * dim + i] =
+                              new_trunc_pol_A(j, i, u, N));
     }
     for (int i = N + 1; i <= N + G - 1; i++) {
-      handle_memory_error(M->term[j * dim + i] = new_trunc_pol_B(i - N, u, N));
+      handle_memory_error(M->term[j * dim + i] =
+                              new_trunc_pol_B(i - N, u, N));
     }
-    handle_memory_error(M->term[j * dim + (N + G)] = new_trunc_pol_C(j, u, N));
+    handle_memory_error(M->term[j * dim + (N + G)] =
+                            new_trunc_pol_C(j, u, N));
   }
 
   // Next G-1 rows.
@@ -1290,7 +1456,8 @@ matrix_t* new_matrix_M(const double u,  // Divergence rate.
       handle_memory_error(M->term[j * dim + i] =
                               new_trunc_pol_D(j - N, i, u, N));
     }
-    handle_memory_error(M->term[j * dim + (N + G)] = new_trunc_pol_E(j - N));
+    handle_memory_error(M->term[j * dim + (N + G)] =
+                            new_trunc_pol_E(j - N));
   }
 
   // Last row is null (nothing to do).
@@ -1302,8 +1469,10 @@ in_case_of_failure:
   return NULL;
 }
 
-matrix_t* new_matrix_L(const double u  // Divergence rate.
-                       )
+matrix_t*
+new_matrix_L(       // PRIVATE
+    const double u  // Divergence rate
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
@@ -1319,7 +1488,7 @@ matrix_t* new_matrix_L(const double u  // Divergence rate.
 {
   matrix_t* L = NULL;
 
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' needs to be checked, so
@@ -1361,7 +1530,8 @@ matrix_t* new_matrix_L(const double u  // Divergence rate.
 
   // Next G-1 rows -- matrices C(z) and D(z).
   for (int i = G; i <= 2 * G - 2; i++) {
-    handle_memory_error(L->term[i * dim] = new_trunc_pol_R(2 * G - 2 - i, u));
+    handle_memory_error(L->term[i * dim] =
+                            new_trunc_pol_R(2 * G - 2 - i, u));
     for (int j = 0; j <= 2 * G - 2 - i; j++) {
       handle_memory_error(L->term[i * dim + j + 1] =
                               new_trunc_pol_r_plus(j, u));
@@ -1383,8 +1553,10 @@ in_case_of_failure:
   return NULL;
 }
 
-matrix_t* new_matrix_S(const int n  // Skipping.
-                       )
+matrix_t*
+new_matrix_S(    // PRIVATE
+    const int n  // Amount of skipping
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
@@ -1409,7 +1581,8 @@ matrix_t* new_matrix_S(const int n  // Skipping.
     for (int j = 0; j <= n; j++) {
       handle_memory_error(S->term[i * dim + j] = new_trunc_pol_H(i, j, n));
     }
-    handle_memory_error(S->term[i * dim + dim - 1] = new_trunc_pol_J(i, n));
+    handle_memory_error(S->term[i * dim + dim - 1] =
+                            new_trunc_pol_J(i, n));
   }
 
   // Last row is null (nothing to do).
@@ -1421,9 +1594,11 @@ in_case_of_failure:
   return NULL;
 }
 
-matrix_t* new_matrix_T(const int n,    // Skipping.
-                       const double u  // Divergence rate.
-                       )
+matrix_t*
+new_matrix_T(       // PRIVATE
+    const int n,    // Amount of skipping
+    const double u  // Divergence rate
+)
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
@@ -1473,7 +1648,8 @@ matrix_t* new_matrix_T(const int n,    // Skipping.
       T->term[j * dim + 0]->monodeg = j;
     }
     // Tail term (tail).
-    handle_memory_error(T->term[j * dim + dim - 1] = new_trunc_pol_N(j - 1));
+    handle_memory_error(T->term[j * dim + dim - 1] =
+                            new_trunc_pol_N(j - 1));
   }
 
   // Next 'G-1' rows.
@@ -1487,7 +1663,8 @@ matrix_t* new_matrix_T(const int n,    // Skipping.
       int deg = i - j - 1;
       if (deg < 0)
         continue;
-      handle_memory_error(T->term[j * dim + i] = new_trunc_pol_r_plus(deg, u));
+      handle_memory_error(T->term[j * dim + i] =
+                              new_trunc_pol_r_plus(deg, u));
     }
     // Matrix ~B(z).
     for (int i = n + G; i <= n + 2 * G - 2; i++) {
@@ -1519,7 +1696,8 @@ matrix_t* new_matrix_T(const int n,    // Skipping.
       int deg = i - j - 1;
       if (deg < 0)
         continue;
-      handle_memory_error(T->term[j * dim + i] = new_trunc_pol_r_minus(deg, u));
+      handle_memory_error(T->term[j * dim + i] =
+                              new_trunc_pol_r_minus(deg, u));
     }
     // Tail term (polynomial F).
     handle_memory_error(T->term[j * dim + dim - 1] =
@@ -1537,9 +1715,12 @@ in_case_of_failure:
 
 // SECTION 4.7. POLYNOMIAL MANIPULATION FUNCTIONS //
 
-trunc_pol_t* trunc_pol_mult(trunc_pol_t* dest,
-                            const trunc_pol_t* a,
-                            const trunc_pol_t* b)
+trunc_pol_t*
+trunc_pol_mult(            // PRIVATE
+    trunc_pol_t* dest,     // Destination address
+    const trunc_pol_t* a,  // First source polynomial
+    const trunc_pol_t* b   // Second source polynomial
+)
 // SYNOPSIS:
 //   Multiply two truncated polynomials 'a' and 'b', and store the result
 //   in 'dest'.
@@ -1560,7 +1741,8 @@ trunc_pol_t* trunc_pol_mult(trunc_pol_t* dest,
       return NULL;
     // Otherwise do the multiplication.
     dest->monodeg = a->monodeg + b->monodeg;
-    dest->coeff[dest->monodeg] = a->coeff[a->monodeg] * b->coeff[b->monodeg];
+    dest->coeff[dest->monodeg] =
+        a->coeff[a->monodeg] * b->coeff[b->monodeg];
     return dest;
   }
 
@@ -1587,7 +1769,11 @@ trunc_pol_t* trunc_pol_mult(trunc_pol_t* dest,
   return dest;
 }
 
-void trunc_pol_update_add(trunc_pol_t* dest, const trunc_pol_t* a)
+void
+trunc_pol_update_add(     // PRIVATE
+    trunc_pol_t* dest,    // Polynomial to update
+    const trunc_pol_t* a  // Added polynomial
+)
 // SYNOPSIS:
 //   Add polynomial 'a' to 'dest' and store the result in 'dest'.
 {
@@ -1609,7 +1795,12 @@ void trunc_pol_update_add(trunc_pol_t* dest, const trunc_pol_t* a)
 
 // SECTION 4.8. MATRIX MANIPULATION FUNCTIONS //
 
-matrix_t* matrix_mult(matrix_t* dest, const matrix_t* a, const matrix_t* b)
+matrix_t*
+matrix_mult(            // PRIVATE
+    matrix_t* dest,     // Destination address
+    const matrix_t* a,  // First source matrix
+    const matrix_t* b   // Second source matrix
+)
 // SYNOPSIS:
 //   Multiply matrices 'a' and 'b', and store the result in 'dest'.
 //
@@ -1635,9 +1826,9 @@ matrix_t* matrix_mult(matrix_t* dest, const matrix_t* a, const matrix_t* b)
         goto in_case_of_failure;
       bzero(dest->term[i * dim + j], KSZ);
       for (int m = 0; m < dim; m++) {
-        trunc_pol_update_add(
-            dest->term[i * dim + j],
-            trunc_pol_mult(TEMP, a->term[i * dim + m], b->term[m * dim + j]));
+        trunc_pol_update_add(dest->term[i * dim + j],
+                             trunc_pol_mult(TEMP, a->term[i * dim + m],
+                                            b->term[m * dim + j]));
       }
     }
   }
@@ -1650,7 +1841,10 @@ in_case_of_failure:
 
 // SECTION 4.9. HIGH LEVEL WGF COMPUTATION FUNCTIONS //
 
-trunc_pol_t* wgf_seed(void)
+trunc_pol_t*
+wgf_seed(  // PRIVATE
+    void   // No argument
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain an on-target
 //   exact gamma seed for specified static parameters using recurrence
@@ -1679,7 +1873,8 @@ trunc_pol_t* wgf_seed(void)
     pol->coeff[i] = 1.0;
   pol->coeff[G] = 1.0 - q_pow_gamma;
   for (int i = G + 1; i <= K; i++) {
-    pol->coeff[i] = pol->coeff[i - 1] - pq_pow_gamma * pol->coeff[i - G - 1];
+    pol->coeff[i] =
+        pol->coeff[i - 1] - pq_pow_gamma * pol->coeff[i - G - 1];
   }
 
   return pol;
@@ -1689,13 +1884,16 @@ in_case_of_failure:
 }
 
 // Need this snippet to compute a bound of the numerical imprecision.
-double HH(double x, double y) {
+double
+HH(double x, double y) {
   return x * log(x / y) + (1 - x) * log((1 - x) / (1 - y));
 }
 
-trunc_pol_t* wgf_mem(const double u,  // Divergence rate.
-                     const int N      // Number of duplicates.
-                     )
+trunc_pol_t*
+wgf_mem(             // PRIVATE
+    const double u,  // Divergence rate
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain an on-target
 //   MEM seed for specified static and dynamic parameters.
@@ -1709,7 +1907,7 @@ trunc_pol_t* wgf_mem(const double u,  // Divergence rate.
 //   fails. Initialization is checked indirectly through the call to
 //   'new_zero_trunc_pol()'.
 {
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
@@ -1805,8 +2003,10 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* wgf_dual(const double u  // Divergence rate.
-                      )
+trunc_pol_t*
+wgf_dual(           // PRIVATE
+    const double u  // Divergence rate
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads contain neither an on-target
 //   exact gamma seed nor an off-target exact gamma seed for the
@@ -1822,7 +2022,7 @@ trunc_pol_t* wgf_dual(const double u  // Divergence rate.
 //   fails. Initialization is checked indirectly through the call to
 //   'new_zero_trunc_pol()'.
 {
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
@@ -1897,8 +2097,10 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* wgf_skip(const size_t n  // Skipping.
-                      )
+trunc_pol_t*
+wgf_skip(           // PRIVATE
+    const size_t n  // Amount of skipping
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain an on-target
 //   skip-n seed of size gamma for the specified static and dynamic
@@ -1971,9 +2173,11 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* wgf_skip_dual(const size_t n,  // Skipping.
-                           const double u   // Divergence rate.
-                           )
+trunc_pol_t*
+wgf_skip_dual(       // PRIVATE
+    const size_t n,  // Amount of skipping
+    const double u   // Divergence rate
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads contain neither an on-target
 //   skip-n gamma seed nor an off-target skip-n gamma seed for the
@@ -1989,7 +2193,7 @@ trunc_pol_t* wgf_skip_dual(const size_t n,  // Skipping.
 //   fails. Initialization is checked indirectly through the call to
 //   'new_zero_trunc_pol()'.
 {
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
@@ -2059,13 +2263,20 @@ in_case_of_failure:
 
 // SECTION 4.10. LOW-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
-size_t rgeom(const double prob) {
+size_t
+rgeom(                 // PRIVATE
+    const double prob  // Probability of success
+)
+// Return a simulated number of consecutive successes.
+{
   return ceil(log(runifMT()) / log(1 - prob));
 }
 
-size_t rpos(const size_t m,  // The number of hard masks.
-            const size_t i   // Segment size (max value).
-            )
+size_t
+rpos(                // PRIVATE
+    const size_t m,  // Number of hard masks
+    const size_t i   // Segment size (max value)
+)
 // SYNOPSIS:
 //   Simulate the random position where the last hard mask fails.
 //
@@ -2100,13 +2311,21 @@ size_t rpos(const size_t m,  // The number of hard masks.
   return ceil(log(1 - XI[i] * mth_root_of_unif) / log(XIc[1]));
 }
 
-void one_mcmc_mem(const int N, double* pos)
+void
+one_mcmc_mem(     // PRIVATE
+    const int N,  // Number of duplicates
+    double* pos   // Position array to update
+)
 // SYNOPSIS:
 //   Simulate one read with MEM seeds using Monte Carlo Markov chains
 //   with the specified static parameters. Update the vector 'pos' with
 //   the positions of the read where a MEM seed is present, i.e., the
 //   positions such that a MEM seed would be present if the read
 //   terminated at this position.
+//
+// SIDE-EFFETS:
+//   Update 'pos' by adding 1 to all the positions such that a read of
+//   this size has a MEM seed.
 {
   int i;      // Size of the error-free segment.
   int m = 0;  // Number of hard masks.
@@ -2177,9 +2396,12 @@ void one_mcmc_mem(const int N, double* pos)
   }
 }
 
-void one_mcmc_skip(const size_t n,  // Skipping.
-                   const double u,  // Divergence.
-                   double* pos)
+void
+one_mcmc_skip(       // PRIVATE
+    const size_t n,  // Amount of skipping
+    const double u,  // Sequence divergence
+    double* pos      // Position array to update
+)
 // SYNOPSIS:
 //   Simulate one read with skip seeds using Monte Carlo Markov chains
 //   with the specified static parameters. Update the vector 'pos' with
@@ -2191,6 +2413,10 @@ void one_mcmc_skip(const size_t n,  // Skipping.
 //   quite slow. It is here only for testing purpose, to make sure
 //   that the computations with weighted generating functions are
 //   correct.
+//
+// SIDE-EFFETS:
+//   Update 'pos' by adding 1 to all the positions such that a read of
+//   this size has a skip seed.
 {
   const double a = (1 - P) * (1 - u);
   const double b = (1 - P) * u;
@@ -2244,9 +2470,11 @@ void one_mcmc_skip(const size_t n,  // Skipping.
 
 // SECTION 4.11. HIGH-LEVEL MONTE CARLO MARKOV CHAIN FUNCTIONS //
 
-trunc_pol_t* mem_mcmc(const double u,  // Divergence rate.
-                      const int N      // Number of duplicates.
-                      )
+trunc_pol_t*
+mem_mcmc(            // PRIVATE
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain an on-target
 //   MEM seed for specified static and dynamic parameters, using the
@@ -2261,7 +2489,7 @@ trunc_pol_t* mem_mcmc(const double u,  // Divergence rate.
 //   fains. Initialization is checked indirectly through the call to
 //   'new_zero_trunc_pol()'.
 {
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
@@ -2320,9 +2548,11 @@ in_case_of_failure:
   return NULL;
 }
 
-trunc_pol_t* compute_skipseedp_mcmc(const size_t n,  // Skipping.
-                                    const double u   // Divergence rate.
-                                    )
+trunc_pol_t*
+compute_skipseedp_mcmc(  // PRIVATE
+    const size_t n,      // Amount of skipping
+    const double u       // Sequence divergence
+)
 // SYNOPSIS:
 //   Compute the probabilities that reads do not contain a skip-n
 //   seed for the target and a single given off-target sequence, for
@@ -2338,7 +2568,7 @@ trunc_pol_t* compute_skipseedp_mcmc(const size_t n,  // Skipping.
 //   fains. Initialization is checked indirectly through the call to
 //   'new_zero_trunc_pol()'.
 {
-  // Assume parameters were checked by the caller.  See note 4.6.1.
+  // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
   // -- BEGIN BLOCK -- //
   // Check dynamic parameters. Only 'u' and 'N' must be checked, so
@@ -2369,10 +2599,11 @@ in_case_of_failure:
 
 // SECTION 4.12. HIGH-LEVEL LIBRARY FUNCTIONS //
 
-double* exact_seed_nullp  // VISIBLE //
-    (const double u,      // Divergence rate.
-     const int N          // Number of duplicates.
-     )
+double*
+exact_seed_nullp(    // PUBLIC
+    const double u,  // Sequence divergence rate
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that exact seeding is null.
 //
@@ -2405,7 +2636,8 @@ double* exact_seed_nullp  // VISIBLE //
   // on-target exact seed. See equation (8).
   for (int i = 0; i <= K; i++) {
     // Store everything in 'PS0'.
-    PS0->coeff[i] = PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+    PS0->coeff[i] =
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PS0->coeff[i] < 0)
       PS0->coeff[i] = 0.0;
@@ -2421,10 +2653,11 @@ in_case_of_failure:
   return NULL;
 }
 
-double* exact_seed_offp  // VISIBLE //
-    (const double u,     // Divergence rate.
-     const int N         // Number of duplicates.
-     )
+double*
+exact_seed_offp(     // PUBLIC
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that exact seeding is off target.
 //
@@ -2460,7 +2693,8 @@ double* exact_seed_offp  // VISIBLE //
   for (int i = 0; i <= K; i++) {
     // Store everything in 'PS0'.
     PS0->coeff[i] =
-        PS0->coeff[i] - PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+        PS0->coeff[i] -
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PS0->coeff[i] < 0)
       PS0->coeff[i] = 0.0;
@@ -2476,11 +2710,12 @@ in_case_of_failure:
   return NULL;
 }
 
-double* skip_seed_nullp  // VISIBLE //
-    (const int n,        // Skipping.
-     const double u,     // Divergence rate.
-     const int N         // Number of duplicates.
-     )
+double*
+skip_seed_nullp(     // PUBLIC
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that exact seeding is off null.
 //
@@ -2517,7 +2752,8 @@ double* skip_seed_nullp  // VISIBLE //
   // on-target skip seed. See equation (8).
   for (int i = 0; i <= K; i++) {
     // Store everything in 'PS0'.
-    PS0->coeff[i] = PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+    PS0->coeff[i] =
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PS0->coeff[i] < 0)
       PS0->coeff[i] = 0.0;
@@ -2533,11 +2769,12 @@ in_case_of_failure:
   return NULL;
 }
 
-double* skip_seed_offp  // VISIBLE //
-    (const int n,       // Skipping.
-     const double u,    // Divergence rate.
-     const int N        // Number of duplicates.
-     )
+double*
+skip_seed_offp(      // PUBLIC
+    const int n,     // Amount of skipping
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that exact seeding is off target.
 //
@@ -2579,7 +2816,8 @@ double* skip_seed_offp  // VISIBLE //
   for (int i = 0; i <= K; i++) {
     // Store everything in 'PS0'.
     PS0->coeff[i] =
-        PS0->coeff[i] - PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+        PS0->coeff[i] -
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PS0->coeff[i] < 0)
       PS0->coeff[i] = 0.0;
@@ -2595,10 +2833,11 @@ in_case_of_failure:
   return NULL;
 }
 
-double* mem_seed_nullp  // VISIBLE //
-    (const double u,    // Divergence rate.
-     const int N        // Number of duplicates.
-     )
+double*
+mem_seed_nullp(      // PUBLIC
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that MEM seeding is null.
 //
@@ -2614,10 +2853,11 @@ double* mem_seed_nullp  // VISIBLE //
   return exact_seed_nullp(u, N);
 }
 
-double* mem_seed_offp  // VISIBLE //
-    (const double u,   // Divergence rate.
-     const int N       // Number of duplicates.
-     )
+double*
+mem_seed_offp(       // PUBLIC
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that MEM seeding is off target.
 //
@@ -2655,7 +2895,8 @@ double* mem_seed_offp  // VISIBLE //
   for (int i = 0; i <= K; i++) {
     // Store everything in 'M0'.
     PM0->coeff[i] =
-        PM0->coeff[i] - PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+        PM0->coeff[i] -
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PM0->coeff[i] < 0)
       PM0->coeff[i] = 0.0;
@@ -2673,10 +2914,11 @@ in_case_of_failure:
   return NULL;
 }
 
-double* mem_seed_offp_mcmc  // VISIBLE //
-    (const double u,        // Divergence rate.
-     const int N            // Number of duplicates.
-     )
+double*
+mem_seed_offp_mcmc(  // PUBLIC
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that MEM seeding is off target, using
 //   the MCMC algorithm (for speed).
@@ -2715,7 +2957,8 @@ double* mem_seed_offp_mcmc  // VISIBLE //
   for (int i = 0; i <= K; i++) {
     // Store everything in 'M0'.
     PM0->coeff[i] =
-        PM0->coeff[i] - PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
+        PM0->coeff[i] -
+        PS0->coeff[i] * pow(PS0S1->coeff[i] / PS0->coeff[i], N);
     // Suppress fluctuations in very small numbers.
     if (PM0->coeff[i] < 0)
       PM0->coeff[i] = 0.0;
@@ -2733,11 +2976,12 @@ in_case_of_failure:
   return NULL;
 }
 
-double auto_exact_seed_nullp  // VISIBLE //
-    (const int k,             // Segment or read size.
-     const double u,          // Divergence rate.
-     const int N              // Number of duplicates.
-     )
+double
+auto_exact_seed_nullp(  // PUBLIC
+    const int k,        // Segment or read size
+    const double u,     // Sequence divergence
+    const int N         // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the exact seeding process is null.
 //   Take care of the detail regarding the caching so that
@@ -2781,11 +3025,12 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-double auto_exact_seed_offp  // VISIBLE //
-    (const int k,            // Segment or read size.
-     const double u,         // Divergence rate.
-     const int N             // Number of duplicates.
-     )
+double
+auto_exact_seed_offp(  // PUBLIC
+    const int k,       // Segment or read size
+    const double u,    // Sequence divergence
+    const int N        // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the exact seeding process is off
 //   target. Take care of the detail regarding caching so that
@@ -2829,12 +3074,13 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-double auto_skip_seed_nullp  // VISIBLE //
-    (const int k,            // Segment or read size.
-     const int n,            // Skipping.
-     const double u,         // Divergence rate.
-     const int N             // Number of duplicates.
-     )
+double
+auto_skip_seed_nullp(  // PUBLIC
+    const int k,       // Segment or read size
+    const int n,       // Amount of skipping
+    const double u,    // Sequence divergence
+    const int N        // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the skip seeding process is null.
 //   Take care of the detail regarding caching so that computations
@@ -2883,12 +3129,13 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-double auto_skip_seed_offp  // VISIBLE //
-    (const int k,           // Segment or read size.
-     const int n,           // Skipping.
-     const double u,        // Divergence rate.
-     const int N            // Number of duplicates.
-     )
+double
+auto_skip_seed_offp(  // PUBLIC
+    const int k,      // Segment or read size
+    const int n,      // Amount of skipping
+    const double u,   // Sequence divergence
+    const int N       // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the skip seeding process is off
 //   target. Take care of the detail regarding caching so that
@@ -2937,11 +3184,12 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-double auto_mem_seed_nullp  // VISIBLE //
-    (const int k,           // Segment or read size.
-     const double u,        // Divergence rate.
-     const int N            // Number of duplicates.
-     )
+double
+auto_mem_seed_nullp(  // PUBLIC
+    const int k,      // Segment or read size
+    const double u,   // Sequence divergence
+    const int N       // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the MEM seeding process is null.
 //   Take care of the detail regarding caching so that computations
@@ -2985,11 +3233,12 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-double auto_mem_seed_offp  // VISIBLE //
-    (const int k,          // Segment or read size.
-     const double u,       // Divergence rate.
-     const int N           // Number of duplicates.
-     )
+double
+auto_mem_seed_offp(  // PUBLIC
+    const int k,     // Segment or read size
+    const double u,  // Sequence divergence
+    const int N      // Number of duplicates
+)
 // SYNOPSIS:
 //   Compute the probability that the MEM seeding process is off
 //   target. Take care of the detail regarding the choice of the
@@ -3039,13 +3288,24 @@ in_case_of_failure:
   return 0.0 / 0.0;
 }
 
-void clean_prob_storage(void) {
+void
+clean_prob_storage(  // PUBLIC
+    void             // No argument
+)
+// Free internal hash Y1 used for storing generic probabilities.
+{
   clean_hash(Y1);
-}  // VISIBLE //
+}
 
-void dump_prob_to_file  // VISIBLE //
-    (FILE* f)
-// SYNOPSIS: XXX
+void
+dump_prob_to_file(  // PUBLIC
+    FILE* f         // File to write to
+)
+// SYNOPSIS:
+//   Write the content of the genric hash 'Y1' to file in text
+//   format. The format of the file is meant to be read by the
+//   function 'load_prob_from_file()'. This includes a simple
+//   header and a tab-separated list of values.
 {
   // Write the static parameters.
   fprintf(f, "# gamma:%d, k:%d, p:%.3f\n", G, K, P);
@@ -3062,9 +3322,22 @@ void dump_prob_to_file  // VISIBLE //
   }
 }
 
-int load_prob_from_file  // VISIBLE //
-    (FILE* f)
-// SYNOPSIS: XXX
+int
+load_prob_from_file(  // PUBLIC
+    FILE* f           // File to load from
+)
+// SYNOPSIS:
+//   Load the content of text file in the genric hash 'Y1'.
+//   The file must be generated by 'dump_prob_to_file()' in the
+//   first place.
+//
+// RETURN:
+//   SUCCESS (1) if file can be read and loaded into memory,
+//   otherwise FAILURE (0).
+//
+// FAILURE:
+//   Fails if file is mis-formatted, if it specifies invalid
+//   static parameters of in case of memory error.
 {
   double* prob = NULL;
 
@@ -3141,71 +3414,7 @@ in_case_of_failure:
   return FAILURE;
 }
 
-#if 0
-double
-average_errors
-(
-   const int g,
-   const int k,
-   const double p
-)
-// Use recurrence.
-{
-
-   if (k <= g) return p*k;
-
-   // Allocate at least '2*g+2' numbers for convenience.
-   size_t sz = (k+1 < 2*g+2 ? 2*g+2 : k+1) * sizeof(double);
-   double *s = malloc(sz);
-   handle_memory_error(s);
-
-   const double two_pq_pow_gamma = 2 * p * pow(1-p,g);
-   const double pq_pow_gamma_square = pow(p * pow(1-p,g),2);
-
-   for (int i = 0 ; i <= g ; i++) s[i] = p*i;
-
-   s[g+1] = p*(g+1) - two_pq_pow_gamma;
-
-   for (int i = g+2 ; i < 2*g+1 ; i++) {
-      s[i] = 2*s[i-1] - s[i-2] -
-         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]);
-   }
-
-   s[2*g+1] = 2*s[2*g] - s[2*g-1] -
-      two_pq_pow_gamma * (s[g] - s[g-1]) + p*pow(1-p,2*g);
-
-   for (int i = 2*g+2 ; i <= k ; i++) {
-      s[i] = 2*s[i-1] - s[i-2] -
-         two_pq_pow_gamma * (s[i-g-1] - s[i-g-2]) -
-         pq_pow_gamma_square * s[i-2*g-2];
-   }
-
-   double value = s[k];
-   free(s);
-
-   return value;
-
-in_case_of_failure:
-   return 0.0 / 0.0; // nan
-
-}
-
-double
-special_average
-(
-   const int g,
-   const int k,
-   const double p
-)
-// TODO: explain the logic of this in the LaTex document.
-{
-
-   const double num = p*k - average_errors(g,k,p);
-   const double denom = 1.0 - exact_seed_prob(g,k,0) - pow(1-p,k);
-   return num / denom; 
-
-}
-#endif
+// ---------------------------------------------------------------------//
 
 // http://www.math.keio.ac.jp/~matumoto/ver980409.html
 
@@ -3284,7 +3493,8 @@ static uint32 state[NN + 1];  // state vector + 1 extra to respect ANSI C
 static uint32* next;          // next random value is computed from here
 static int left = -1;         // can *next++ so many times before reloading
 
-void seedMT(uint32 seed)
+void
+seedMT(uint32 seed)
 //
 // We initialize state[0..(NN-1)] via the generator
 //
@@ -3338,7 +3548,8 @@ void seedMT(uint32 seed)
     ;
 }
 
-uint32 reloadMT(void) {
+uint32
+reloadMT(void) {
   register uint32 *p0 = state, *p2 = state + 2, *pM = state + MM, s0, s1;
   register int j;
 
@@ -3347,13 +3558,15 @@ uint32 reloadMT(void) {
 
   left = NN - 1, next = state + 1;
 
-  for (s0 = state[0], s1 = state[1], j = NN - MM + 1; --j; s0 = s1, s1 = *p2++)
+  for (s0 = state[0], s1 = state[1], j = NN - MM + 1; --j;
+       s0 = s1, s1 = *p2++)
     *p0++ = *pM++ ^ (mixBits(s0, s1) >> 1) ^ (loBit(s1) ? KK : 0U);
 
   for (pM = state, j = MM; --j; s0 = s1, s1 = *p2++)
     *p0++ = *pM++ ^ (mixBits(s0, s1) >> 1) ^ (loBit(s1) ? KK : 0U);
 
-  s1 = state[0], *p0 = *pM ^ (mixBits(s0, s1) >> 1) ^ (loBit(s1) ? KK : 0U);
+  s1 = state[0],
+  *p0 = *pM ^ (mixBits(s0, s1) >> 1) ^ (loBit(s1) ? KK : 0U);
   s1 ^= (s1 >> 11);
   s1 ^= (s1 << 7) & 0x9D2C5680U;
   s1 ^= (s1 << 15) & 0xEFC60000U;
@@ -3364,7 +3577,8 @@ uint32 reloadMT(void) {
 #undef MM
 #undef KK
 
-uint32 randomMT(void) {
+uint32
+randomMT(void) {
   uint32 y;
 
   if (--left < 0)
@@ -3380,7 +3594,8 @@ uint32 randomMT(void) {
 // Tiny function to return a uniform pseudo random number between 0
 // and 1 using the Mersenne twister algorithm above.
 
-double runifMT(void) {
+double
+runifMT(void) {
   return randomMT() / 4294967295.0;
 }
 
@@ -3418,7 +3633,8 @@ double runifMT(void) {
 
 #define repeat for (;;)
 
-int rbinom(int n, double pp) {
+int
+rbinom(int n, double pp) {
   static double c, fm, npq, p1, p2, p3, p4, qn;
   static double xl, xll, xlr, xm, xr;
 
@@ -3518,8 +3734,8 @@ int rbinom(int n, double pp) {
         goto finis;
     } else {
       // squeezing using upper and lower bounds on log(f(x)) //
-      amaxp =
-          (k / npq) * ((k * (k / 3. + 0.625) + 0.1666666666666) / npq + 0.5);
+      amaxp = (k / npq) *
+              ((k * (k / 3. + 0.625) + 0.1666666666666) / npq + 0.5);
       ynorm = -k * k / (2.0 * npq);
       alv = log(v);
       if (alv < ynorm - amaxp)

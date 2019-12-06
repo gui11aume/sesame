@@ -1,0 +1,4 @@
+# clang-format file.c | sed 's/[[:space:]]*)$/)/' > formated.c
+BasedOnStyle: Chromium
+ColumnLimit: 75
+AlwaysBreakAfterReturnType: AllDefinitions

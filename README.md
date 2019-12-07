@@ -5,8 +5,8 @@
     1. What is sesame?
     2. Compilation
     3. Using sesame
-    4. License.
-    5. Citation.
+    4. License
+    5. Citation
 
 ---
 
@@ -106,7 +106,6 @@ memory used internally.
 
     sesame_clean();
 
-
 Below are the prototypes of the two functions:
 
     void sesame_clean(void);
@@ -196,7 +195,7 @@ Below are the protypes of the six non-automatic functions.
     double * skip_seed_offp (int, double, int);
 
 
-### Storing in memory
+### Storing results in memory
 
 To facilitate the use of non-automatic functions, sesame allows the
 user to store the results of the computations in an internal hash for
@@ -215,12 +214,12 @@ seeding for skip-8 seeds and sequences with 50 extra duplicates that
 typically differ from the target by 6%, and then to store the results
 for later recall:
 
-    double *p = skip_seed_nullp(8, .06, 50);
+    double * p = skip_seed_nullp(8, .06, 50);
     int success = store_prob(8, .06, 50, p);
 
 The probabilities can then be recalled with
 
-    double q* = fetch_prob(8, .06, 50);
+    double * q = fetch_prob(8, .06, 50);
 
 Below are the prototypes of the functions to store and retrieve
 arrays of probabilities.
@@ -237,7 +236,7 @@ This operation is automatically performed upon cleanup by
 `sesame_clean()`.
 
 
-### Saving and loading
+### Saving and loading from disk
 
 Sesame allows the users to dump the internal hash to a text file.
 The arrays of probabilities stored in the internal hash are then
@@ -247,13 +246,13 @@ file contains the associated values of the static parameters.
 To give an example, storing the computed results in a file called
 `seed_probs.txt` can be done with the following commands:
 
-    FILE *f = fopen("seed_probs.txt", "w");
+    FILE * f = fopen("seed_probs.txt", "w");
     dump_prob_to_file(f);
 
 After this, the file `seed_probs.txt` can be loaded in future
 runs with the commands:
 
-    FILE *f = fopen("seed_probs.txt", "r");
+    FILE * f = fopen("seed_probs.txt", "r");
     load_prob_from_file(f);
 
 The internal hash is erased before loading a file from disk, which
@@ -283,8 +282,8 @@ file or refer to:
 V. Citation
 --------------
 
-Sesame is being peer-reviewedr. For now you can cite it as a bioRxiv preprint.
+Sesame is in the process of peer review. For now you can cite it as a bioRxiv preprint.
 
-Filion GJ., Cortini R, Zorita E 2019.
+Filion GJ, Cortini R, Zorita E 2019.
 [Calibrating seed-based heuristics to map short DNA reads](https://www.biorxiv.org/content/10.1101/619155v1.full)
 bioRxiv DOI:10.1101/619155.

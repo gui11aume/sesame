@@ -163,7 +163,7 @@ static rec_t* H2N[HSIZE] = {0};  // 'auto_skip_seed_nullp()'
 static rec_t* H2O[HSIZE] = {0};  // 'auto_skip_seed_offp()'
 static rec_t* H3N[HSIZE] = {0};  // 'auto_mem_seed_nullp()'
 static rec_t* H3O[HSIZE] = {0};  // 'auto_mem_seed_offp()'
-static rec_t* Y1[HSIZE] = {0};   // Generic public hash
+static rec_t* Y1[HSIZE] = {0};   // generic "prob_store" hash
 
 static trunc_pol_t* TEMP = NULL;  // For matrix multipliciation.
 
@@ -524,6 +524,15 @@ insert(              // PRIVATE
 // FAILURE:
 //   Fails if 'malloc()' fails.
 {
+
+  // See if entry was already created.
+  rec_t *rec = lookup(hash, n, u, N);
+  if (rec != NULL) {
+    // WARNING: this may cause memory leaks.
+    rec->prob = prob;
+    return rec;
+  }
+
   size_t coarse_u = (100 * u);
   size_t addr = (739 * n + 37 * N + coarse_u) % HSIZE;
 
@@ -3289,7 +3298,7 @@ in_case_of_failure:
 }
 
 void
-clean_prob_storage(  // PUBLIC
+clean_prob_store(  // PUBLIC
     void             // No argument
 )
 // Free internal hash Y1 used for storing generic probabilities.
@@ -3339,6 +3348,10 @@ load_prob_from_file(  // PUBLIC
 //   Fails if file is mis-formatted, if it specifies invalid
 //   static parameters of in case of memory error.
 {
+
+  // Remove any existing entry.
+  clean_prob_store();
+
   double* prob = NULL;
 
   // For maximum portability, we are not using any external code
@@ -3410,7 +3423,7 @@ load_prob_from_file(  // PUBLIC
 
 in_case_of_failure:
   free(prob);
-  clean_prob_storage();
+  clean_prob_store();
   return FAILURE;
 }
 

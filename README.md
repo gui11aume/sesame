@@ -17,7 +17,7 @@ short DNA reads.
 
 The most common method to identify a sequencing read is to align it to a
 reference sequence, typically a genome. The alignment aims to find the
-subsequence of the genome that is the closest to the read. There exists
+subsequence of the genome that is the closest to the read. There exist
 algorithms to find the best subsequence of the genome, but they are too
 slow when the reference sequence is the size of a genome.
 
@@ -77,8 +77,9 @@ Copy `sesame.h` and `sesame.c` in the appropriate directories of
 your project. Import the sesame functions as usual in all the source
 files that must have access to them.
 
-    #include "sesame.h"
-
+```C
+#include "sesame.h"
+```
 
 ### Initialization and cleanup
 
@@ -90,26 +91,34 @@ For instance, to initialize the library for seeds of size 17 or
 greater in reads of size 100 from a sequencer with 1% error, you
 would use the following:
 
-    int success = sesame_set_static_params(17, 100, .01);
+```C
+int success = sesame_set_static_params(17, 100, .01);
+```
 
 What to do in case the library cannot be initialized is up to you
 (for instance this can happen if you run out of memory). This means
 that you will not be able to use sesame at run time, so most of the
 time you will just bail out.
 
-    if (!success) {
-       exit(EXIT_FAILURE);
-    }
+```C
+if (!success) {
+   exit(EXIT_FAILURE);
+}
+```
 
 When you no longer need sesame, it is recommended that you free the
 memory used internally.
 
-    sesame_clean();
+```C
+sesame_clean();
+```
 
 Below are the prototypes of the two functions:
 
-    void sesame_clean(void);
-    int sesame_set_static_params(size_t, size_t, double);
+```C
+void sesame_clean(void);
+int sesame_set_static_params(size_t, size_t, double);
+```
 
 ### Automatic functions
 
@@ -140,29 +149,46 @@ of the sequence where the seed is sought, the divergence rate
 between the duplicates of the sequence, and the number of said
 duplicates.
 
-For instance, to compute the probability that MEM seeding will be
-off target for a read of size 100 from a sequence with 50 extra
-duplicates in the genome that typically differ at 6% of the positions
+#### Off-target probability
+
+For instance, to compute the probability that **MEM seeding** will be
+off target for a read of `size 100` from a sequence with `50 extra
+duplicates` in the genome that typically `differ at 6%` of the positions
 is computed by
 
-    double p = auto_mem_seed_offp (100, .06, 50);
+```C
+double p = auto_mem_seed_offp (100, .06, 50);
+```
+    
+#### Null seeding probability
 
-When using skip seeds, one extra argument is the amount of skipping
-(the number of consecutive positions where a new seed is disallowed).
-To compute the probability that skip-8 seeding will be off target for
-a read of size 100 from a sequence with 50 extra duplicates in the
-genome that typically differ at 6% of the positions is computed by
+To compute the probability that **skip-8 seeding** will be null (no true
+candidate is found) for a read of `size 100` from a sequence with `50 extra`
+duplicates in the genome that typically `differ at 6%` of the positions is 
+computed by
 
-    double p = auto_skip_seed_nullp (100, 8, .06, 50);
+```C
+double p = auto_skip_seed_nullp (100, 8, .06, 50);
+```
+    
+Note that when using skip seeds, one extra argument is the amount of 
+skipping (the number of consecutive positions where a new seed is 
+disallowed).
+
+#### Function prototypes
 
 Below are the protypes of the six automatic functions.
-
-    double auto_exact_seed_nullp (int, double, int);
-    double auto_exact_seed_offp (int, double, int);
-    double auto_skip_seed_nullp (int, int, double, int);
-    double auto_skip_seed_offp (int, int, double, int);
-    double auto_mem_seed_nullp (int, double, int);
-    double auto_mem_seed_offp (int, double, int);
+```C
+// Exact seeds
+double auto_exact_seed_nullp (int size, double perror, int duplicates);
+double auto_exact_seed_offp (int size, double perror, int duplicates);
+// Skip seeds
+double auto_skip_seed_nullp (int size, int skip, double perror, int duplicates);
+double auto_skip_seed_offp (int size, int skip, double perror, int duplicates);
+// MEM seeds
+double auto_mem_seed_nullp (int size, double perror, int duplicates);
+double auto_mem_seed_offp (int size, double perror, int duplicates);
+```
 
 
 ### Non-automatic functions
@@ -186,22 +212,23 @@ for all the sizes up to the maximum are computed).
 
 Below are the protypes of the six non-automatic functions.
 
-    double * exact_seed_null (double, int);
-    double * exact_seed_offp (double, int);
-    double * mem_seed_null (double, int);
-    double * mem_seed_offp (double, int);
-    double * mem_seed_offp_mcmc (double, int);
-    double * skip_seed_null (int, double, int);
-    double * skip_seed_offp (int, double, int);
-
+```C
+double * exact_seed_null (double perror, int duplicates);
+double * exact_seed_offp (double perror, int duplicates);
+double * skip_seed_null (int skip, double perror, int duplicates);
+double * skip_seed_offp (int skip, double perror, int duplicates);
+double * mem_seed_null (double perror, int duplicates);
+double * mem_seed_offp (double perror, int duplicates);
+double * mem_seed_offp_mcmc (double perror, int duplicates);
+```
 
 ### Storing results in memory
 
 To facilitate the use of non-automatic functions, sesame allows the
 user to store the results of the computations in an internal hash for
-fast recall. The keys of the hash have three parameters. They can be
-thought of as the amount of skipping, the divergence rate and the
-number of duplicates, but they can be any value specified by the
+fast recall. The keys of the hash have three parameters. A suggestion
+is to use the amount of skipping, the divergence rate and the
+number of duplicates, but they can be set to any value specified by the
 user.
 
 The internal hash does not make a copy of the results, it only stores
@@ -209,28 +236,37 @@ a pointer to them. Storing results with the same key will overwrite the
 associated pointer, which can cause memory leaks. Freeing the memory
 is the responsability of the user if a hash entry is overwritten.
 
-Below is an example of commands to compute the probability of null
-seeding for skip-8 seeds and sequences with 50 extra duplicates that
-typically differ from the target by 6%, and then to store the results
+Below is an example of commands to compute the probability of **null
+seeding** for **skip-8 seeds** and sequences with `50 extra duplicates` that
+typically `differ from the target by 6%`, and then to store the results
 for later recall:
 
-    double * p = skip_seed_nullp(8, .06, 50);
-    int success = store_prob(8, .06, 50, p);
+```C
+double * p = skip_seed_nullp(8, .06, 50);
+int success = store_prob(8, .06, 50, p);
+```
 
 The probabilities can then be recalled with
 
-    double * q = fetch_prob(8, .06, 50);
+```C
+double * q = fetch_prob(8, .06, 50);
+```
 
-Below are the prototypes of the functions to store and retrieve
-arrays of probabilities.
+If no record has been previously stored in the requested key, `fetch_prob` 
+returns a `NULL` pointer. Below are the prototypes of the functions to store 
+and retrieve arrays of probabilities:
 
-    double * fetch_prob (int, double, int);
-    int store_prob (int, double, int, double *);
+```C
+double * fetch_prob (int, double, int);
+int store_prob (int, double, int, double *);
+```
 
 To erase the entries of the internal hash and to free the computed
 probabilities, use the following function:
 
-    clean_prob_store();
+```C
+clean_prob_store();
+```
 
 This operation is automatically performed upon cleanup by
 `sesame_clean()`.
@@ -246,14 +282,18 @@ file contains the associated values of the static parameters.
 To give an example, storing the computed results in a file called
 `seed_probs.txt` can be done with the following commands:
 
-    FILE * f = fopen("seed_probs.txt", "w");
-    dump_prob_to_file(f);
+```C
+FILE * f = fopen("seed_probs.txt", "w");
+dump_prob_to_file(f);
+```
 
 After this, the file `seed_probs.txt` can be loaded in future
 runs with the commands:
 
-    FILE * f = fopen("seed_probs.txt", "r");
-    load_prob_from_file(f);
+```C
+FILE * f = fopen("seed_probs.txt", "r");
+load_prob_from_file(f);
+```
 
 The internal hash is erased before loading a file from disk, which
 will also free any stored array of probabilities. Loading a file
@@ -265,9 +305,10 @@ longer required after loading the file).
 
 Below are the prototypes for the input/ouput functions.
 
-    void dump_prob_to_file (FILE *);
-    void load_prob_from_file (FILE *);
-
+```C
+void dump_prob_to_file (FILE *);
+void load_prob_from_file (FILE *);
+```
 
 IV. License
 -----------

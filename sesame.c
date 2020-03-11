@@ -188,8 +188,8 @@ const char internal_error[] =
 // SECTION 4.1. GET AND SET FUNCTIONS  (VISIBLE) //
 
 void
-sesame_set_epsilon(double p) {
-  EPSILON = p < 0 ? 0.0 : p;
+sesame_set_epsilon(double eps) {
+  EPSILON = eps < 0 ? 0.0 : eps;
 }
 void
 sesame_set_mcmcsamplings(long int n) {
@@ -1003,13 +1003,12 @@ in_case_of_failure:
 
 trunc_pol_t*
 new_trunc_pol_H(  // PRIVATE
-    const int r,  // See equation (4)
     const int s,  // See equation (4)
     const int n   // Amount of skipping
 )
 // Convenience function described in equation (4) of reference [1].
 {
-  if (s > n || r > n) {
+  if (s > n) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1017,8 +1016,9 @@ new_trunc_pol_H(  // PRIVATE
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  const int x = modulo(r - s - 1, n + 1);
-  const int m = (G - 1 + r - x) / (n + 1);
+  //const int x = modulo(- s - 1, n + 1);
+  const int x = modulo(n-s, n + 1);
+  const int m = (G - 1 - x) / (n + 1);
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
@@ -1563,13 +1563,13 @@ in_case_of_failure:
 }
 
 matrix_t*
-new_matrix_S(    // PRIVATE
+new_matrix_Mn(    // PRIVATE
     const int n  // Amount of skipping
 )
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix S(z) of reads without on-target skip-n seed.
+//   transfer matrix Mn(z) of reads without on-target skip-n seed.
 //
 // RETURN:
 //   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
@@ -1579,27 +1579,35 @@ new_matrix_S(    // PRIVATE
 //   Fails if static parameters are not initialized or if there is a
 //   memory error.
 {
-  matrix_t* S = NULL;
+  matrix_t* Mn = NULL;
 
   const int dim = n + 2;
-  S = new_null_matrix(dim);
-  handle_memory_error(S);
+  Mn = new_null_matrix(dim);
+  handle_memory_error(Mn);
 
-  // First n+1 rows.
-  for (int i = 0; i <= n; i++) {
-    for (int j = 0; j <= n; j++) {
-      handle_memory_error(S->term[i * dim + j] = new_trunc_pol_H(i, j, n));
-    }
-    handle_memory_error(S->term[i * dim + dim - 1] =
-                            new_trunc_pol_J(i, n));
+  // First row.
+  for (int j = 0; j <= n; j++) {
+    handle_memory_error(Mn->term[0*dim + j] = new_trunc_pol_H(j, n));
   }
+  handle_memory_error(Mn->term[0*dim + dim - 1] =
+                            new_trunc_pol_E(0));
 
+  // Next n rows.
+  for (int i = 1; i <= n; i++) {
+    handle_memory_error(Mn->term[i*dim + 0] = new_zero_trunc_pol());
+    if (i <= K) {
+      Mn->term[i * dim + 0]->coeff[i] = 1.0;
+      Mn->term[i * dim + 0]->monodeg = i;
+    }
+    handle_memory_error(Mn->term[i * dim + dim - 1] =
+                            new_trunc_pol_N(i-1));
+  }
   // Last row is null (nothing to do).
 
-  return S;
+  return Mn;
 
 in_case_of_failure:
-  destroy_mat(S);
+  destroy_mat(Mn);
   return NULL;
 }
 
@@ -2127,21 +2135,21 @@ wgf_skip(           // PRIVATE
   // The logic of this function is the same as 'wgf_mem()'.
   // See the comments there for more detail on what is going on.
   trunc_pol_t* w = new_zero_trunc_pol();
-  matrix_t* S = new_matrix_S(n);
+  matrix_t* Mn = new_matrix_Mn(n);
 
   matrix_t* powS1 = new_zero_matrix(n + 2);
   matrix_t* powS2 = new_zero_matrix(n + 2);
 
   handle_memory_error(w);
-  handle_memory_error(S);
+  handle_memory_error(Mn);
   handle_memory_error(powS1);
   handle_memory_error(powS2);
 
   // Update weighted generating function with
   // one-segment reads (i.e. tail only).
-  trunc_pol_update_add(w, S->term[n + 1]);
+  trunc_pol_update_add(w, Mn->term[n + 1]);
 
-  matrix_mult(powS1, S, S);
+  matrix_mult(powS1, Mn, Mn);
 
   // Update weighted generating function with two-segment reads.
   trunc_pol_update_add(w, powS1->term[n + 1]);
@@ -2153,9 +2161,9 @@ wgf_skip(           // PRIVATE
   for (int s = 2; s <= K + 1; s += 2) {
     // Increase the number of segments and update
     // the weighted generating function accordingly.
-    matrix_mult(powS2, S, powS1);
+    matrix_mult(powS2, Mn, powS1);
     trunc_pol_update_add(w, powS2->term[n + 1]);
-    matrix_mult(powS1, S, powS2);
+    matrix_mult(powS1, Mn, powS2);
     trunc_pol_update_add(w, powS1->term[n + 1]);
     // In max precision mode, get all possible digits.
     // Otherwise, stop when reaching 1% precision.
@@ -2168,7 +2176,7 @@ wgf_skip(           // PRIVATE
   // Clean temporary variables.
   destroy_mat(powS1);
   destroy_mat(powS2);
-  destroy_mat(S);
+  destroy_mat(Mn);
 
   return w;
 
@@ -2177,8 +2185,8 @@ in_case_of_failure:
   free(w);
   destroy_mat(powS1);
   destroy_mat(powS2);
-  destroy_mat(S);
-  free(S);
+  destroy_mat(Mn);
+  free(Mn);
   return NULL;
 }
 

@@ -1333,21 +1333,21 @@ test_new_trunc_pol_H
 (void)
 {
 
-   int success = sesame_set_static_params(17, 17, 0.01);
+   int success = sesame_set_static_params(17, 10, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *H;
 
 
-   // Make sure degree is always less than 'K'.
-   // Would have a term of degree 18 if 'K' were higher.
+   // Make sure degree is always 'K' or less.
+   // Would terms of degree > 10 if 'K' were higher.
    // This needs to be checked properly by valgrind.
-   H = new_trunc_pol_H(1, 1, 1);
+   H = new_trunc_pol_H(0, 1);
    test_assert_critical(H != NULL);
 
-   test_assert(H->monodeg > 17);
+   test_assert(H->monodeg > 10);
    test_assert(H->coeff[0] == 0);
-   for (int i = 1 ; i <= 17 ; i++) {
+   for (int i = 1 ; i <= 10 ; i++) {
       double target = (i % 2) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
@@ -1362,7 +1362,7 @@ test_new_trunc_pol_H
    test_assert_critical(success);
 
    // Test the validity of skip-0.
-   H = new_trunc_pol_H(0, 0, 0);
+   H = new_trunc_pol_H(0, 0);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1380,7 +1380,7 @@ test_new_trunc_pol_H
 
 
    // Test all the possibilities with skip-1 seeds.
-   H = new_trunc_pol_H(0, 0, 1);
+   H = new_trunc_pol_H(0, 1);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1397,7 +1397,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(0, 1, 1);
+   H = new_trunc_pol_H(1, 1);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1406,39 +1406,6 @@ test_new_trunc_pol_H
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(1, 0, 1);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   for (int i = 0 ; i <= 18 ; i++) {
-      double target = (i % 2) == 0 ? 0.0 : 0.01 * pow(.99, i-1);
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 19 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(1, 1, 1);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   test_assert(H->coeff[0] == 0);
-   for (int i = 1 ; i <= 18 ; i++) {
-      double target = (i % 2) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 19 ; i <= k ; i++) {
       test_assert(H->coeff[i] == 0);
    }
 
@@ -1447,7 +1414,7 @@ test_new_trunc_pol_H
 
 
    // Test all the possibilities with skip-2 seeds.
-   H = new_trunc_pol_H(0, 0, 2);
+   H = new_trunc_pol_H(0, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1464,7 +1431,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(0, 1, 2);
+   H = new_trunc_pol_H(1, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1480,7 +1447,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(0, 2, 2);
+   H = new_trunc_pol_H(2, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1489,104 +1456,6 @@ test_new_trunc_pol_H
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(1, 1, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   test_assert(H->coeff[0] == 0);
-   for (int i = 1 ; i <= 18 ; i++) {
-      double target = (i % 3) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 19 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(1, 2, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   for (int i = 0 ; i <= 18 ; i++) {
-      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 19 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(1, 0, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   for (int i = 0 ; i <= 18 ; i++) {
-      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 19 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(2, 2, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   test_assert(H->coeff[0] == 0);
-   for (int i = 1 ; i <= 19 ; i++) {
-      double target = (i % 3) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 20 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(2, 0, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   for (int i = 0 ; i <= 19 ; i++) {
-      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 20 ; i <= k ; i++) {
-      test_assert(H->coeff[i] == 0);
-   }
-
-   free(H);
-   H = NULL;
-
-
-   H = new_trunc_pol_H(2, 1, 2);
-   test_assert_critical(H != NULL);
-
-   test_assert(H->monodeg > k);
-   for (int i = 0 ; i <= 19 ; i++) {
-      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
-      test_assert(fabs(H->coeff[i]-target) < 1e-9);
-   }
-   for (int i = 20 ; i <= k ; i++) {
       test_assert(H->coeff[i] == 0);
    }
 
@@ -1611,7 +1480,7 @@ test_error_new_trunc_pol_H
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   H = new_trunc_pol_H(0, 1, 9);
+   H = new_trunc_pol_H(1, 9);
    unredirect_stderr();
    reset_alloc();
 
@@ -1619,16 +1488,8 @@ test_error_new_trunc_pol_H
    test_assert_stderr("[sesame] error in function `new_z");
 
    redirect_stderr();
-   // The error is that 'r' is greater than 'n';
-   H = new_trunc_pol_H(11, 0, 10);
-   unredirect_stderr();
-
-   test_assert(H == NULL);
-   test_assert_stderr("[sesame] error in function `new_tr");
-
-   redirect_stderr();
    // The error is that 's' is greater than 'n';
-   H = new_trunc_pol_H(0, 11, 10);
+   H = new_trunc_pol_H(11, 10);
    unredirect_stderr();
 
    test_assert(H == NULL);
@@ -3767,7 +3628,7 @@ test_error_new_matrix_L
 
 
 void
-test_new_matrix_S
+test_new_matrix_Mn
 (void)
 {
 
@@ -3780,101 +3641,128 @@ test_new_matrix_S
    const double q = 0.99;
 
    trunc_pol_t *J;
+   trunc_pol_t *N;
    trunc_pol_t *H;
 
-   matrix_t *S = new_matrix_S(9);
-   test_assert_critical(S != NULL);
+   matrix_t *Mn = new_matrix_Mn(9);
+   test_assert_critical(Mn != NULL);
 
    const int dim0 = 11; // 9+2
-   test_assert(S->dim == dim0);
+   test_assert(Mn->dim == dim0);
    
-   // First 10 rows.
-   for (int j = 0 ; j < 10 ; j++) {
+   // First row.
+   // First 10 terms (H polynomials).
+   for (int i = 0 ; i < 10 ; i++) {
+      H = Mn->term[0*dim0+i];
+      test_assert_critical(H != 0);
 
-      // First 10 terms (H polynomials).
-      for (int i = 0 ; i < 10 ; i++) {
-         H = S->term[j*dim0+i];
-         test_assert_critical(H != 0);
+      size_t target_mono = k+1;
+      if (i == 0) target_mono = 10;
+      if (i == 1) target_mono = 9;
+      if (i == 2) target_mono = 8;
+      test_assert(H->monodeg == target_mono);
 
-         size_t target_mono = k+1;
-         if (j == 0 && i == 0) target_mono = 10;
-         if (j == 0 && i == 1) target_mono = 9;
-         if (j == 0 && i == 2) target_mono = 8;
-         if (j == 1 && i == 1) target_mono = 10;
-         if (j == 1 && i == 2) target_mono = 9;
-         if (j == 2 && i == 2) target_mono = 10;
-         test_assert(H->monodeg == target_mono);
+      int x = ((-i-1) % 10 + 10) % 10;
+      int m = (16-x) / 10;
+      for (int c = 0 ; c <= m ; c++) {
+         double target = p*pow(q,x+c*10);
+         test_assert(fabs(H->coeff[x+1+c*10]-target) < 1e-9);
+         // Beware that the coefficient is set to zero
+         // after testing so that we can easily check
+         // that all the other coefficients are equal to
+         // zero in the next 'for' loop. But this means
+         // that J is no longer as initialized.
+         H->coeff[x+1+c*10] = 0.0;
+      }
+      // Test that all remaining terms are 0 (see above).
+      for (int l = 0 ; l <= k ; l++) {
+         test_assert(H->coeff[l] == 0);
+      }
+    }
 
-         int x = ((j-i-1) % 10 + 10) % 10;
-         int m = (16+j-x) / 10;
-         for (int c = 0 ; c <= m ; c++) {
-            double target = p*pow(q,x+c*10);
-            test_assert(fabs(H->coeff[x+1+c*10]-target) < 1e-9);
-            // Beware that the coefficient is set to zero
-            // after testing so that we can easily check
-            // that all the other coefficients are equal to
-            // zero in the next 'for' loop. But this means
-            // that J is no longer as initialized.
-            H->coeff[x+1+c*10] = 0.0;
-         }
-         // Test that all remaining terms are 0 (see above).
-         for (int l = 0 ; l <= k ; l++) {
-            test_assert(H->coeff[l] == 0);
-         }
+    // Last terms (J polynomial).
+    J = Mn->term[0*dim0+dim0-1];
+    test_assert(J != NULL);
+    test_assert(J->monodeg > k);
+    for (int l = 0 ; l <= G-1 ; l++) {
+       double target = pow(q,l);
+       test_assert(fabs(J->coeff[l]-target) < 1e-9);
+    }
+    for (int l = G ; l <= K ; l++) {
+       test_assert(J->coeff[l] == 0);
+    }
+
+   // Next 9 rows.
+   for (int j = 1 ; j < 10 ; j++) {
+
+      // First term (z^n).
+      H = Mn->term[j*dim0+0];
+      test_assert_critical(H != 0);
+
+      size_t target_mono = j;
+      test_assert(H->monodeg == target_mono);
+
+      for (int l = 0 ; l <= k ; l++) {
+         if (l == target_mono) continue;
+         test_assert(H->coeff[l] == 0);
       }
 
-      // Last terms (J polynomial).
-      J = S->term[j*dim0+dim0-1];
-      test_assert(J != NULL);
-      test_assert(J->monodeg > k);
-      for (int l = 0 ; l <= G-1+j ; l++) {
-         double target = pow(q,l);
-         test_assert(fabs(J->coeff[l]-target) < 1e-9);
+      // Next 9 terms (null).
+      for (int i = 1 ; i < 10 ; i++) {
+        test_assert(Mn->term[j*dim0+i] == NULL);
       }
-      for (int l = G+j ; l <= K ; l++) {
-         test_assert(J->coeff[l] == 0);
+
+      // Last terms (N polynomial).
+      N = Mn->term[j*dim0+dim0-1];
+      test_assert(N != NULL);
+      if (j > 1) test_assert(N->monodeg > k);
+      for (int l = 0 ; l <= j-1 ; l++) {
+         test_assert(fabs(N->coeff[l]-1) < 1e-9);
+      }
+      for (int l = j ; l <= K ; l++) {
+         test_assert(N->coeff[l] == 0);
       }
    }
 
    // Last row.
    for (int j = 0 ; j < 11 ; j++) {
-      test_assert(S->term[(dim0-1)*dim0 + j] == 0);
+      test_assert(Mn->term[(dim0-1)*dim0 + j] == 0);
    }
    
-   destroy_mat(S);
+   destroy_mat(Mn);
    sesame_clean();
 
 }
 
 
 void
-test_error_new_matrix_S
+test_error_new_matrix_Mn
 (void)
 {
 
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   matrix_t *S;
+   matrix_t *Mn;
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   S = new_matrix_S(9);
+   Mn = new_matrix_Mn(9);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(S == NULL);
+   test_assert(Mn == NULL);
    test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (later).
-   S = new_matrix_S(9);
+   Mn = new_matrix_Mn(9);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(S == NULL);
+   test_assert(Mn == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
 
    sesame_clean();
@@ -4757,6 +4645,8 @@ test_wgf_skip
    int success = sesame_set_static_params(17, 19, 0.01);
    test_assert_critical(success);
 
+   sesame_set_epsilon(0); // Important for this test.
+
    w0 = wgf_skip(0);
    w1 = wgf_skip(1);
    w2 = wgf_skip(2);
@@ -5212,8 +5102,8 @@ const test_case_t test_cases_sesame[] = {
    {"error_new_matrix_M",         test_error_new_matrix_M},
    {"new_matrix_L",               test_new_matrix_L},
    {"error_new_matrix_L",         test_error_new_matrix_L},
-   {"new_matrix_S",               test_new_matrix_S},
-   {"error_new_matrix_S",         test_error_new_matrix_S},
+   {"new_matrix_Mn",              test_new_matrix_Mn},
+   {"error_new_matrix_Mn",        test_error_new_matrix_Mn},
    {"new_matrix_T",               test_new_matrix_T},
    {"error_new_matrix_T",         test_error_new_matrix_T},
    // Matrix manipulation functions.

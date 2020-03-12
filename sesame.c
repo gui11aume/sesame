@@ -1479,14 +1479,14 @@ in_case_of_failure:
 }
 
 matrix_t*
-new_matrix_L(       // PRIVATE
+new_matrix_tM0(       // PRIVATE
     const double u  // Divergence rate
 )
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix L(z) of reads with neither on-target nor off-target
-//   exact gamma seed when there is N = 1 duplicate.
+//   transfer matrix tilde M0(z) of reads with neither on-target nor
+//   off-target exact gamma seed when there is N = 1 duplicate.
 //
 // RETURN:
 //   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
@@ -1495,7 +1495,7 @@ new_matrix_L(       // PRIVATE
 // FAILURE:
 //   Fails if there is a memory error.
 {
-  matrix_t* L = NULL;
+  matrix_t* tM0 = NULL;
 
   // Assume parameters were checked by the caller.  See NOTE 4.6.1.
   // about checking dynamic parameters if this code is reused.
@@ -1509,56 +1509,56 @@ new_matrix_L(       // PRIVATE
   // -- END BLOCK -- //
 
   const int dim = 2 * G;
-  L = new_null_matrix(dim);
-  handle_memory_error(L);
+  tM0 = new_null_matrix(dim);
+  handle_memory_error(tM0);
 
   // First row.
-  handle_memory_error(L->term[0] = new_trunc_pol_R(G - 1, u));
+  handle_memory_error(tM0->term[0] = new_trunc_pol_R(G - 1, u));
   for (int j = 0; j <= G - 2; j++) {
-    handle_memory_error(L->term[j + 1] = new_trunc_pol_r_plus(j, u));
+    handle_memory_error(tM0->term[j + 1] = new_trunc_pol_r_plus(j, u));
   }
   for (int j = 0; j <= G - 2; j++) {
-    handle_memory_error(L->term[j + G] = new_trunc_pol_r_minus(j, u));
+    handle_memory_error(tM0->term[j + G] = new_trunc_pol_r_minus(j, u));
   }
-  handle_memory_error(L->term[dim - 1] = new_trunc_pol_F(G - 1, u));
+  handle_memory_error(tM0->term[dim - 1] = new_trunc_pol_F(G - 1, u));
 
-  // Next 'G-1' rows -- matrices A(z) and B(z).
+  // Next 'G-1' rows -- matrices ~A(z) and ~B0(z).
   for (int i = 1; i <= G - 1; i++) {
-    handle_memory_error(L->term[i * dim] = new_trunc_pol_R(G - 1 - i, u));
+    handle_memory_error(tM0->term[i * dim] = new_trunc_pol_R(G - 1 - i, u));
     for (int j = 0; j <= ((int)G) - 2 - i; j++) {
-      handle_memory_error(L->term[i * dim + i + j + 1] =
+      handle_memory_error(tM0->term[i * dim + i + j + 1] =
                               new_trunc_pol_r_plus(j, u));
     }
     for (int j = 0; j <= G - 1 - i; j++) {
-      handle_memory_error(L->term[i * dim + j + G] =
+      handle_memory_error(tM0->term[i * dim + j + G] =
                               new_trunc_pol_r_minus(j, u));
     }
-    handle_memory_error(L->term[i * dim + dim - 1] =
+    handle_memory_error(tM0->term[i * dim + dim - 1] =
                             new_trunc_pol_F(G - 1 - i, u));
   }
 
-  // Next G-1 rows -- matrices C(z) and D(z).
+  // Next G-1 rows -- matrices ~C0(z) and ~D(z).
   for (int i = G; i <= 2 * G - 2; i++) {
-    handle_memory_error(L->term[i * dim] =
+    handle_memory_error(tM0->term[i * dim] =
                             new_trunc_pol_R(2 * G - 2 - i, u));
     for (int j = 0; j <= 2 * G - 2 - i; j++) {
-      handle_memory_error(L->term[i * dim + j + 1] =
+      handle_memory_error(tM0->term[i * dim + j + 1] =
                               new_trunc_pol_r_plus(j, u));
     }
     for (int j = 0; j <= (2 * (int)G) - 3 - i; j++) {
-      handle_memory_error(L->term[i * dim + j + G + (i - G + 1)] =
+      handle_memory_error(tM0->term[i * dim + j + G + (i - G + 1)] =
                               new_trunc_pol_r_minus(j, u));
     }
-    handle_memory_error(L->term[i * dim + dim - 1] =
+    handle_memory_error(tM0->term[i * dim + dim - 1] =
                             new_trunc_pol_F(2 * G - 2 - i, u));
   }
 
   // Last row is null (nothing to do).
 
-  return L;
+  return tM0;
 
 in_case_of_failure:
-  destroy_mat(L);
+  destroy_mat(tM0);
   return NULL;
 }
 
@@ -1569,7 +1569,7 @@ new_matrix_Mn(   // PRIVATE
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix S(z) of reads without on-target skip-n seed.
+//   transfer matrix Mn(z) of reads without on-target skip-n seed.
 //
 // RETURN:
 //   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
@@ -1579,40 +1579,40 @@ new_matrix_Mn(   // PRIVATE
 //   Fails if static parameters are not initialized or if there is a
 //   memory error.
 {
-  matrix_t* S = NULL;
+  matrix_t* Mn = NULL;
 
   const int dim = n + 2;
-  S = new_null_matrix(dim);
-  handle_memory_error(S);
+  Mn = new_null_matrix(dim);
+  handle_memory_error(Mn);
 
   // First n+1 rows.
   for (int i = 0; i <= n; i++) {
     for (int j = 0; j <= n; j++) {
-      handle_memory_error(S->term[i * dim + j] = new_trunc_pol_H(i, j, n));
+      handle_memory_error(Mn->term[i * dim + j] = new_trunc_pol_H(i, j, n));
     }
-    handle_memory_error(S->term[i * dim + dim - 1] =
+    handle_memory_error(Mn->term[i * dim + dim - 1] =
                             new_trunc_pol_J(i, n));
   }
 
   // Last row is null (nothing to do).
 
-  return S;
+  return Mn;
 
 in_case_of_failure:
-  destroy_mat(S);
+  destroy_mat(Mn);
   return NULL;
 }
 
 matrix_t*
-new_matrix_T(       // PRIVATE
+new_matrix_tMn(       // PRIVATE
     const int n,    // Amount of skipping
     const double u  // Divergence rate
 )
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix T(z) of reads without skip-n seed for either the
-//   target or a specific duplicate.
+//   transfer matrix tilde Mn(z) of reads without skip-n seed for eithers
+//   the target or a specific duplicate.
 //
 // RETURN:
 //   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
@@ -1622,7 +1622,7 @@ new_matrix_T(       // PRIVATE
 //   Fails if there is a memory error or if the static and dynamic
 //   parameters are not properly set.
 {
-  matrix_t* T = NULL;
+  matrix_t* tMn = NULL;
 
   // Check dynamic parameters. Only 'u' must be checked, so
   // we pass 'K' as a first parameter, and 0 as third paramater,
@@ -1632,93 +1632,93 @@ new_matrix_T(       // PRIVATE
   }
 
   const int dim = n + 2 * G;
-  T = new_null_matrix(dim);
-  handle_memory_error(T);
+  tMn = new_null_matrix(dim);
+  handle_memory_error(tMn);
 
   // First row.
   for (int i = 0; i < n + 1; i++) {
-    handle_memory_error(T->term[i] = new_trunc_pol_W(i, n, u));
+    handle_memory_error(tMn->term[i] = new_trunc_pol_W(i, n, u));
   }
   for (int i = n + 1; i < n + G; i++) {
-    handle_memory_error(T->term[i] = new_trunc_pol_r_plus(i - n - 1, u));
+    handle_memory_error(tMn->term[i] = new_trunc_pol_r_plus(i - n - 1, u));
   }
   for (int i = n + G; i < dim - 1; i++) {
-    handle_memory_error(T->term[i] = new_trunc_pol_r_minus(i - n - G, u));
+    handle_memory_error(tMn->term[i] = new_trunc_pol_r_minus(i - n - G, u));
   }
   // Last term (tail).
-  handle_memory_error(T->term[dim - 1] = new_trunc_pol_F(G - 1, u));
+  handle_memory_error(tMn->term[dim - 1] = new_trunc_pol_F(G - 1, u));
 
   // Next 'n' rows.
   for (int j = 1; j <= n; j++) {
     // First term (monomial equal to a power of z).
-    handle_memory_error(T->term[j * dim + 0] = new_zero_trunc_pol());
+    handle_memory_error(tMn->term[j * dim + 0] = new_zero_trunc_pol());
     if (j <= K) {
-      T->term[j * dim + 0]->coeff[j] = 1.0;
-      T->term[j * dim + 0]->monodeg = j;
+      tMn->term[j * dim + 0]->coeff[j] = 1.0;
+      tMn->term[j * dim + 0]->monodeg = j;
     }
     // Tail term (tail).
-    handle_memory_error(T->term[j * dim + dim - 1] =
+    handle_memory_error(tMn->term[j * dim + dim - 1] =
                             new_trunc_pol_N(j - 1));
   }
 
   // Next 'G-1' rows.
   for (int j = n + 1; j < n + G; j++) {
     for (int i = 0; i <= n; i++) {
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_U(j - n, i, n, u));
     }
-    // Matrix A(z).
+    // Matrix ~A(z).
     for (int i = n + 1; i <= n + G - 1; i++) {
       int deg = i - j - 1;
       if (deg < 0)
         continue;
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_r_plus(deg, u));
     }
-    // Matrix ~B(z).
+    // Matrix ~Bn(z).
     for (int i = n + G; i <= n + 2 * G - 2; i++) {
       const int from = j - n;
       const int to = i - n - G + 1;
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_ss(from, to, n, u));
     }
     // Tail term (F polynomial).
-    handle_memory_error(T->term[j * dim + dim - 1] =
+    handle_memory_error(tMn->term[j * dim + dim - 1] =
                             new_trunc_pol_F(G - 1 + n - j, u));
   }
 
   // Next 'G-1' rows.
   for (int j = n + G; j < dim - 1; j++) {
     for (int i = 0; i <= n; i++) {
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_V(j - n - G + 1, i, n, u));
     }
-    // Matrix ~C(z).
+    // Matrix ~Cn(z).
     for (int i = n + 1; i <= n + G - 1; i++) {
       const int from = j - n - G + 1;
       const int to = i - n;
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_tt(from, to, n, u));
     }
-    // Matrix D(z).
+    // Matrix ~D(z).
     for (int i = n + G; i <= n + 2 * G - 2; i++) {
       int deg = i - j - 1;
       if (deg < 0)
         continue;
-      handle_memory_error(T->term[j * dim + i] =
+      handle_memory_error(tMn->term[j * dim + i] =
                               new_trunc_pol_r_minus(deg, u));
     }
     // Tail term (polynomial F).
-    handle_memory_error(T->term[j * dim + dim - 1] =
+    handle_memory_error(tMn->term[j * dim + dim - 1] =
                             new_trunc_pol_F(2 * G - 2 + n - j, u));
   }
 
   // Last row is null (nothing to do).
 
-  return T;
+  return tMn;
 
 in_case_of_failure:
-  destroy_mat(T);
+  destroy_mat(tMn);
   return NULL;
 }
 
@@ -2044,21 +2044,21 @@ wgf_dual(           // PRIVATE
   // The logic of this function is the same as 'wgf_mem()'.
   // See the comments there for more detail on what is going on.
   trunc_pol_t* w = new_zero_trunc_pol();
-  matrix_t* L = new_matrix_L(u);
+  matrix_t* tM0 = new_matrix_tM0(u);
 
   matrix_t* powL1 = new_zero_matrix(2 * G);
   matrix_t* powL2 = new_zero_matrix(2 * G);
 
   handle_memory_error(w);
-  handle_memory_error(L);
+  handle_memory_error(tM0);
   handle_memory_error(powL1);
   handle_memory_error(powL2);
 
   // Update weighted generating function with
   // one-segment reads (i.e. tail only).
-  trunc_pol_update_add(w, L->term[2 * G - 1]);
+  trunc_pol_update_add(w, tM0->term[2 * G - 1]);
 
-  matrix_mult(powL1, L, L);
+  matrix_mult(powL1, tM0, tM0);
 
   // Update weighted generating function with two-segment reads.
   trunc_pol_update_add(w, powL1->term[2 * G - 1]);
@@ -2078,9 +2078,9 @@ wgf_dual(           // PRIVATE
   for (int n = 2; n <= K + 1; n += 2) {
     // Increase the number of segments and update
     // the weighted generating function accordingly.
-    matrix_mult(powL2, L, powL1);
+    matrix_mult(powL2, tM0, powL1);
     trunc_pol_update_add(w, powL2->term[2 * G - 1]);
-    matrix_mult(powL1, L, powL2);
+    matrix_mult(powL1, tM0, powL2);
     trunc_pol_update_add(w, powL1->term[2 * G - 1]);
     // In max precision mode, get all possible digits.
     // Otherwise, stop when reaching 1% precision.
@@ -2093,7 +2093,7 @@ wgf_dual(           // PRIVATE
   // Clean temporary variables.
   destroy_mat(powL1);
   destroy_mat(powL2);
-  destroy_mat(L);
+  destroy_mat(tM0);
 
   return w;
 
@@ -2101,7 +2101,7 @@ in_case_of_failure:
   // Clean everything.
   destroy_mat(powL1);
   destroy_mat(powL2);
-  destroy_mat(L);
+  destroy_mat(tM0);
   free(w);
   return NULL;
 }
@@ -2215,21 +2215,21 @@ wgf_skip_dual(       // PRIVATE
   // The logic of this function is the same as 'wgf_mem()'.
   // See the comments there for more detail on what is going on.
   trunc_pol_t* w = new_zero_trunc_pol();
-  matrix_t* T = new_matrix_T(n, u);
+  matrix_t* tMn = new_matrix_tMn(n, u);
 
   matrix_t* powT1 = new_zero_matrix(n + 2 * G);
   matrix_t* powT2 = new_zero_matrix(n + 2 * G);
 
   handle_memory_error(w);
-  handle_memory_error(T);
+  handle_memory_error(tMn);
   handle_memory_error(powT1);
   handle_memory_error(powT2);
 
   // Update weighted generating function with
   // one-segment reads (i.e. tail only).
-  trunc_pol_update_add(w, T->term[n + 2 * G - 1]);
+  trunc_pol_update_add(w, tMn->term[n + 2 * G - 1]);
 
-  matrix_mult(powT1, T, T);
+  matrix_mult(powT1, tMn, tMn);
 
   // Update weighted generating function with two-segment reads.
   trunc_pol_update_add(w, powT1->term[n + 2 * G - 1]);
@@ -2242,9 +2242,9 @@ wgf_skip_dual(       // PRIVATE
   for (int s = 2; s <= K + 1; s += 2) {
     // Increase the number of segments and update
     // the weighted generating function accordingly.
-    matrix_mult(powT2, T, powT1);
+    matrix_mult(powT2, tMn, powT1);
     trunc_pol_update_add(w, powT2->term[n + 2 * G - 1]);
-    matrix_mult(powT1, T, powT2);
+    matrix_mult(powT1, tMn, powT2);
     trunc_pol_update_add(w, powT1->term[n + 2 * G - 1]);
     // In max precision mode, get all possible digits.
     // Otherwise, stop when reaching 1% precision.
@@ -2257,7 +2257,7 @@ wgf_skip_dual(       // PRIVATE
   // Clean temporary variables.
   destroy_mat(powT1);
   destroy_mat(powT2);
-  destroy_mat(T);
+  destroy_mat(tMn);
 
   return w;
 
@@ -2265,7 +2265,7 @@ in_case_of_failure:
   // Clean everything.
   destroy_mat(powT1);
   destroy_mat(powT2);
-  destroy_mat(T);
+  destroy_mat(tMn);
   free(w);
   return NULL;
 }

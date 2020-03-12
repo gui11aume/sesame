@@ -3577,7 +3577,7 @@ test_error_new_matrix_M
 
 
 void
-test_new_matrix_L
+test_new_matrix_tM0
 (void)
 {
 
@@ -3590,11 +3590,11 @@ test_new_matrix_L
    trunc_pol_t *R;
    trunc_pol_t *r;
 
-   matrix_t *L = new_matrix_L(.05);
-   test_assert_critical(L != NULL);
+   matrix_t *tM0 = new_matrix_tM0(.05);
+   test_assert_critical(tM0 != NULL);
 
    const int dim0 = 34; // 2 x 17
-   test_assert(L->dim == dim0);
+   test_assert(tM0->dim == dim0);
    
    const double a = .99 * .95;            // (1-p) * (1-u)
    const double b = .99 * .05;            // (1-p) * u;
@@ -3604,7 +3604,7 @@ test_new_matrix_L
    // -- First row -- //
 
    // First term (R polynomial).
-   R = L->term[0];
+   R = tM0->term[0];
    test_assert_critical(R != NULL);
    test_assert(R->monodeg > k);
    test_assert(R->coeff[0] == 0);
@@ -3618,8 +3618,8 @@ test_new_matrix_L
 
    // Next 16 terms are r+ polynomials.
    for (int j = 1 ; j <= 16 ; j++) {
-      r = L->term[j];
-      test_assert_critical(L != NULL);
+      r = tM0->term[j];
+      test_assert_critical(tM0 != NULL);
       test_assert(r->monodeg == j);
       for (int i = 0 ; i <= k ; i++) {
          double target = 0;
@@ -3629,8 +3629,8 @@ test_new_matrix_L
    }
    // Next 16 terms are r- polynomials.
    for (int j = 1 ; j <= 16 ; j++) {
-      r = L->term[j+16];
-      test_assert_critical(L != NULL);
+      r = tM0->term[j+16];
+      test_assert_critical(tM0 != NULL);
       test_assert(r->monodeg == j);
       for (int i = 0 ; i <= k ; i++) {
          double target = 0;
@@ -3639,7 +3639,7 @@ test_new_matrix_L
       }
    }
    // Last element is F.
-   F = L->term[33];
+   F = tM0->term[33];
    for (int i = 0 ; i <= 16 ; i++) {
       double target = pow(a,i);
       test_assert(fabs(target-F->coeff[i]) < 1e-9);
@@ -3651,7 +3651,7 @@ test_new_matrix_L
    // Next 16 series of rows.
    for (int j = 1 ; j <= 16 ; j++) {
       // First term is an R polynomial.
-      R = L->term[j*dim0];
+      R = tM0->term[j*dim0];
       test_assert_critical(R != NULL);
       if (j == 16) {
          test_assert(R->monodeg == 1);
@@ -3674,11 +3674,11 @@ test_new_matrix_L
       }
       // Next 16 terms are r+ polynomials.
       for (int i = 1 ; i <= j ; i++) {
-         r = L->term[j*dim0+i];
+         r = tM0->term[j*dim0+i];
          test_assert(r == NULL);
       }
       for (int i = j+1 ; i <= 16 ; i++) {
-         r = L->term[j*dim0+i];
+         r = tM0->term[j*dim0+i];
          test_assert_critical(r != NULL);
          test_assert(r->monodeg == i-j);
          for (int l = 0 ; l <= k ; l++) {
@@ -3689,7 +3689,7 @@ test_new_matrix_L
       }
       // Next 16 terms are r- polynomials.
       for (int i = 1 ; i <= 17-j ; i++) {
-         r = L->term[j*dim0+16+i];
+         r = tM0->term[j*dim0+16+i];
          test_assert_critical(r != NULL);
          test_assert(r->monodeg == i);
          for (int l = 0 ; l <= k ; l++) {
@@ -3699,7 +3699,7 @@ test_new_matrix_L
          }
       }
       for (int i = 17-j+1 ; i <= 16 ; i++) {
-         r = L->term[j*dim0+16+i];
+         r = tM0->term[j*dim0+16+i];
          test_assert(r == NULL);
       }
    }
@@ -3707,7 +3707,7 @@ test_new_matrix_L
    // Next 16 series of rows.
    for (int j = 1 ; j <= 16 ; j++) {
       // First term is an R polynomial.
-      R = L->term[(j+16)*dim0];
+      R = tM0->term[(j+16)*dim0];
       test_assert_critical(R != NULL);
       if (j == 16) {
          test_assert(R->monodeg == 1);
@@ -3730,7 +3730,7 @@ test_new_matrix_L
       }
       // Next 16 terms are r+ polynomials.
       for (int i = 1 ; i <= 17-j ; i++) {
-         r = L->term[(j+16)*dim0+i];
+         r = tM0->term[(j+16)*dim0+i];
          test_assert_critical(r != NULL);
          test_assert(r->monodeg == i);
          for (int l = 0 ; l <= k ; l++) {
@@ -3740,16 +3740,16 @@ test_new_matrix_L
          }
       }
       for (int i = 17-j+1 ; i <= 16 ; i++) {
-         r = L->term[(j+16)*dim0+i];
+         r = tM0->term[(j+16)*dim0+i];
          test_assert(r == NULL);
       }
       // Next 16 terms are r- polynomials.
       for (int i = 1 ; i <= j ; i++) {
-         r = L->term[(j+16)*dim0+i+16];
+         r = tM0->term[(j+16)*dim0+i+16];
          test_assert(r == NULL);
       }
       for (int i = j+1 ; i <= 16 ; i++) {
-         r = L->term[(j+16)*dim0+i+16];
+         r = tM0->term[(j+16)*dim0+i+16];
          test_assert_critical(r != NULL);
          test_assert(r->monodeg == i-j);
          for (int l = 0 ; l <= k ; l++) {
@@ -3762,17 +3762,17 @@ test_new_matrix_L
 
    // Last row.
    for (int j = 0 ; j < 34 ; j++) {
-      test_assert(L->term[(dim0-1)*dim0+j] == 0);
+      test_assert(tM0->term[(dim0-1)*dim0+j] == 0);
    }
    
-   destroy_mat(L);
+   destroy_mat(tM0);
    sesame_clean();
 
 }
 
 
 void
-test_error_new_matrix_L
+test_error_new_matrix_tM0
 (void)
 {
 
@@ -3780,26 +3780,26 @@ test_error_new_matrix_L
    test_assert_critical(success);
 
 #ifndef VALGRIND
-   matrix_t *L;
+   matrix_t *tM0;
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   L = new_matrix_L(.05);
+   tM0 = new_matrix_tM0(.05);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(L == NULL);
+   test_assert(tM0 == NULL);
    test_assert_stderr("[sesame] error in function `new_n");
 
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (later).
-   L = new_matrix_L(.05);
+   tM0 = new_matrix_tM0(.05);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(L == NULL);
+   test_assert(tM0 == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
 #endif
 
@@ -3928,7 +3928,7 @@ test_error_new_matrix_Mn
 
 
 void
-test_new_matrix_T
+test_new_matrix_tMn
 (void)
 {
 
@@ -3954,11 +3954,11 @@ test_new_matrix_T
 
    double target;
 
-   matrix_t *T = new_matrix_T(9, 0.05);
-   test_assert_critical(T != NULL);
+   matrix_t *tMn = new_matrix_tMn(9, 0.05);
+   test_assert_critical(tMn != NULL);
 
    const int dim0 = 43; // 9+2x17
-   test_assert(T->dim == dim0);
+   test_assert(tMn->dim == dim0);
 
    int degrees[17][17] = {
       {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
@@ -3984,7 +3984,7 @@ test_new_matrix_T
 
    // First 'n+1' terms (W polynomial).
    for (int j = 0 ; j <= n ; j++) {
-      W = T->term[j];
+      W = tMn->term[j];
       test_assert_critical(W != NULL);
       if (j <= 2) {
          int deg = 10-j;
@@ -4013,7 +4013,7 @@ test_new_matrix_T
 
    // Next 'G-1' terms (r+ polynomials).
    for (int j = 10 ; j <= 25 ; j++) {
-      r = T->term[j];
+      r = tMn->term[j];
       test_assert_critical(r != NULL);
       int deg = j-9;
       test_assert(r->monodeg == deg);
@@ -4027,7 +4027,7 @@ test_new_matrix_T
 
    // Next 'G-1' terms (r- polynomials).
    for (int j = 26 ; j <= 41 ; j++) {
-      r = T->term[j];
+      r = tMn->term[j];
       test_assert_critical(r != NULL);
       int deg = j-25;
       test_assert(r->monodeg == deg);
@@ -4040,7 +4040,7 @@ test_new_matrix_T
    }
 
    // Last term (F polynomial).
-   F = T->term[dim0-1];
+   F = tMn->term[dim0-1];
    test_assert_critical(F != NULL);
    test_assert(F->monodeg > k);
    for (int i = 0 ; i < 17 ; i++) {
@@ -4053,7 +4053,7 @@ test_new_matrix_T
 
    // Next 'n' rows.
    for (int i = 1 ; i <= 9 ; i++ ) {
-      x = T->term[i*dim0];
+      x = tMn->term[i*dim0];
       test_assert_critical(x != NULL);
       test_assert(x->monodeg == i);
       test_assert(x->coeff[i] == 1);
@@ -4065,10 +4065,10 @@ test_new_matrix_T
       // The first and the last terms are
       // the only ones thar are non-zero.
       for (int l = 1 ; l < dim0-1 ; l++) {
-         test_assert(T->term[i*dim0+l] == NULL);
+         test_assert(tMn->term[i*dim0+l] == NULL);
       }
 
-      x = T->term[i*dim0+dim0-1];
+      x = tMn->term[i*dim0+dim0-1];
       test_assert(x != NULL);
       test_assert(x->monodeg == (i == 1 ? 0 : k+1));
       for (int l = 0 ; l <= i-1  ; l++) {
@@ -4086,7 +4086,7 @@ test_new_matrix_T
       for (int j = 0 ; j <= 9 ; j++) {
          int from = i-9;
          int to = j;
-         U = T->term[i*dim0+j];
+         U = tMn->term[i*dim0+j];
          test_assert_critical(U != NULL);
          int dist = modulo(-from-to,10); if (dist == 0) dist = 10;
          int deg = dist;
@@ -4125,7 +4125,7 @@ test_new_matrix_T
 
       // Matrix A(z).
       for (int j = 10 ; j <= 25 ; j++) {
-         r = T->term[i*dim0+j];
+         r = tMn->term[i*dim0+j];
          if (j <= i) {
             test_assert(r == NULL);
             continue;
@@ -4144,7 +4144,7 @@ test_new_matrix_T
       }
       // Matrix ~B(z).
       for (int j = 26 ; j <= 41 ; j++) {
-         ss = T->term[i*dim0+j];
+         ss = tMn->term[i*dim0+j];
          test_assert_critical(ss != NULL);
          int from = i-9;
          int to = j-25;
@@ -4158,7 +4158,7 @@ test_new_matrix_T
       }
 
       // Last term (F polynomial).
-      F = T->term[i*dim0+dim0-1];
+      F = tMn->term[i*dim0+dim0-1];
       test_assert_critical(F != NULL);
       if (i == 25) {
          test_assert(F->monodeg == 0);
@@ -4187,7 +4187,7 @@ test_new_matrix_T
       for (int j = 0 ; j <= 9 ; j++) {
          int from = i-25;
          int to = j;
-         V = T->term[i*dim0+j];
+         V = tMn->term[i*dim0+j];
          test_assert_critical(V != NULL);
          int dist = modulo(-from-to,10); if (dist == 0) dist = 10;
          int deg = dist;
@@ -4226,7 +4226,7 @@ test_new_matrix_T
 
       // Matrix ~C(z).
       for (int j = 10 ; j <= 25 ; j++) {
-         tt = T->term[i*dim0+j];
+         tt = tMn->term[i*dim0+j];
          test_assert_critical(tt != NULL);
          int from = i-25;
          int to = j-9;
@@ -4241,7 +4241,7 @@ test_new_matrix_T
       
       // Matrix D(z).
       for (int j = 26 ; j <= 41 ; j++) {
-         r = T->term[i*dim0+j];
+         r = tMn->term[i*dim0+j];
          if (j <= i) {
             test_assert(r == NULL);
             continue;
@@ -4260,7 +4260,7 @@ test_new_matrix_T
       }
 
       // Last term (F polynomial).
-      F = T->term[i*dim0+dim0-1];
+      F = tMn->term[i*dim0+dim0-1];
       test_assert_critical(F != NULL);
       if (i == 41) {
          test_assert(F->monodeg == 0);
@@ -4284,34 +4284,34 @@ test_new_matrix_T
 
    // Last row.
    for (int j = 0 ; j < dim0 ; j++) {
-      test_assert(T->term[(dim0-1)*dim0+j] == NULL);
+      test_assert(tMn->term[(dim0-1)*dim0+j] == NULL);
    }
    
-   destroy_mat(T);
+   destroy_mat(tMn);
    sesame_clean();
 
 }
 
 
 void
-test_error_new_matrix_T
+test_error_new_matrix_tMn
 (void)
 {
 
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   matrix_t *T;
+   matrix_t *tMn;
 
 #ifndef VALGRIND
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   T = new_matrix_T(9, 0.05);
+   tMn = new_matrix_tMn(9, 0.05);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(T == NULL);
+   test_assert(tMn == NULL);
    test_assert_stderr("[sesame] error in function `new_n");
 #endif
 
@@ -4319,20 +4319,20 @@ test_error_new_matrix_T
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (later).
-   T = new_matrix_T(9, 0.05);
+   tMn = new_matrix_tMn(9, 0.05);
    unredirect_stderr();
    reset_alloc();
 
-   test_assert(T == NULL);
+   test_assert(tMn == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
 #endif
 
    redirect_stderr();
    // The error is that 'u' is not in (0,1).
-   T = new_matrix_T(9, 1.1);
+   tMn = new_matrix_tMn(9, 1.1);
    unredirect_stderr();
 
-   test_assert(T == NULL);
+   test_assert(tMn == NULL);
    test_assert_stderr("[sesame] error in function `dynam");
 
    sesame_clean();
@@ -5261,12 +5261,12 @@ const test_case_t test_cases_sesame[] = {
    // Specific matrices
    {"new_matrix_M",               test_new_matrix_M},
    {"error_new_matrix_M",         test_error_new_matrix_M},
-   {"new_matrix_L",               test_new_matrix_L},
-   {"error_new_matrix_L",         test_error_new_matrix_L},
+   {"new_matrix_tM0",             test_new_matrix_tM0},
+   {"error_new_matrix_tM0",       test_error_new_matrix_tM0},
    {"new_matrix_Mn",              test_new_matrix_Mn},
    {"error_new_matrix_Mn",        test_error_new_matrix_Mn},
-   {"new_matrix_T",               test_new_matrix_T},
-   {"error_new_matrix_T",         test_error_new_matrix_T},
+   {"new_matrix_tMn",             test_new_matrix_tMn},
+   {"error_new_matrix_tMn",       test_error_new_matrix_tMn},
    // Matrix manipulation functions.
    {"matrix_mult",                test_matrix_mult},
    {"error_matrix_mult",          test_error_matrix_mult},

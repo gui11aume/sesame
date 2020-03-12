@@ -264,6 +264,7 @@ test_error_sesame_set_static_params
    test_assert(!success);
    test_assert_stderr("[sesame] error in function `sesame_s");
 
+#ifndef VALGRIND
    // Casae 5. Test memory error.
    set_alloc_failure_rate_to(1.0);
    redirect_stderr();
@@ -272,6 +273,7 @@ test_error_sesame_set_static_params
    unredirect_stderr();
    reset_alloc();
    test_assert_stderr("[sesame] error in function `new_zero");
+#endif
 
    return;
 
@@ -364,7 +366,7 @@ test_new_zero_trunc_pol
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -398,6 +400,10 @@ test_error_new_zero_trunc_pol
    test_assert(w == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
 
+   int success = sesame_set_static_params(17, 50, 0.01);
+   test_assert_critical(success);
+
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    w = new_zero_trunc_pol();
@@ -406,6 +412,9 @@ test_error_new_zero_trunc_pol
 
    test_assert(w == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
+
+   sesame_clean();
 
 }
 
@@ -482,7 +491,7 @@ test_trunc_pol_mult
    
    // Test multiplications between zero polynomials.
 
-   size_t k = 50;
+   int k = 50;
 
    sesame_set_static_params(17, k, 0.01);
    trunc_pol_t *a = new_zero_trunc_pol();
@@ -659,7 +668,7 @@ test_new_trunc_pol_A
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
@@ -805,20 +814,17 @@ test_error_new_trunc_pol_A
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   trunc_pol_t *A;
-
-
-   // Test error for 'new_trunc_pol_A()'.
-
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   A = new_trunc_pol_A(0,0,.05,1);
+   trunc_pol_t * A = new_trunc_pol_A(0,0,.05,1);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(A == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -830,7 +836,7 @@ test_new_trunc_pol_B
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -902,6 +908,7 @@ test_error_new_trunc_pol_B
 
    trunc_pol_t *B;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -911,6 +918,7 @@ test_error_new_trunc_pol_B
 
    test_assert(B == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'i = 0'.
@@ -934,7 +942,7 @@ test_new_trunc_pol_C
    // defined, but they are not used in the present theory. They are
    // not forbidden, but also not used (and therefore not tested).
    
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1007,17 +1015,17 @@ test_error_new_trunc_pol_C
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
-   trunc_pol_t *C;
-
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   C = new_trunc_pol_C(1,.05,3);
+   trunc_pol_t *C = new_trunc_pol_C(1,.05,3);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(C == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -1029,7 +1037,7 @@ test_new_trunc_pol_D
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
@@ -1150,6 +1158,7 @@ test_error_new_trunc_pol_D
 
    trunc_pol_t *D;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1159,6 +1168,7 @@ test_error_new_trunc_pol_D
 
    test_assert(D == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1179,7 +1189,7 @@ test_new_trunc_pol_E
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1228,6 +1238,7 @@ test_error_new_trunc_pol_E
 
    trunc_pol_t *E;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1237,6 +1248,7 @@ test_error_new_trunc_pol_E
 
    test_assert(E == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1256,7 +1268,7 @@ test_new_trunc_pol_F
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1305,6 +1317,7 @@ test_error_new_trunc_pol_F
 
    trunc_pol_t *F;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1314,6 +1327,7 @@ test_error_new_trunc_pol_F
 
    test_assert(F == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1333,21 +1347,21 @@ test_new_trunc_pol_H
 (void)
 {
 
-   int success = sesame_set_static_params(17, 10, 0.01);
+   int success = sesame_set_static_params(17, 17, 0.01);
    test_assert_critical(success);
 
    trunc_pol_t *H;
 
 
-   // Make sure degree is always 'K' or less.
-   // Would terms of degree > 10 if 'K' were higher.
+   // Make sure degree is always less than 'K'.
+   // Would have a term of degree 18 if 'K' were higher.
    // This needs to be checked properly by valgrind.
-   H = new_trunc_pol_H(0, 1);
+   H = new_trunc_pol_H(1, 1, 1);
    test_assert_critical(H != NULL);
 
-   test_assert(H->monodeg > 10);
+   test_assert(H->monodeg > 17);
    test_assert(H->coeff[0] == 0);
-   for (int i = 1 ; i <= 10 ; i++) {
+   for (int i = 1 ; i <= 17 ; i++) {
       double target = (i % 2) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
@@ -1356,13 +1370,13 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   size_t k = 50;
+   int k = 50;
 
    success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
 
    // Test the validity of skip-0.
-   H = new_trunc_pol_H(0, 0);
+   H = new_trunc_pol_H(0, 0, 0);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1380,7 +1394,7 @@ test_new_trunc_pol_H
 
 
    // Test all the possibilities with skip-1 seeds.
-   H = new_trunc_pol_H(0, 1);
+   H = new_trunc_pol_H(0, 0, 1);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1397,7 +1411,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(1, 1);
+   H = new_trunc_pol_H(0, 1, 1);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1413,8 +1427,41 @@ test_new_trunc_pol_H
    H = NULL;
 
 
+   H = new_trunc_pol_H(1, 0, 1);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   for (int i = 0 ; i <= 18 ; i++) {
+      double target = (i % 2) == 0 ? 0.0 : 0.01 * pow(.99, i-1);
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 19 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(1, 1, 1);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   test_assert(H->coeff[0] == 0);
+   for (int i = 1 ; i <= 18 ; i++) {
+      double target = (i % 2) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 19 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
    // Test all the possibilities with skip-2 seeds.
-   H = new_trunc_pol_H(0, 2);
+   H = new_trunc_pol_H(0, 0, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1431,7 +1478,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(1, 2);
+   H = new_trunc_pol_H(0, 1, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1447,7 +1494,7 @@ test_new_trunc_pol_H
    H = NULL;
 
 
-   H = new_trunc_pol_H(2, 2);
+   H = new_trunc_pol_H(0, 2, 2);
    test_assert_critical(H != NULL);
 
    test_assert(H->monodeg > k);
@@ -1456,6 +1503,104 @@ test_new_trunc_pol_H
       test_assert(fabs(H->coeff[i]-target) < 1e-9);
    }
    for (int i = 18 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(1, 1, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   test_assert(H->coeff[0] == 0);
+   for (int i = 1 ; i <= 18 ; i++) {
+      double target = (i % 3) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 19 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(1, 2, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   for (int i = 0 ; i <= 18 ; i++) {
+      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 19 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(1, 0, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   for (int i = 0 ; i <= 18 ; i++) {
+      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 19 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(2, 2, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   test_assert(H->coeff[0] == 0);
+   for (int i = 1 ; i <= 19 ; i++) {
+      double target = (i % 3) == 0 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 20 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(2, 0, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   for (int i = 0 ; i <= 19 ; i++) {
+      double target = (i % 3) == 2 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 20 ; i <= k ; i++) {
+      test_assert(H->coeff[i] == 0);
+   }
+
+   free(H);
+   H = NULL;
+
+
+   H = new_trunc_pol_H(2, 1, 2);
+   test_assert_critical(H != NULL);
+
+   test_assert(H->monodeg > k);
+   for (int i = 0 ; i <= 19 ; i++) {
+      double target = (i % 3) == 1 ? 0.01 * pow(.99, i-1) : 0.0;
+      test_assert(fabs(H->coeff[i]-target) < 1e-9);
+   }
+   for (int i = 20 ; i <= k ; i++) {
       test_assert(H->coeff[i] == 0);
    }
 
@@ -1477,19 +1622,29 @@ test_error_new_trunc_pol_H
 
    trunc_pol_t *H;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
-   H = new_trunc_pol_H(1, 9);
+   H = new_trunc_pol_H(0, 1, 9);
    unredirect_stderr();
    reset_alloc();
 
    test_assert(H == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
+
+   redirect_stderr();
+   // The error is that 'r' is greater than 'n';
+   H = new_trunc_pol_H(11, 0, 10);
+   unredirect_stderr();
+
+   test_assert(H == NULL);
+   test_assert_stderr("[sesame] error in function `new_tr");
 
    redirect_stderr();
    // The error is that 's' is greater than 'n';
-   H = new_trunc_pol_H(11, 10);
+   H = new_trunc_pol_H(0, 11, 10);
    unredirect_stderr();
 
    test_assert(H == NULL);
@@ -1505,7 +1660,7 @@ test_new_trunc_pol_J
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1593,6 +1748,7 @@ test_error_new_trunc_pol_J
 
    trunc_pol_t *J;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1602,6 +1758,7 @@ test_error_new_trunc_pol_J
 
    test_assert(J == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'r' is greater than 'n';
@@ -1622,7 +1779,7 @@ test_new_trunc_pol_R
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1673,6 +1830,7 @@ test_error_new_trunc_pol_R
 
    trunc_pol_t *R;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1682,6 +1840,7 @@ test_error_new_trunc_pol_R
 
    test_assert(R == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1751,6 +1910,7 @@ test_error_new_trunc_pol_r
 
    trunc_pol_t *r;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1760,7 +1920,9 @@ test_error_new_trunc_pol_r
 
    test_assert(r == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1770,6 +1932,7 @@ test_error_new_trunc_pol_r
 
    test_assert(r == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'j' is greater than G-1
@@ -1797,7 +1960,7 @@ test_new_trunc_pol_ss
 (void)
 {
 
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -1945,6 +2108,7 @@ test_error_new_trunc_pol_ss
 
    trunc_pol_t *ss;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -1954,6 +2118,7 @@ test_error_new_trunc_pol_ss
 
    test_assert(ss == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -1998,7 +2163,7 @@ test_new_trunc_pol_tt
 (void)
 {
 
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -2146,6 +2311,7 @@ test_error_new_trunc_pol_tt
 
    trunc_pol_t *tt;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -2155,6 +2321,7 @@ test_error_new_trunc_pol_tt
 
    test_assert(tt == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'i' is greater than 'G-1'.
@@ -2199,7 +2366,7 @@ test_new_trunc_pol_U
 (void)
 {
 
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -2464,6 +2631,7 @@ test_error_new_trunc_pol_U
 
    trunc_pol_t *U;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -2473,6 +2641,7 @@ test_error_new_trunc_pol_U
 
    test_assert(U == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'i' is 0.
@@ -2517,7 +2686,7 @@ test_new_trunc_pol_V
 (void)
 {
 
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -2782,6 +2951,7 @@ test_error_new_trunc_pol_V
 
    trunc_pol_t *V;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -2791,6 +2961,7 @@ test_error_new_trunc_pol_V
 
    test_assert(V == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'i' is 0.
@@ -2835,7 +3006,7 @@ test_new_trunc_pol_W
 (void)
 {
 
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -2974,6 +3145,7 @@ test_error_new_trunc_pol_W
 
    trunc_pol_t *W;
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -2983,6 +3155,7 @@ test_error_new_trunc_pol_W
 
    test_assert(W == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 's' is greater than 'n'.
@@ -3021,6 +3194,7 @@ test_error_new_null_matrix
 (void)
 {
 
+#ifndef VALGRIND
    set_alloc_failure_rate_to(1);
    redirect_stderr();
    matrix_t *matrix = new_null_matrix(50);
@@ -3029,6 +3203,7 @@ test_error_new_null_matrix
 
    test_assert(matrix == NULL);
    test_assert_stderr("[sesame] error in function `new_n");
+#endif
 
 }
 
@@ -3066,10 +3241,11 @@ test_error_new_zero_matrix
 (void)
 {
 
-   matrix_t *matrix;
-
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
+
+#ifndef VALGRIND
+   matrix_t *matrix;
 
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
@@ -3088,6 +3264,7 @@ test_error_new_zero_matrix
 
    test_assert(matrix == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -3105,7 +3282,7 @@ test_new_matrix_M
    trunc_pol_t *D;
    trunc_pol_t *E;
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -3370,6 +3547,7 @@ test_error_new_matrix_M
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
+#ifndef VALGRIND
    matrix_t *M;
 
    set_alloc_failure_countdown_to(0);
@@ -3391,6 +3569,7 @@ test_error_new_matrix_M
 
    test_assert(M == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -3402,7 +3581,7 @@ test_new_matrix_L
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -3600,6 +3779,7 @@ test_error_new_matrix_L
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
+#ifndef VALGRIND
    matrix_t *L;
 
    set_alloc_failure_countdown_to(0);
@@ -3621,6 +3801,7 @@ test_error_new_matrix_L
 
    test_assert(L == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -3632,7 +3813,7 @@ test_new_matrix_Mn
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -3641,7 +3822,6 @@ test_new_matrix_Mn
    const double q = 0.99;
 
    trunc_pol_t *J;
-   trunc_pol_t *N;
    trunc_pol_t *H;
 
    matrix_t *Mn = new_matrix_Mn(9);
@@ -3650,77 +3830,51 @@ test_new_matrix_Mn
    const int dim0 = 11; // 9+2
    test_assert(Mn->dim == dim0);
    
-   // First row.
-   // First 10 terms (H polynomials).
-   for (int i = 0 ; i < 10 ; i++) {
-      H = Mn->term[0*dim0+i];
-      test_assert_critical(H != 0);
+   // First 10 rows.
+   for (int j = 0 ; j < 10 ; j++) {
 
-      size_t target_mono = k+1;
-      if (i == 0) target_mono = 10;
-      if (i == 1) target_mono = 9;
-      if (i == 2) target_mono = 8;
-      test_assert(H->monodeg == target_mono);
+      // First 10 terms (H polynomials).
+      for (int i = 0 ; i < 10 ; i++) {
+         H = Mn->term[j*dim0+i];
+         test_assert_critical(H != 0);
 
-      int x = ((-i-1) % 10 + 10) % 10;
-      int m = (16-x) / 10;
-      for (int c = 0 ; c <= m ; c++) {
-         double target = p*pow(q,x+c*10);
-         test_assert(fabs(H->coeff[x+1+c*10]-target) < 1e-9);
-         // Beware that the coefficient is set to zero
-         // after testing so that we can easily check
-         // that all the other coefficients are equal to
-         // zero in the next 'for' loop. But this means
-         // that J is no longer as initialized.
-         H->coeff[x+1+c*10] = 0.0;
-      }
-      // Test that all remaining terms are 0 (see above).
-      for (int l = 0 ; l <= k ; l++) {
-         test_assert(H->coeff[l] == 0);
-      }
-    }
+         int target_mono = k+1;
+         if (j == 0 && i == 0) target_mono = 10;
+         if (j == 0 && i == 1) target_mono = 9;
+         if (j == 0 && i == 2) target_mono = 8;
+         if (j == 1 && i == 1) target_mono = 10;
+         if (j == 1 && i == 2) target_mono = 9;
+         if (j == 2 && i == 2) target_mono = 10;
+         test_assert(H->monodeg == target_mono);
 
-    // Last terms (J polynomial).
-    J = Mn->term[0*dim0+dim0-1];
-    test_assert(J != NULL);
-    test_assert(J->monodeg > k);
-    for (int l = 0 ; l <= G-1 ; l++) {
-       double target = pow(q,l);
-       test_assert(fabs(J->coeff[l]-target) < 1e-9);
-    }
-    for (int l = G ; l <= K ; l++) {
-       test_assert(J->coeff[l] == 0);
-    }
-
-   // Next 9 rows.
-   for (int j = 1 ; j < 10 ; j++) {
-
-      // First term (z^n).
-      H = Mn->term[j*dim0+0];
-      test_assert_critical(H != 0);
-
-      size_t target_mono = j;
-      test_assert(H->monodeg == target_mono);
-
-      for (int l = 0 ; l <= k ; l++) {
-         if (l == target_mono) continue;
-         test_assert(H->coeff[l] == 0);
+         int x = ((j-i-1) % 10 + 10) % 10;
+         int m = (16+j-x) / 10;
+         for (int c = 0 ; c <= m ; c++) {
+            double target = p*pow(q,x+c*10);
+            test_assert(fabs(H->coeff[x+1+c*10]-target) < 1e-9);
+            // Beware that the coefficient is set to zero
+            // after testing so that we can easily check
+            // that all the other coefficients are equal to
+            // zero in the next 'for' loop. But this means
+            // that J is no longer as initialized.
+            H->coeff[x+1+c*10] = 0.0;
+         }
+         // Test that all remaining terms are 0 (see above).
+         for (int l = 0 ; l <= k ; l++) {
+            test_assert(H->coeff[l] == 0);
+         }
       }
 
-      // Next 9 terms (null).
-      for (int i = 1 ; i < 10 ; i++) {
-        test_assert(Mn->term[j*dim0+i] == NULL);
+      // Last terms (J polynomial).
+      J = Mn->term[j*dim0+dim0-1];
+      test_assert(J != NULL);
+      test_assert(J->monodeg > k);
+      for (int l = 0 ; l <= G-1+j ; l++) {
+         double target = pow(q,l);
+         test_assert(fabs(J->coeff[l]-target) < 1e-9);
       }
-
-      // Last terms (N polynomial).
-      N = Mn->term[j*dim0+dim0-1];
-      test_assert(N != NULL);
-      if (j > 1) test_assert(N->monodeg > k);
-      for (int l = 0 ; l <= j-1 ; l++) {
-         test_assert(fabs(N->coeff[l]-1) < 1e-9);
-      }
-      for (int l = j ; l <= K ; l++) {
-         test_assert(N->coeff[l] == 0);
+      for (int l = G+j ; l <= K ; l++) {
+         test_assert(J->coeff[l] == 0);
       }
    }
 
@@ -3743,6 +3897,7 @@ test_error_new_matrix_Mn
    int success = sesame_set_static_params(17, 50, 0.01);
    test_assert_critical(success);
 
+#ifndef VALGRIND
    matrix_t *Mn;
 
    set_alloc_failure_countdown_to(0);
@@ -3764,6 +3919,7 @@ test_error_new_matrix_Mn
 
    test_assert(Mn == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    sesame_clean();
 
@@ -4127,7 +4283,7 @@ test_new_matrix_T
    }
 
    // Last row.
-   for (int j = 0 ; j <= dim0 ; j++) {
+   for (int j = 0 ; j < dim0 ; j++) {
       test_assert(T->term[(dim0-1)*dim0+j] == NULL);
    }
    
@@ -4147,6 +4303,7 @@ test_error_new_matrix_T
 
    matrix_t *T;
 
+#ifndef VALGRIND
    set_alloc_failure_countdown_to(0);
    redirect_stderr();
    // The error is that 'malloc()' will fail.
@@ -4156,7 +4313,9 @@ test_error_new_matrix_T
 
    test_assert(T == NULL);
    test_assert_stderr("[sesame] error in function `new_n");
+#endif
 
+#ifndef VALGRIND
    set_alloc_failure_countdown_to(1);
    redirect_stderr();
    // The error is that 'malloc()' will fail (later).
@@ -4166,6 +4325,7 @@ test_error_new_matrix_T
 
    test_assert(T == NULL);
    test_assert_stderr("[sesame] error in function `new_z");
+#endif
 
    redirect_stderr();
    // The error is that 'u' is not in (0,1).
@@ -4185,7 +4345,7 @@ test_matrix_mult
 (void)
 {
 
-   size_t k = 50;
+   int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);
@@ -4365,6 +4525,8 @@ test_wgf_dual
    double target_18 = 0.14756591486;
    test_assert(fabs(w->coeff[18]-target_18) < 1e-9);
 
+   free(w);
+
    w = wgf_dual(0.0);
    test_assert_critical(w != NULL);
 
@@ -4379,6 +4541,7 @@ test_wgf_dual
    target_18 = 0.148627374682;
    test_assert(fabs(w->coeff[18]-target_18) < 1e-9);
 
+   free(w);
    sesame_clean();
 
 }
@@ -4645,8 +4808,6 @@ test_wgf_skip
    int success = sesame_set_static_params(17, 19, 0.01);
    test_assert_critical(success);
 
-   sesame_set_epsilon(0); // Important for this test.
-
    w0 = wgf_skip(0);
    w1 = wgf_skip(1);
    w2 = wgf_skip(2);
@@ -4747,7 +4908,7 @@ test_misc_correctness
 //
 {
    
-   size_t k = 35;
+   int k = 35;
    const double u = 0.05; // Needed to compute 'xi' and 'eta'.
 
    int success = sesame_set_static_params(17, k, 0.01);
@@ -5010,7 +5171,7 @@ test_wgf_skip_dual
 
 
    // Accuracy test based on comparison with random sampling.
-   const size_t k = 50;
+   const int k = 50;
 
    int success = sesame_set_static_params(17, k, 0.01);
    test_assert_critical(success);

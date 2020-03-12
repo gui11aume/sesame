@@ -188,8 +188,8 @@ const char internal_error[] =
 // SECTION 4.1. GET AND SET FUNCTIONS  (VISIBLE) //
 
 void
-sesame_set_epsilon(double eps) {
-  EPSILON = eps < 0 ? 0.0 : eps;
+sesame_set_epsilon(double p) {
+  EPSILON = p < 0 ? 0.0 : p;
 }
 void
 sesame_set_mcmcsamplings(long int n) {
@@ -1003,12 +1003,13 @@ in_case_of_failure:
 
 trunc_pol_t*
 new_trunc_pol_H(  // PRIVATE
+    const int r,  // See equation (4)
     const int s,  // See equation (4)
     const int n   // Amount of skipping
 )
 // Convenience function described in equation (4) of reference [1].
 {
-  if (s > n) {
+  if (s > n || r > n) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1016,9 +1017,8 @@ new_trunc_pol_H(  // PRIVATE
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  //const int x = modulo(- s - 1, n + 1);
-  const int x = modulo(n-s, n + 1);
-  const int m = (G - 1 - x) / (n + 1);
+  const int x = modulo(r - s - 1, n + 1);
+  const int m = (G - 1 + r - x) / (n + 1);
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
@@ -1563,13 +1563,13 @@ in_case_of_failure:
 }
 
 matrix_t*
-new_matrix_Mn(    // PRIVATE
+new_matrix_Mn(   // PRIVATE
     const int n  // Amount of skipping
 )
 // SYNOPSIS:
 //   Allocate memory for a new struct of type 'matrix_t' and initialize
 //   the entries (with a mix of NULL and non NULL pointers) to obtain the
-//   transfer matrix Mn(z) of reads without on-target skip-n seed.
+//   transfer matrix S(z) of reads without on-target skip-n seed.
 //
 // RETURN:
 //   A pointer to the new struct of type 'matrix_t' or 'NULL' in case
@@ -1579,35 +1579,27 @@ new_matrix_Mn(    // PRIVATE
 //   Fails if static parameters are not initialized or if there is a
 //   memory error.
 {
-  matrix_t* Mn = NULL;
+  matrix_t* S = NULL;
 
   const int dim = n + 2;
-  Mn = new_null_matrix(dim);
-  handle_memory_error(Mn);
+  S = new_null_matrix(dim);
+  handle_memory_error(S);
 
-  // First row.
-  for (int j = 0; j <= n; j++) {
-    handle_memory_error(Mn->term[0*dim + j] = new_trunc_pol_H(j, n));
-  }
-  handle_memory_error(Mn->term[0*dim + dim - 1] =
-                            new_trunc_pol_E(0));
-
-  // Next n rows.
-  for (int i = 1; i <= n; i++) {
-    handle_memory_error(Mn->term[i*dim + 0] = new_zero_trunc_pol());
-    if (i <= K) {
-      Mn->term[i * dim + 0]->coeff[i] = 1.0;
-      Mn->term[i * dim + 0]->monodeg = i;
+  // First n+1 rows.
+  for (int i = 0; i <= n; i++) {
+    for (int j = 0; j <= n; j++) {
+      handle_memory_error(S->term[i * dim + j] = new_trunc_pol_H(i, j, n));
     }
-    handle_memory_error(Mn->term[i * dim + dim - 1] =
-                            new_trunc_pol_N(i-1));
+    handle_memory_error(S->term[i * dim + dim - 1] =
+                            new_trunc_pol_J(i, n));
   }
+
   // Last row is null (nothing to do).
 
-  return Mn;
+  return S;
 
 in_case_of_failure:
-  destroy_mat(Mn);
+  destroy_mat(S);
   return NULL;
 }
 

@@ -3,7 +3,9 @@ vpath %.c lib
 vpath %.h ..
 vpath %.h lib
 
-P= runtests
+RUN=run_tests_for_coverage
+DBG=run_tests_for_debug
+VAL=run_tests_for_valgrind
 
 OBJECTS= libunittest.so unittests_sesame.o
 SOURCES= sesame.c
@@ -14,9 +16,9 @@ else
 CC= gcc
 endif
 INCLUDES= -I.. -Ilib
+CFLAGS= -std=gnu99 -g -Wall -Wextra $(INCLUDES)
 COVERAGE= -fprofile-arcs -ftest-coverage
 PROFILE= -pg
-CFLAGS= -std=gnu99 -g -Wall -O0 $(INCLUDES) $(COVERAGE) $(PROFILE)
 LDLIBS= -L. -Wl,-rpath,. -lunittest -lz -lm -lpthread
 # Use different flags on Linux and MacOS.
 ifeq ($(shell uname -s),Darwin)
@@ -25,38 +27,47 @@ else
 	libflag= -shared
 endif
 
-$(P): $(OBJECTS) $(SOURCES)
+$(RUN): CFLAGS += -O2 $(COVERAGE) $(PROFILE)
+$(RUN): $(OBJECTS) $(SOURCES) $(OBJECTS)
+	$(CC) $(CFLAGS) runtests.c $(OBJECTS) $(LDLIBS) -o $@
+
+$(DBG): CFLAGS += -O0 -DDEBUG
+$(DBG): $(OBJECTS) $(SOURCES) $(OBJECTS)
+	$(CC) $(CFLAGS) runtests.c $(OBJECTS) $(LDLIBS) -o $@
+
+$(VAL): CFLAGS += -O2 -DVALGRIND
+$(VAL): $(OBJECTS) $(SOURCES) $(OBJECTS)
 	$(CC) $(CFLAGS) runtests.c $(OBJECTS) $(LDLIBS) -o $@
 
 clean:
-	rm -rf $(P) $(OBJECTS) \
+	rm -rf $(RUN) $(DBG) $(VAL) $(OBJECTS) \
 		*.gcda *.gcno *.gcov gmon.out \
 		.inspect.gdb libunittest.so.dSYM runtests.dSYM
 
 libunittest.so: unittest.c
 	$(CC) -fPIC $(libflag) $(CFLAGS) -o libunittest.so lib/unittest.c
 
-test: $(P)
-	./$(P)
+test: $(RUN)
+	./$(RUN)
 
-inspect: $(P)
-	gdb --command=.inspect.gdb --args $(P)
+inspect: $(DBG)
+	gdb --command=.inspect.gdb --args $(DBG)
 
-debug: $(P)
-	gdb --command=.debug.gdb --args $(P)
+debug: $(DBG)
+	gdb --command=.debug.gdb --args $(DBG)
 
-valgrind: $(P)
-	valgrind --leak-check=full --show-leak-kinds=all ./$(P)
+valgrind: $(VAL)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(VAL)
 
-vgdb: $(P)
-	valgrind --vgdb=yes --vgdb-error=0 ./$(P)
+vgdb: $(VAL)
+	valgrind --vgdb=yes --vgdb-error=0 ./$(VAL)
 
-unittests_sesamerob.gcda gmon.out: $(P)
-	-./$(P)
+unittests_sesamerob.gcda gmon.out: $(RUN)
+	-./$(RUN)
 
 cov: unittests_sesame.gcda
 	gcov unittests_sesame.c
 	cat sesame.c.gcov
 
 prof: gmon.out
-	gprof ./$(P) --flat-profile --brief
+	gprof ./$(RUN) --flat-profile --brief

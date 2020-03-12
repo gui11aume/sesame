@@ -24,7 +24,8 @@ static char * STDERR_BUFFER;
 static int    STDERR_OFF;
 static int    TEST_CASE_FAILED;
 
-static int    SHOWALL = 0;
+static int    SHOWALL  = 0;
+static int    NOTHREAD = 0;
 
 
 //     Function definitions     //
@@ -55,7 +56,7 @@ terminate_thread
       update_display_failed();
    }
 
-   fprintf(stderr, "caught SIGTERM (interrupting)\n");
+   fprintf(stderr, "caught signal %d (interrupting)\n", sig);
 
    // Label the test case as failed. //
    TEST_CASE_FAILED = 1;
@@ -250,8 +251,8 @@ fail_non_critical
       fprintf(stderr, "%s:%d: `%s'\n", file, lineno, assertion);
    }
    else if (N_ERROR_MSG == MAX_N_ERROR_MSG + 1) {
-      fprintf(stderr, "more than %d failed assertions...\n",
-            MAX_N_ERROR_MSG);
+      fprintf(stderr, "more than %d failed assertions in %s...\n",
+            MAX_N_ERROR_MSG, function);
    }
 
    // Flush stderr and put it back as it was (ie redirect
@@ -301,6 +302,7 @@ fail_debug_dump
 // When a test fails, write a gdb file with a breakpoint at
 // the line where the failured happened.
 {
+   fprintf(DEBUG_DUMP_FILE, "b %s\n", function);
    fprintf(DEBUG_DUMP_FILE, "b %s:%d\n", file, lineno);
    fflush(DEBUG_DUMP_FILE);
 }
@@ -514,31 +516,35 @@ run_unittest
    mac_specific_initialization();
 #endif
 
-	// Parse command line options.
+   // Parse command line options.
    while(1) {
-      int option_index = 0;
-      static struct option long_options[] = {
-         {"showall", no_argument, &SHOWALL,  1},
-         {0, 0, 0, 0}
-      };
+     int option_index = 0;
+     static struct option long_options[] = {
+       {"showall",  no_argument, &SHOWALL,  1},
+       {"nothread", no_argument, &NOTHREAD,  1},
+       {0, 0, 0, 0}
+     };
 
-      int c = getopt_long(argc, argv, "a",
-            long_options, &option_index);
+     int c = getopt_long(argc, argv, "a",
+         long_options, &option_index);
 
-      // Done parsing named options. //
-      if (c == -1) break;
+     // Done parsing named options. //
+     if (c == -1) break;
 
-      switch (c) {
-      case 0:
+     switch (c) {
+       case 0:
          break;
-		case 'a':
-			SHOWALL = 1;
-			break;
-		default:
-			fprintf(stderr, "cannot parse command line arguments\n");
-			return EXIT_FAILURE;
-		}
-	}
+       case 'a':
+         SHOWALL = 1;
+         break;
+       case 'n':
+         NOTHREAD = 1;
+         break;
+       default:
+         fprintf(stderr, "cannot parse command line arguments\n");
+         return EXIT_FAILURE;
+     }
+   }
 
    // Initialize test. //
    unit_test_init();
@@ -550,26 +556,37 @@ run_unittest
    // Run test cases in sequential order.
    for (int j = 0 ; test_case_list[j] != NULL ; j++) {
 
-      const test_case_t *tests = test_case_list[j];
-      for (int i = 0 ; tests[i].fixture != NULL ; i++) {
+     const test_case_t *tests = test_case_list[j];
+     for (int i = 0 ; tests[i].fixture != NULL ; i++) {
 
-         // Test display. //
-         fprintf(stderr, "%s%*s", tests[i].test_name,
-                  35 - (int) strlen(tests[i].test_name), "");
+       // Test display. //
+       fprintf(stderr, "%s%*s", tests[i].test_name,
+           35 - (int) strlen(tests[i].test_name), "");
 
-         // Run test case in thread. //
+       if (NOTHREAD) {
+         // Run test in main thread. //
+         const test_case_t test_case = tests[i];
+         fixture_t fixture = test_case.fixture;
+         test_case_init();
+         unredirect_stderr();
+         (*fixture)();
+         test_case_clean();
+       }
+       else {
+         // Run test case in separate thread. //
          pthread_create(&tid, NULL, run_test, (void *) &tests[i]);
          pthread_join(tid, NULL);
+       }
 
-         if (TEST_CASE_FAILED) {
-				// Display was updated if test failed. 
-            nbad++;
-         }
-         else {
-            update_display_success();
-         }
+       if (TEST_CASE_FAILED) {
+         // Display was updated if test failed. 
+         nbad++;
+       }
+       else {
+         update_display_success();
+       }
 
-      }
+     }
 
    }
 

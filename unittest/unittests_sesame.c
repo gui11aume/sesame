@@ -432,6 +432,7 @@ test_trunc_pol_update_add
    test_assert_critical(w1 != NULL);
    test_assert_critical(w2 != NULL);
 
+   w1->degree = 1;
    w1->monodeg = 1;
    w1->coeff[1] = 1;
 
@@ -441,38 +442,44 @@ test_trunc_pol_update_add
    double array1[51] = {0,1};
 
    // Check that nothing has changed.
+   test_assert(w1->degree == 1);
    test_assert(w1->monodeg == 1);
    for (int i = 0 ; i <= 50 ; i++) {
       test_assert(w1->coeff[i] == array1[i]);
    }
 
-   // Add another definition of null polynomial.
+   // Add another type of null polynomial.
    trunc_pol_update_add(w1, w2);
 
    // Check that nothing has changed.
+   test_assert(w1->degree == 1);
    test_assert(w1->monodeg == 1);
    for (int i = 0 ; i <= 50 ; i++) {
       test_assert(w1->coeff[i] == array1[i]);
    }
 
    // Add polynomial of same degree.
+   w2->degree = 1;
    w2->monodeg = 1;
    w2->coeff[1] = 2;
    trunc_pol_update_add(w1, w2);
 
    double array2[51] = {0,3};
+   test_assert(w1->degree == 1);
    test_assert(w1->monodeg == 1);
    for (int i = 0 ; i <= 50 ; i++) {
       test_assert(w1->coeff[i] == array2[i]);
    }
 
    // Add non null polynomial of different degree.
+   w2->degree = 2;
    w2->monodeg = 2;
    w2->coeff[2] = 2;
    trunc_pol_update_add(w1, w2);
 
    // 'w1' is now {0,3,0,...} and 'w2' is {0,2,2,0,...}.
    double array3[51] = {0,5,2};
+   test_assert(w1->degree == 2);
    test_assert(w1->monodeg == 51);
    for (int i = 0 ; i <= 50 ; i++) {
       test_assert(w1->coeff[i] == array3[i]);
@@ -501,6 +508,7 @@ test_trunc_pol_mult
    test_assert(trunc_pol_mult(a, NULL, NULL) == a);
 
    test_assert_critical(a != NULL);
+   test_assert(a->degree == 0);
    test_assert(a->monodeg == 0);
    for (int i = 0 ; i <= k ; i++) {
       test_assert(a->coeff[i] == 0);
@@ -513,6 +521,7 @@ test_trunc_pol_mult
 
    // Same remark as above.
    test_assert_critical(a != NULL);
+   test_assert(a->degree == 0);
    test_assert(a->monodeg == 0);
    for (int i = 0 ; i <= k ; i++) {
       test_assert(a->coeff[i] == 0);
@@ -522,6 +531,7 @@ test_trunc_pol_mult
 
    // Same remark as above.
    test_assert_critical(a != NULL);
+   test_assert(a->degree == 0);
    test_assert(a->monodeg == 0);
    for (int i = 0 ; i <= k ; i++) {
       test_assert(a->coeff[i] == 0);
@@ -534,6 +544,7 @@ test_trunc_pol_mult
 
    // Same remark as above.
    test_assert_critical(a != NULL);
+   test_assert(a->degree == 0);
    test_assert(a->monodeg == 0);
    for (int i = 0 ; i <= k ; i++) {
       test_assert(a->coeff[i] == 0);
@@ -541,10 +552,11 @@ test_trunc_pol_mult
 
 
    // Test multiplications between monomials (b = 5z and c = z^2).
-   b->monodeg = 1; b->coeff[1] = 5;
-   c->monodeg = 2; c->coeff[2] = 1;
+   b->degree = 1; b->monodeg = 1; b->coeff[1] = 5;
+   c->degree = 2; c->monodeg = 2; c->coeff[2] = 1;
 
    test_assert(trunc_pol_mult(a, b, c) == a);
+   test_assert(a->degree == 3);
    test_assert(a->monodeg == 3);
    for (int i = 0 ; i <= k ; i++) {
       double target = i == 3 ? 5 : 0;
@@ -553,6 +565,7 @@ test_trunc_pol_mult
 
    // Test symmetry.
    test_assert(trunc_pol_mult(a, c, b) == a);
+   test_assert(a->degree == 3);
    test_assert(a->monodeg == 3);
    for (int i = 0 ; i <= k ; i++) {
       double target = i == 3 ? 5 : 0;
@@ -563,8 +576,8 @@ test_trunc_pol_mult
    // degree yields a zero polynomial).
    bzero(b, KSZ);
    bzero(c, KSZ);
-   b->monodeg = k-1; b->coeff[1] = 0; b->coeff[k-1] = 5;
-   c->monodeg = k-1; c->coeff[2] = 0; c->coeff[k-1] = 1;
+   b->degree = k-1; b->monodeg = k-1; b->coeff[k-1] = 5;
+   c->degree = k-1; c->monodeg = k-1; c->coeff[k-1] = 1;
 
    test_assert(trunc_pol_mult(a, b, c) == NULL);
    test_assert(a != NULL);
@@ -574,10 +587,11 @@ test_trunc_pol_mult
    // polynomial (b = 5z and c = z^2 + 2z^3).
    bzero(b, KSZ);
    bzero(c, KSZ);
-   b->monodeg = 1; b->coeff[1] = 5;
-   c->monodeg = k+1; c->coeff[2] = 1; c->coeff[3] = 2;
+   b->degree = 1; b->monodeg = 1; b->coeff[1] = 5;
+   c->degree = 3; c->monodeg = k+1; c->coeff[2] = 1; c->coeff[3] = 2;
 
    test_assert(trunc_pol_mult(a, b, c) == a);
+   test_assert(a->degree == 4);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -588,6 +602,7 @@ test_trunc_pol_mult
 
    // Test symmetry.
    test_assert(trunc_pol_mult(a, c, b) == a);
+   test_assert(a->degree == 4);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -600,10 +615,11 @@ test_trunc_pol_mult
    // (b = 5z + 3z^2 and c = z^2 + 2z^3).
    bzero(b, KSZ);
    bzero(c, KSZ);
-   b->monodeg = k+1; b->coeff[1] = 5; b->coeff[2] = 3;
-   c->monodeg = k+1; c->coeff[2] = 1; c->coeff[3] = 2;
+   b->degree = 2; b->monodeg = k+1; b->coeff[1] = 5; b->coeff[2] = 3;
+   c->degree = 3; c->monodeg = k+1; c->coeff[2] = 1; c->coeff[3] = 2;
 
    test_assert(trunc_pol_mult(a, b, c) == a);
+   test_assert(a->degree == 5);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -615,6 +631,7 @@ test_trunc_pol_mult
 
    // Test symmetry.
    test_assert(trunc_pol_mult(a, c, b) == a);
+   test_assert(a->degree == 5);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -626,10 +643,11 @@ test_trunc_pol_mult
 
    // Test that higher terms overflow.
    // (b = 5z + 3z^2 + z^49 and c = z^2 + 2z^3 + z^49).
-   b->coeff[k-1] = 1;
-   c->coeff[k-1] = 1;
+   b->degree = k-1; b->coeff[k-1] = 1;
+   c->degree = k-1; c->coeff[k-1] = 1;
 
    test_assert(trunc_pol_mult(a, b, c) == a);
+   test_assert(a->degree == k);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -642,6 +660,7 @@ test_trunc_pol_mult
 
    // Test symmetry.
    test_assert(trunc_pol_mult(a, c, b) == a);
+   test_assert(a->degree == k);
    test_assert(a->monodeg > k);
    for (int i = 0 ; i <= k ; i++) {
       double target = 0;
@@ -1845,6 +1864,19 @@ test_error_new_trunc_pol_R
    redirect_stderr();
    // The error is that 'j' is greater than G-1
    R = new_trunc_pol_R(17,.05);
+   unredirect_stderr();
+
+   test_assert(R == NULL);
+   test_assert_stderr("[sesame] error in function `new_tr");
+
+   sesame_clean();
+
+   // Test small K, large G.
+   success = sesame_set_static_params(50, 20, 0.01);
+
+   redirect_stderr();
+   // The error is that 'j' is greater than K
+   R = new_trunc_pol_R(21,.05);
    unredirect_stderr();
 
    test_assert(R == NULL);
@@ -3300,6 +3332,7 @@ test_new_matrix_M
    // First term (A polynomial).
    A = M->term[0];
    test_assert_critical(A != NULL);
+   test_assert(A->degree == 1);
    test_assert(A->monodeg == 1);
    test_assert(A->coeff[1] == .01);
 
@@ -3308,6 +3341,7 @@ test_new_matrix_M
       B = M->term[j];
       test_assert_critical(B != NULL);
       if (j == 1) {
+         test_assert(B->degree == 1);
          test_assert(B->monodeg == 1);
          test_assert(B->coeff[1] == .99);
       }
@@ -3319,6 +3353,7 @@ test_new_matrix_M
    // Final term of the row (C polynomial).
    C = M->term[17];
    test_assert_critical(C != NULL);
+   test_assert(C->degree == 0);
    test_assert(C->monodeg == 0);
    test_assert(C->coeff[0] == 1.0);
    for (int i = 1 ; i <= k ; i++) {
@@ -3333,6 +3368,7 @@ test_new_matrix_M
       D = M->term[i*dim0];
       test_assert_critical(D != NULL);
       if (i == 1) {
+         test_assert(D->degree == G-i);
          test_assert(D->monodeg > k);
          test_assert(D->coeff[0] == 0);
          for (int j = 1 ; j <= G-1 ; j++) {
@@ -3356,6 +3392,7 @@ test_new_matrix_M
       E = M->term[i*dim0+17];
       test_assert_critical(E != NULL);
       if (i == 1) {
+         test_assert(E->degree == G-1-i);
          test_assert(E->monodeg > k);
          for (int j = 0 ; j <= G-2 ; j++) {
             double target = pow(.99, j);
@@ -3607,6 +3644,7 @@ test_new_matrix_tM0
    R = tM0->term[0];
    test_assert_critical(R != NULL);
    test_assert(R->monodeg > k);
+   test_assert(R->degree == G);
    test_assert(R->coeff[0] == 0);
    for (int i = 1 ; i <= 17 ; i++) {
       double target = pow(a,i-1) * d;
@@ -3620,6 +3658,7 @@ test_new_matrix_tM0
    for (int j = 1 ; j <= 16 ; j++) {
       r = tM0->term[j];
       test_assert_critical(tM0 != NULL);
+      test_assert(r->degree == j);
       test_assert(r->monodeg == j);
       for (int i = 0 ; i <= k ; i++) {
          double target = 0;
@@ -3631,6 +3670,7 @@ test_new_matrix_tM0
    for (int j = 1 ; j <= 16 ; j++) {
       r = tM0->term[j+16];
       test_assert_critical(tM0 != NULL);
+      test_assert(r->degree == j);
       test_assert(r->monodeg == j);
       for (int i = 0 ; i <= k ; i++) {
          double target = 0;
@@ -3640,6 +3680,9 @@ test_new_matrix_tM0
    }
    // Last element is F.
    F = tM0->term[33];
+   test_assert_critical(F != NULL);
+   test_assert(F->degree == G-1);
+   test_assert(F->monodeg > k);
    for (int i = 0 ; i <= 16 ; i++) {
       double target = pow(a,i);
       test_assert(fabs(target-F->coeff[i]) < 1e-9);
@@ -3654,6 +3697,7 @@ test_new_matrix_tM0
       R = tM0->term[j*dim0];
       test_assert_critical(R != NULL);
       if (j == 16) {
+         test_assert(R->degree == 1);
          test_assert(R->monodeg == 1);
          for (int i = 1 ; i <= k ; i++) {
             double target = 0;
@@ -3662,6 +3706,7 @@ test_new_matrix_tM0
          } 
       }
       else {
+         test_assert(R->degree == G-j);
          test_assert(R->monodeg > k);
          test_assert(R->coeff[0] == 0);
          for (int i = 1 ; i <= 17-j ; i++) {
@@ -3680,6 +3725,7 @@ test_new_matrix_tM0
       for (int i = j+1 ; i <= 16 ; i++) {
          r = tM0->term[j*dim0+i];
          test_assert_critical(r != NULL);
+         test_assert(r->degree == i-j);
          test_assert(r->monodeg == i-j);
          for (int l = 0 ; l <= k ; l++) {
             double target = 0;
@@ -3691,6 +3737,7 @@ test_new_matrix_tM0
       for (int i = 1 ; i <= 17-j ; i++) {
          r = tM0->term[j*dim0+16+i];
          test_assert_critical(r != NULL);
+         test_assert(r->degree == i);
          test_assert(r->monodeg == i);
          for (int l = 0 ; l <= k ; l++) {
             double target = 0;
@@ -3702,6 +3749,20 @@ test_new_matrix_tM0
          r = tM0->term[j*dim0+16+i];
          test_assert(r == NULL);
       }
+      // Last element is F.
+      F = tM0->term[j*dim0+33];
+      test_assert(F->degree == G-1-j);
+      if (j == G-1)
+         test_assert(F->monodeg == 0);
+      else
+         test_assert(F->monodeg > k);
+      for (int i = 0 ; i <= G-1-j ; i++) {
+         double target = pow(a,i);
+         test_assert(fabs(target-F->coeff[i]) < 1e-9);
+      }
+      for (int i = G-j ; i <= k ; i++) {
+         test_assert(F->coeff[i] == 0);
+      }
    }
 
    // Next 16 series of rows.
@@ -3710,6 +3771,7 @@ test_new_matrix_tM0
       R = tM0->term[(j+16)*dim0];
       test_assert_critical(R != NULL);
       if (j == 16) {
+         test_assert(R->degree == 1);
          test_assert(R->monodeg == 1);
          for (int i = 1 ; i <= k ; i++) {
             double target = 0;
@@ -3718,6 +3780,7 @@ test_new_matrix_tM0
          } 
       }
       else {
+         test_assert(R->degree == G-j);
          test_assert(R->monodeg > k);
          test_assert(R->coeff[0] == 0);
          for (int i = 1 ; i <= 17-j ; i++) {
@@ -3732,6 +3795,7 @@ test_new_matrix_tM0
       for (int i = 1 ; i <= 17-j ; i++) {
          r = tM0->term[(j+16)*dim0+i];
          test_assert_critical(r != NULL);
+         test_assert(r->degree == i);
          test_assert(r->monodeg == i);
          for (int l = 0 ; l <= k ; l++) {
             double target = 0;
@@ -3751,12 +3815,27 @@ test_new_matrix_tM0
       for (int i = j+1 ; i <= 16 ; i++) {
          r = tM0->term[(j+16)*dim0+i+16];
          test_assert_critical(r != NULL);
+         test_assert(r->degree == i-j);
          test_assert(r->monodeg == i-j);
          for (int l = 0 ; l <= k ; l++) {
             double target = 0;
             if (l == i-j) target = pow(a,i-j-1) * b;
             test_assert(fabs(r->coeff[l]-target) < 1e-9);
          }
+      }
+      // Last element is F.
+      F = tM0->term[j*dim0+33];
+      test_assert(F->degree == G-1-j);
+      if (j == G-1)
+         test_assert(F->monodeg == 0);
+      else
+         test_assert(F->monodeg > k);
+      for (int i = 0 ; i <= G-1-j ; i++) {
+         double target = pow(a,i);
+         test_assert(fabs(target-F->coeff[i]) < 1e-9);
+      }
+      for (int i = G-j ; i <= k ; i++) {
+         test_assert(F->coeff[i] == 0);
       }
    }
 

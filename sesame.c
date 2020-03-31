@@ -1114,7 +1114,7 @@ new_trunc_pol_R(    // PRIVATE
 {
   // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
-  if (j > G - 1 || j > K) {
+  if (j > G - 1 || j > K-1) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1149,7 +1149,7 @@ new_trunc_pol_r_plus(  // PRIVATE
 {
   // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
-  if (i > G - 2) {
+  if (i > G - 2 || i > K-1) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1178,7 +1178,7 @@ new_trunc_pol_r_minus(  // PRIVATE
 {
   // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
-  if (i > G - 2) {
+  if (i > G - 2 || i > K-1) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1690,6 +1690,7 @@ new_matrix_tMn(       // PRIVATE
     handle_memory_error(tMn->term[j * dim + 0] = new_zero_trunc_pol());
     if (j <= K) {
       tMn->term[j * dim + 0]->coeff[j] = 1.0;
+      tMn->term[j * dim + 0]->degree = j;
       tMn->term[j * dim + 0]->monodeg = j;
     }
     // Tail term (tail).
@@ -1786,6 +1787,7 @@ trunc_pol_mult(            // PRIVATE
       return NULL;
     // Otherwise do the multiplication.
     dest->monodeg = a->monodeg + b->monodeg;
+    dest->degree = dest->monodeg;
     dest->coeff[dest->monodeg] =
         a->coeff[a->monodeg] * b->coeff[b->monodeg];
     return dest;
@@ -1793,17 +1795,20 @@ trunc_pol_mult(            // PRIVATE
 
   // The result cannot be a monomial.
   dest->monodeg = K + 1;
+  dest->degree = a->degree + b->degree > K ? K : a->degree + b->degree;
   if (a->monodeg < K + 1) {
     // 'a' is a monomial, do one "row" of multiplications.
-    for (int i = a->monodeg; i <= K; i++)
-      dest->coeff[i] = a->coeff[a->monodeg] * b->coeff[i - a->monodeg];
+    const int imax = dest->degree - a->degree;
+    for (int i = 0; i <= imax; i++)
+      dest->coeff[i+a->monodeg] = a->coeff[a->monodeg] * b->coeff[i];
   } else if (b->monodeg < K + 1) {
     // 'b' is a monomial, do one "row" of multiplications.
-    for (int i = b->monodeg; i <= K; i++)
-      dest->coeff[i] = b->coeff[b->monodeg] * a->coeff[i - b->monodeg];
+    const int imax = dest->degree - b->degree;
+    for (int i = 0; i <= imax; i++)
+      dest->coeff[i+b->monodeg] = b->coeff[b->monodeg] * a->coeff[i];
   } else {
     // Standard convolution product.
-    for (int i = 0; i <= K; i++) {
+    for (int i = 0; i <= dest->degree; i++) {
       dest->coeff[i] = a->coeff[0] * b->coeff[i];
       for (int j = 1; j <= i; j++) {
         dest->coeff[i] += a->coeff[j] * b->coeff[i - j];
@@ -1826,6 +1831,8 @@ trunc_pol_update_add(     // PRIVATE
   if (iszero(a))
     return;
 
+  dest->degree = a->degree > dest->degree ? a->degree : dest->degree;
+
   // Only adding two monomials of same degree returns
   // a monomial (the case of adding a zero polynomial
   // was taken care of above.
@@ -1833,7 +1840,7 @@ trunc_pol_update_add(     // PRIVATE
     dest->monodeg = K + 1;
   }
 
-  for (int i = 0; i <= K; i++) {
+  for (int i = 0; i <= dest->degree; i++) {
     dest->coeff[i] += a->coeff[i];
   }
 }

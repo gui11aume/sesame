@@ -95,7 +95,7 @@
 // The product of two monomials is a monomial. The addition of two
 // monomials is a monomial only if the monomials have the same degree.
 //
-// The null struct of type 'trunc_poly_t' (i.e. with all members set to
+// The null struct of type 'trunc_pol_t' (i.e. with all members set to
 // 0) is a monomial of degree 0 whose coefficient is 0 (it is thus a
 // proper definition of the null polynomial). For addition and
 // multiplication of polynomials, a pointer of 'trunc_pol_t' that is set
@@ -119,6 +119,7 @@ struct matrix_t {
 };
 
 struct trunc_pol_t {
+  int degree;      // Degree of the polynomial.
   int monodeg;     // Monomial (see NOTE 2.1.1).
   double coeff[];  // Terms of the polynomial.
 };
@@ -153,7 +154,7 @@ static int G = 0;       // Minimum size of MEM seeds.
 static int K = 0;       // Max degree of 'trunc_pol_t' (read size).
 static double P = 0.0;  // Probability of a read error.
 
-static int KSZ = 0;  // Memory size of the 'trunc_pol_t' struct.
+static int KSZ = 0;     // Memory size of the 'trunc_pol_t' struct.
 
 // Define 6 generic hash tables to store the probabilities. Hashes 'H'
 // are private; hash 'Y1' is public.
@@ -790,6 +791,7 @@ new_trunc_pol_A(     // PRIVATE
   // only if 'm' and 'n' are zero.
   if (N == 0) {
     if (m == 0 && n == 0) {
+      new->degree = 1;
       new->monodeg = 1;
       new->coeff[1] = P;
     }
@@ -797,6 +799,7 @@ new_trunc_pol_A(     // PRIVATE
   }
 
   // This is not a monomial.
+  new->degree = K;
   new->monodeg = K + 1;
 
   double omega_p_pow_of_q = omega(n, u, N) * P;
@@ -835,16 +838,17 @@ new_trunc_pol_B(     // PRIVATE
   handle_memory_error(new);
 
   if (N == 0) {
-    // Zero if i is not 1.
-    if (i != 1)
-      return new;
-    // Monomial of degree 1 otherwise.
-    new->monodeg = 1;
-    new->coeff[1] = 1 - P;
+    // Monomial of degree 1 if i is 1, zero polynomial otherwise.
+    if (i == 1) {
+      new->degree = 1;
+      new->monodeg = 1;
+      new->coeff[1] = 1 - P;
+    }
     return new;
   }
 
   // This is a monomial.
+  new->degree = i;
   new->monodeg = i;
   new->coeff[i] =
       (pow(xi(i, u), N) - pow(xi(i - 1, u), N)) * pow(1 - P, i);
@@ -873,6 +877,7 @@ new_trunc_pol_C(     // PRIVATE
   // Special case that 'N' is 0. Assuming that 'm' is 0 (see
   // remark above), this is a monomial equal to 1.
   if (N == 0) {
+    new->degree = 0;
     new->monodeg = 0;
     new->coeff[0] = 1.0;
     return new;
@@ -881,6 +886,7 @@ new_trunc_pol_C(     // PRIVATE
   // This is not a monomial (except in the case that
   // 'G' is 1 and 'm' is 1, but this is too rare to justify
   // the extra code (it won't trigger a mistake anyway).
+  new->degree = K;
   new->monodeg = K + 1;
 
   double pow_of_q = 1.0;
@@ -926,6 +932,7 @@ new_trunc_pol_D(     // PRIVATE
 
   // This is a monomial only if j is equal to G-1.
   new->monodeg = j == G - 1 ? 1 : K + 1;
+  new->degree = G - j;
 
   double omega_p_pow_of_q = omega(m, u, N) * P;
   for (int i = 1; i <= G - j; i++) {
@@ -955,6 +962,7 @@ new_trunc_pol_E(  // PRIVATE
 
   // This is a monomial only if j is equal to G-1
   new->monodeg = j == G - 1 ? 0 : K + 1;
+  new->degree = G - j - 1;
 
   double pow_of_q = 1.0;
   for (int i = 0; i <= G - j - 1; i++) {
@@ -985,8 +993,9 @@ new_trunc_pol_F(    // PRIVATE
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  // This is a monomial only when 'i' is 0.
+  // This is a monomial only when 'j' is 0.
   new->monodeg = j == 0 ? 0 : K + 1;
+  new->degree = j;
 
   const double a = (1 - P) * (1 - u);
   double pow_of_a = 1.0;
@@ -1022,6 +1031,10 @@ new_trunc_pol_H(  // PRIVATE
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
+  new->degree = x + 1 + m*(n+1);
+
+  // Check boundaries.
+  new->degree = new->degree > K ? K : new->monodeg;
 
   double pqx_times_the_rest = P * pow(1 - P, x);
   for (int i = 0; i <= m; i++) {
@@ -1052,10 +1065,11 @@ new_trunc_pol_J(  // PRIVATE
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  new->monodeg = K + 1;
+  const int jmax = K > G - 1 + i ? G - 1 + i : K;
+  new->monodeg = jmax == 0 ? 0 : K + 1;
+  new->degree = jmax;
 
   double pow_of_q = 1.0;
-  const int jmax = K > G - 1 + i ? G - 1 + i : K;
   for (int j = 0; j <= jmax; j++) {
     new->coeff[j] = pow_of_q;
     pow_of_q *= 1 - P;
@@ -1073,14 +1087,13 @@ new_trunc_pol_N(  // PRIVATE
 )
 // Convenience function described on page 22 of reference [1].
 {
-  if (i > K)
-    i = K;
+  i = i > K ? K : i;
 
   trunc_pol_t* new = new_zero_trunc_pol();
   handle_memory_error(new);
 
-  if (i > 0)
-    new->monodeg = K + 1;
+  new->monodeg = i > 0 ? K + 1 : 0;
+  new->degree = i;
 
   for (int j = 0; j <= i; j++) {
     new->coeff[j] = 1.0;
@@ -1101,7 +1114,7 @@ new_trunc_pol_R(    // PRIVATE
 {
   // REMINDER: 'u' must be in (0,1), we assume the caller checked.
 
-  if (j > G - 1) {
+  if (j > G - 1 || j > K) {
     warning(internal_error, __func__, __LINE__);
     goto in_case_of_failure;
   }
@@ -1111,6 +1124,7 @@ new_trunc_pol_R(    // PRIVATE
 
   // This is a monomial only when 'i' is 0.
   new->monodeg = j == 0 ? 1 : K + 1;
+  new->degree = j+1;
 
   const double a = (1 - P) * (1 - u);
   const double d = P * (1 - u / 3.0);
@@ -1144,6 +1158,7 @@ new_trunc_pol_r_plus(  // PRIVATE
   handle_memory_error(new);
 
   // This is a monomial.
+  new->degree = i + 1;
   new->monodeg = i + 1;
   new->coeff[i + 1] =
       i == 0 ? P* u / 3.0 : pow((1 - P) * (1 - u), i) * P* u / 3.0;
@@ -1172,6 +1187,7 @@ new_trunc_pol_r_minus(  // PRIVATE
   handle_memory_error(new);
 
   // This is a monomial.
+  new->degree = i + 1;
   new->monodeg = i + 1;
   new->coeff[i + 1] =
       i == 0 ? (1 - P) * u : pow((1 - P) * (1 - u), i) * (1 - P) * u;
@@ -1211,7 +1227,8 @@ new_trunc_pol_ss(   // PRIVATE
   const double a = (1 - P) * (1 - u);
   const double b = (1 - P) * u;
 
-  // This is a monomial when 'm' is zero.
+  // This is a monomial.
+  new->degree = x + j;
   new->monodeg = x + j;
   new->coeff[x + j] = b* pow(a, x + j - 1);
 
@@ -1250,7 +1267,8 @@ new_trunc_pol_tt(   // PRIVATE
   const double a = (1 - P) * (1 - u);
   const double c = P * u / 3;
 
-  // This is a monomial when 'm' is zero.
+  // This is a monomial.
+  new->degree = x + j;
   new->monodeg = x + j;
   new->coeff[x + j] = c* pow(a, x + j - 1);
 
@@ -1293,9 +1311,15 @@ new_trunc_pol_U(    // PRIVATE
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
+  new->degree = x + 1 + m*(n+1);
+
+  // Check boundaries.
+  new->degree = new->degree > K ? K : new->monodeg;
 
   double dax_times_the_rest = d * pow(a, x);
   for (int r = 0; r <= m; r++) {
+    if (x + 1 + r * (n + 1) > K)
+      break;
     new->coeff[x + 1 + r * (n + 1)] = dax_times_the_rest;
     dax_times_the_rest *= pow(a, n + 1);
   }
@@ -1342,9 +1366,15 @@ new_trunc_pol_V(    // PRIVATE
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
+  new->degree = x + 1 + m*(n+1);
+
+  // Check boundaries.
+  new->degree = new->degree > K ? K : new->monodeg;
 
   double dax_times_the_rest = d * pow(a, x);
   for (int r = 0; r <= m; r++) {
+    if (x + 1 + r * (n + 1) > K)
+      break;
     new->coeff[x + 1 + r * (n + 1)] = dax_times_the_rest;
     dax_times_the_rest *= pow(a, n + 1);
   }
@@ -1385,12 +1415,18 @@ new_trunc_pol_W(    // PRIVATE
 
   // This is a monomial when 'm' is zero.
   new->monodeg = m == 0 ? x + 1 : K + 1;
+  new->degree = x + 1 + m*(n+1);
+
+  // Check boundaries.
+  new->degree = new->degree > K ? K : new->monodeg;
 
   const double a = (1 - P) * (1 - u);
   const double d = P * (1 - u / 3.0);
 
   double dax_times_the_rest = d * pow(a, x);
   for (int i = 0; i <= m; i++) {
+    if (x + 1 + i * (n + 1) > K)
+      break;
     new->coeff[x + 1 + i * (n + 1)] = dax_times_the_rest;
     dax_times_the_rest *= pow(a, n + 1);
   }
